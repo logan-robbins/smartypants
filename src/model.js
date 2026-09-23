@@ -21,6 +21,7 @@ export function emptyDesign(floor = DEFAULT_FLOOR) {
     version: 1,
     floor: FLOORS.includes(floor) ? floor : DEFAULT_FLOOR,
     nodes: [],
+    connections: [],
     unmappedFlags: [],
   };
 }
@@ -38,6 +39,7 @@ export function loadDesign(root) {
       ...(parsed.seeded === true ? { seeded: true } : {}),
       ...(typeof parsed.seededAt === "string" ? { seededAt: parsed.seededAt } : {}),
       nodes: parsed.nodes.map(cloneNode),
+      connections: Array.isArray(parsed.connections) ? parsed.connections.map(cloneConnection) : [],
       unmappedFlags: Array.isArray(parsed.unmappedFlags) ? parsed.unmappedFlags.map(cloneFlag) : [],
     };
   } catch {
@@ -59,6 +61,7 @@ function orderDesign(design) {
     version: 1,
     floor: design.floor || DEFAULT_FLOOR,
     nodes: (design.nodes || []).map(orderNode),
+    connections: (design.connections || []).map(orderConnection),
     unmappedFlags: (design.unmappedFlags || []).map(orderFlag),
   };
   if (design.updatedAt) ordered.updatedAt = design.updatedAt;
@@ -69,6 +72,7 @@ function orderDesign(design) {
     ...(design.seeded === true ? { seeded: true } : {}),
     ...(typeof design.seededAt === "string" ? { seededAt: design.seededAt } : {}),
     nodes: ordered.nodes,
+    connections: ordered.connections,
     unmappedFlags: ordered.unmappedFlags,
   };
 }
@@ -88,7 +92,15 @@ export function markSeeded(design, at = new Date().toISOString()) {
   };
 }
 
+function positionOf(node) {
+  const x = Number(node?.x);
+  const y = Number(node?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
 function orderNode(node) {
+  const position = positionOf(node);
   return {
     id: node.id,
     name: node.name,
@@ -96,6 +108,7 @@ function orderNode(node) {
     parentId: node.parentId ?? null,
     what: node.what,
     why: node.why,
+    ...(position || {}),
     flags: (node.flags || []).map(orderFlag),
   };
 }
@@ -105,6 +118,27 @@ function orderFlag(flag) {
     intent: flag.intent,
     difference: flag.difference,
     ...(flag.nodeId ? { nodeId: flag.nodeId } : {}),
+  };
+}
+
+function orderConnection(connection) {
+  return {
+    id: connection.id,
+    fromId: connection.fromId,
+    toId: connection.toId,
+    kind: connection.kind,
+    label: connection.label,
+  };
+}
+
+function cloneConnection(connection) {
+  if (!connection || typeof connection !== "object") return { id: "", fromId: "", toId: "", kind: "data", label: "" };
+  return {
+    id: String(connection.id || ""),
+    fromId: String(connection.fromId || ""),
+    toId: String(connection.toId || ""),
+    kind: String(connection.kind || "data"),
+    label: String(connection.label || ""),
   };
 }
 
@@ -118,6 +152,7 @@ function cloneFlag(flag) {
 }
 
 function cloneNode(node) {
+  const position = positionOf(node);
   return {
     id: String(node.id || ""),
     name: String(node.name || ""),
@@ -125,7 +160,31 @@ function cloneNode(node) {
     parentId: node.parentId ? String(node.parentId) : null,
     what: String(node.what || ""),
     why: String(node.why || ""),
+    ...(position || {}),
     flags: Array.isArray(node.flags) ? node.flags.map(cloneFlag) : [],
+  };
+}
+
+/** Keep a card where the person dragged it. Other cards stay put. */
+export function placeNode(design, id, x, y) {
+  const current = design && Array.isArray(design.nodes) ? design : emptyDesign();
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return { design: current, changed: false };
+  const nodes = current.nodes.map(cloneNode);
+  const node = nodes.find((item) => item.id === id);
+  if (!node) return { design: current, changed: false };
+  if (node.x === x && node.y === y) return { design: current, changed: false };
+  node.x = x;
+  node.y = y;
+  return {
+    design: carryDesignMeta(current, {
+      version: 1,
+      floor: current.floor,
+      ...(current.updatedAt ? { updatedAt: current.updatedAt } : {}),
+      nodes,
+      connections: (current.connections || []).map(cloneConnection),
+      unmappedFlags: (current.unmappedFlags || []).map(cloneFlag),
+    }),
+    changed: true,
   };
 }
 
@@ -191,6 +250,7 @@ function snapshot(design) {
         nodeId: flag.nodeId || null,
       })),
     })),
+    connections: (design.connections || []).map(cloneConnection),
     unmappedFlags: (design.unmappedFlags || []).map((flag) => ({
       intent: flag.intent,
       difference: flag.difference,
@@ -254,11 +314,26 @@ export function applyDesign(design, result, floor = DEFAULT_FLOOR) {
     nodes.push(node);
   }
 
+  const connections = (current.connections || []).map(cloneConnection);
+  const knownIds = new Set(nodes.map((node) => node.id));
+  for (const raw of Array.isArray(result.connections) ? result.connections : []) {
+    const connection = cloneConnection(raw);
+    if (!connection.fromId || !connection.toId || connection.fromId === connection.toId) continue;
+    if (!knownIds.has(connection.fromId) || !knownIds.has(connection.toId)) continue;
+    if (!["data", "control", "dependency"].includes(connection.kind)) continue;
+    if (!connection.label.trim()) continue;
+    connection.id = connection.id || `flow-${slug(`${connection.fromId}-${connection.toId}-${connection.kind}-${connection.label}`)}`;
+    const match = connections.find((item) => item.id === connection.id);
+    if (match) Object.assign(match, connection);
+    else connections.push(connection);
+  }
+
   const next = carryDesignMeta(current, {
     version: 1,
     floor: activeFloor,
     updatedAt: current.updatedAt,
     nodes,
+    connections,
     unmappedFlags: (current.unmappedFlags || []).map(cloneFlag),
   });
   if (snapshot(next) === snapshot(current)) return { design: current, changed: false };
@@ -287,6 +362,10 @@ export function canvasModel(design, floor) {
     floor: active,
     updatedAt: source.updatedAt,
     nodes: [...systems, ...components, ...modules].map(cloneNode),
+    connections: (source.connections || []).map(cloneConnection).filter((connection) =>
+      systems.concat(components, modules).some((node) => node.id === connection.fromId) &&
+      systems.concat(components, modules).some((node) => node.id === connection.toId),
+    ),
     unmappedFlags: (source.unmappedFlags || []).map(cloneFlag),
   };
 }

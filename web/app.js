@@ -78,12 +78,16 @@
 
   function fitCamera(bounds, viewW, viewH) {
     if (!bounds || bounds.w <= 0 || bounds.h <= 0) return { x: 0, y: 0, scale: 1 };
-    var pad = Math.max(48, Math.min(viewW, viewH) * 0.06);
-    var scale = Math.min((viewW - pad * 2) / bounds.w, (viewH - pad * 2) / bounds.h);
-    scale = Math.max(0.35, Math.min(scale, 1.35));
+    var padX = 64;
+    var padTop = 92;
+    var padBottom = 40;
+    var scale = Math.min((viewW - padX * 2) / bounds.w, (viewH - padTop - padBottom) / bounds.h);
+    scale = Math.max(0.45, Math.min(scale, 1.15));
+    var contentMidY = bounds.y + bounds.h / 2;
+    var viewMidY = padTop + (viewH - padTop - padBottom) / 2;
     return {
       x: bounds.x + bounds.w / 2,
-      y: bounds.y + bounds.h / 2,
+      y: contentMidY - (viewMidY - viewH / 2) / scale,
       scale: scale,
     };
   }
@@ -140,31 +144,53 @@
     (scene.edges || []).forEach(function (line) {
       var a = screenOf(camera, viewW, viewH, line.x1, line.y1);
       var b = screenOf(camera, viewW, viewH, line.x2, line.y2);
-      ctx.strokeStyle = "rgba(180, 196, 220, 0.55)";
+      var isFlow = line.kind !== "containment";
+      var colors = { data: "#48d6c0", control: "#f1b95e", dependency: "#a99cff" };
+      ctx.strokeStyle = isFlow ? (colors[line.kind] || colors.data) : "rgba(180, 196, 220, 0.38)";
+      ctx.lineWidth = isFlow ? 2.5 : 1.4;
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
+      if (isFlow && typeof ctx.quadraticCurveTo === "function") {
+        var control = screenOf(camera, viewW, viewH, line.cx, line.cy);
+        ctx.quadraticCurveTo(control.x, control.y, b.x, b.y);
+      } else ctx.lineTo(b.x, b.y);
       ctx.stroke();
-    });
-
-    (scene.nodes || []).forEach(function (node) {
-      var at = screenOf(camera, viewW, viewH, node.x, node.y);
-      var w = node.w * camera.scale;
-      var h = node.h * camera.scale;
-      ctx.fillStyle = node.flagged ? "#2a2116" : "#141b27";
-      ctx.strokeStyle = node.flagged
-        ? "#e3b15a"
-        : node.kind === "system"
-          ? "#8b97ff"
-          : node.kind === "component"
-            ? "#3ecfb0"
-            : node.kind === "unmapped"
-              ? "#e3b15a"
-              : "#9eb0cc";
-      ctx.lineWidth = node.flagged ? 2.5 : 1.5;
-      fillRound(ctx, at.x, at.y, w, h, 18 * camera.scale);
-      ctx.fill();
-      ctx.stroke();
+      if (isFlow) {
+        var prev = screenOf(camera, viewW, viewH, line.cx, line.cy);
+        var angle = Math.atan2(b.y - prev.y, b.x - prev.x);
+        var head = 9;
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y);
+        ctx.lineTo(b.x - head * Math.cos(angle - Math.PI / 6), b.y - head * Math.sin(angle - Math.PI / 6));
+        ctx.lineTo(b.x - head * Math.cos(angle + Math.PI / 6), b.y - head * Math.sin(angle + Math.PI / 6));
+        ctx.closePath();
+        ctx.fill();
+        if (line.label) {
+          var t = 0.5;
+          var labelAt = {
+            x: (1 - t) * (1 - t) * a.x + 2 * (1 - t) * t * prev.x + t * t * b.x,
+            y: (1 - t) * (1 - t) * a.y + 2 * (1 - t) * t * prev.y + t * t * b.y,
+          };
+          var fontSize = Math.max(10, 12 * camera.scale);
+          ctx.font = "600 " + fontSize + "px ui-sans-serif, system-ui, sans-serif";
+          var maxLabelWidth = 180 * camera.scale;
+          var label = line.label;
+          while (label.length > 12 && ctx.measureText(label).width > maxLabelWidth) label = label.slice(0, -1);
+          if (label !== line.label) label = label.slice(0, -1) + "…";
+          var metrics = ctx.measureText(label);
+          var padX = 8 * camera.scale;
+          var labelW = metrics.width + padX * 2;
+          var labelH = fontSize + 8 * camera.scale;
+          ctx.fillStyle = "rgba(12, 18, 28, 0.94)";
+          fillRound(ctx, labelAt.x - labelW / 2, labelAt.y - labelH / 2, labelW, labelH, 7 * camera.scale);
+          ctx.fill();
+          ctx.fillStyle = colors[line.kind] || colors.data;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(label, labelAt.x, labelAt.y);
+        }
+      }
     });
   }
 
@@ -180,6 +206,8 @@
       '<span><i class="swatch system"></i>System</span>' +
       '<span><i class="swatch component"></i>Component</span>' +
       '<span><i class="swatch module"></i>Module</span>' +
+      '<span><i class="swatch flow-data"></i>Data flow</span>' +
+      '<span><i class="swatch flow-control"></i>Control flow</span>' +
       '<span><i class="swatch drift"></i>Drift</span>' +
       "</div>" +
       '<div class="pill">Drag to pan · Scroll to zoom</div>' +
@@ -213,6 +241,7 @@
     var scene = { nodes: [], edges: [], unmapped: [], bounds: { x: 0, y: 0, w: 0, h: 0 } };
     var fitted = false;
     var drag = null;
+    var held = {};
     var lastPayload = "";
 
     root.__smartypants = {
@@ -252,7 +281,41 @@
       applyTransform();
     }
 
+    function toWorld(event) {
+      var size = viewSize();
+      var rect = viewport.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left - size.w / 2) / camera.scale + camera.x,
+        y: (event.clientY - rect.top - size.h / 2) / camera.scale + camera.y,
+      };
+    }
+
+    function hitNode(x, y) {
+      var list = scene.nodes || [];
+      for (var i = list.length - 1; i >= 0; i -= 1) {
+        var node = list[i];
+        if (x >= node.x && x <= node.x + node.w && y >= node.y && y <= node.y + node.h) return node;
+      }
+      return null;
+    }
+
+    function placeCards() {
+      var cards = world.querySelectorAll(".card");
+      for (var i = 0; i < cards.length; i += 1) {
+        var card = cards[i];
+        var node = (scene.nodes || []).find(function (item) { return item.id === card.getAttribute("data-node-id"); });
+        if (!node) continue;
+        card.style.left = node.x + "px";
+        card.style.top = node.y + "px";
+      }
+    }
+
     function render(model) {
+      (model.nodes || []).forEach(function (node) {
+        if (!held[node.id]) return;
+        node.x = held[node.id].x;
+        node.y = held[node.id].y;
+      });
       scene = SmartypantsScene.buildScene(model);
       floorLabel.textContent = model.floor ? "· " + model.floor : "";
       world.innerHTML = scene.nodes.map(cardHtml).join("");
@@ -272,7 +335,7 @@
           return response.text();
         })
         .then(function (text) {
-          if (text === lastPayload) return;
+          if (drag || text === lastPayload) return;
           lastPayload = text;
           render(JSON.parse(text));
         })
@@ -283,26 +346,64 @@
 
     viewport.addEventListener("pointerdown", function (event) {
       if (event.button !== 0) return;
-      drag = {
-        id: event.pointerId,
-        x: event.clientX,
-        y: event.clientY,
-        camX: camera.x,
-        camY: camera.y,
-      };
-      viewport.classList.add("is-panning");
+      var point = toWorld(event);
+      var hit = hitNode(point.x, point.y);
+      if (hit) {
+        drag = {
+          kind: "node",
+          id: event.pointerId,
+          nodeId: hit.id,
+          dx: point.x - hit.x,
+          dy: point.y - hit.y,
+        };
+        viewport.classList.add("is-moving");
+      } else {
+        drag = {
+          kind: "pan",
+          id: event.pointerId,
+          x: event.clientX,
+          y: event.clientY,
+          camX: camera.x,
+          camY: camera.y,
+        };
+        viewport.classList.add("is-panning");
+      }
       viewport.setPointerCapture(event.pointerId);
     });
     viewport.addEventListener("pointermove", function (event) {
-      if (!drag || drag.id !== event.pointerId) return;
+      if (!drag || drag.id !== event.pointerId) {
+        var hover = hitNode(toWorld(event).x, toWorld(event).y);
+        viewport.classList.toggle("is-over-card", Boolean(hover));
+        return;
+      }
+      if (drag.kind === "node") {
+        var point = toWorld(event);
+        var nextX = point.x - drag.dx;
+        var nextY = point.y - drag.dy;
+        SmartypantsScene.moveNode(scene, drag.nodeId, nextX, nextY);
+        held[drag.nodeId] = { x: nextX, y: nextY };
+        placeCards();
+        draw();
+        return;
+      }
       camera.x = drag.camX - (event.clientX - drag.x) / camera.scale;
       camera.y = drag.camY - (event.clientY - drag.y) / camera.scale;
       draw();
     });
     function endDrag(event) {
       if (!drag || (event && drag.id !== event.pointerId)) return;
+      var finished = drag;
       drag = null;
       viewport.classList.remove("is-panning");
+      viewport.classList.remove("is-moving");
+      if (finished.kind !== "node") return;
+      var node = (scene.nodes || []).find(function (item) { return item.id === finished.nodeId; });
+      if (!node || typeof fetch !== "function") return;
+      fetch("/positions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: node.id, x: node.x, y: node.y }),
+      }).catch(function () {});
     }
     viewport.addEventListener("pointerup", endDrag);
     viewport.addEventListener("pointercancel", endDrag);

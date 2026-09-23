@@ -12,6 +12,7 @@ export function buildRequest(input) {
     flavor: "codex",
     sdk: SDK,
     model: input.model ?? input.config?.model ?? null,
+    reasoningEffort: input.reasoningEffort ?? input.config?.reasoningEffort ?? null,
   });
 }
 
@@ -21,6 +22,15 @@ export async function invoke(request) {
     name: "Smartypants",
     instructions: request.instructions,
     model: request.model || "gpt-4.1",
+    outputType: {
+      type: "json_schema",
+      name: "smartypants_result",
+      strict: false,
+      schema: request.schema,
+    },
+    ...(request.reasoningEffort
+      ? { modelSettings: { reasoning: { effort: request.reasoningEffort } } }
+      : {}),
   });
   const result = await run(agent, request.prompt, { maxTurns: 1 });
   return parseModelPayload(result?.finalOutput ?? result);

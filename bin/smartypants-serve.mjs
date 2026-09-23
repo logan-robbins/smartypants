@@ -4,7 +4,7 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { lookupConfig } from "../src/config.js";
-import { canvasModel, loadDesign } from "../src/model.js";
+import { canvasModel, loadDesign, placeNode, saveDesign } from "../src/model.js";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const webRoot = path.join(packageRoot, "web");
@@ -22,6 +22,15 @@ const TYPES = {
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
 };
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", reject);
+  });
+}
 
 function send(res, status, body, type) {
   res.writeHead(status, {
@@ -46,6 +55,17 @@ const server = http.createServer((req, res) => {
     const config = lookupConfig(projectRoot);
     const model = canvasModel(design, config?.depth || design.floor);
     send(res, 200, JSON.stringify(model), "application/json; charset=utf-8");
+    return;
+  }
+  if (req.method === "POST" && url.startsWith("/positions")) {
+    readBody(req)
+      .then((raw) => {
+        const body = JSON.parse(raw || "{}");
+        const moved = placeNode(loadDesign(projectRoot), body.id, Number(body.x), Number(body.y));
+        if (moved.changed) saveDesign(projectRoot, moved.design);
+        send(res, 200, JSON.stringify({ ok: true, changed: moved.changed }), "application/json; charset=utf-8");
+      })
+      .catch(() => send(res, 400, "Bad position", "text/plain; charset=utf-8"));
     return;
   }
   const file = safeFile(url);

@@ -59,6 +59,18 @@ test("the canvas server returns the persisted design and the page", async () => 
     assert.equal(capture.what, "Records a purchase the moment someone pays");
     assert.equal(capture.flags[0].difference, weeklyDrift.difference);
     assert.equal(model.nodes.some((node) => node.kind === "module"), true);
+    const moved = await fetch(`http://127.0.0.1:${port}/positions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "capture", x: 320, y: 640 }),
+    });
+    assert.equal(moved.status, 200);
+    const after = await (await fetch(`http://127.0.0.1:${port}/design.json`)).json();
+    const card = after.nodes.find((node) => node.id === "capture");
+    assert.equal(card.x, 320);
+    assert.equal(card.y, 640);
+    const stayed = after.nodes.find((node) => node.id === "ledger");
+    assert.equal(stayed.x, undefined);
   } finally {
     child.kill("SIGTERM");
   }

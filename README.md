@@ -20,13 +20,17 @@ cp smartypants.config.example.json smartypants.config.json
 {
   "flavor": "claude",
   "depth": "module",
-  "seed": false
+  "seed": false,
+  "model": null,
+  "reasoningEffort": null
 }
 ```
 
 - `flavor`: `claude`, `codex`, `grok`, `muse`, or `pi`. Use one. An unknown value does not call another.
 - `depth`: `module` (default), `component`, or `system`.
 - `seed`: `true` when the project already has code. The first turn draws that tree as the baseline. Later turns store only the delta. `false` when the design starts from the conversation.
+- `model`: optional model ID for the selected flavor.
+- `reasoningEffort`: optional reasoning effort for the Codex flavor: `none`, `low`, `medium`, `high`, `xhigh`, or `max`.
 
 3. Install the SDK for that flavor.
 

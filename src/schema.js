@@ -26,8 +26,24 @@ export const DESIGN_SCHEMA = {
         required: ["id", "name", "kind", "grain", "what", "why"],
       },
     },
+    connections: {
+      type: "array",
+      description: "Directional runtime or information flows between durable architecture nodes; separate from containment by parentId.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          id: { type: "string" },
+          fromId: { type: "string" },
+          toId: { type: "string" },
+          kind: { type: "string", enum: ["data", "control", "dependency"] },
+          label: { type: "string" },
+        },
+        required: ["id", "fromId", "toId", "kind", "label"],
+      },
+    },
   },
-  required: ["isDesign", "nodes"],
+  required: ["isDesign", "nodes", "connections"],
 };
 
 export const DRIFT_SCHEMA = {

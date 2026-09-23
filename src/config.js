@@ -6,6 +6,7 @@ import { FLOORS, normalizeFloor } from "./taxonomy.js";
 export const CONFIG_FILENAME = "smartypants.config.json";
 
 const TIMEOUT_CAP_MS = 20000;
+const REASONING_EFFORTS = ["none", "low", "medium", "high", "xhigh", "max"];
 
 function readTimeout(value) {
   if (value == null || value === "") return null;
@@ -43,6 +44,9 @@ export function readConfig(root) {
   }
   const seed = readSeed(raw.seed);
   if (seed == null) return { present: true, config: null, reason: "invalid-seed" };
+  if (raw.reasoningEffort != null && !REASONING_EFFORTS.includes(raw.reasoningEffort)) {
+    return { present: true, config: null, reason: "invalid-reasoning-effort" };
+  }
   return {
     present: true,
     reason: null,
@@ -51,6 +55,7 @@ export function readConfig(root) {
       depth: normalizeFloor(raw.depth),
       seed,
       model: typeof raw.model === "string" && raw.model.trim() ? raw.model.trim() : null,
+      reasoningEffort: raw.reasoningEffort ?? null,
       timeoutMs: readTimeout(raw.timeoutMs),
       path: file,
     },

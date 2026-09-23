@@ -76,6 +76,31 @@ test("the same result applied twice does not duplicate nodes", () => {
   assert.equal(ids.size, 3);
 });
 
+test("architecture connections round-trip, merge idempotently, and stay on visible nodes", () => {
+  const withFlows = {
+    ...ledgerResult,
+    connections: [
+      { id: "purchase-flow", fromId: "receipts", toId: "capture", kind: "data", label: "purchase record" },
+      { id: "bad-ref", fromId: "receipts", toId: "missing", kind: "data", label: "ignored" },
+    ],
+  };
+  const root = tempProject();
+  const first = applyDesign(emptyDesign(), withFlows, "module");
+  assert.deepEqual(first.design.connections, [withFlows.connections[0]]);
+  saveDesign(root, first.design);
+  const loaded = loadDesign(root);
+  assert.deepEqual(loaded.connections, first.design.connections);
+  const second = applyDesign(loaded, withFlows, "module");
+  assert.equal(second.changed, false);
+  assert.deepEqual(canvasModel(loaded, "component").connections, []);
+  const revised = applyDesign(loaded, {
+    ...withFlows,
+    connections: [{ ...withFlows.connections[0], label: "normalized purchase record" }],
+  }, "module");
+  assert.equal(revised.changed, true);
+  assert.equal(revised.design.connections[0].label, "normalized purchase record");
+});
+
 test("a non-design result leaves the model unchanged", () => {
   const existing = applyDesign(emptyDesign(), ledgerResult, "module").design;
   const next = applyDesign(existing, {

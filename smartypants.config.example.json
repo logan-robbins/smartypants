@@ -1,5 +1,7 @@
 {
   "flavor": "claude",
   "depth": "module",
-  "seed": false
+  "seed": false,
+  "model": null,
+  "reasoningEffort": null
 }

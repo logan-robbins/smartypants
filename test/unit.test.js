@@ -84,9 +84,9 @@ test("omitted depth selects the module floor and each flavor builds only its own
     assert.equal(value.request.sdk.package, PACKAGES[flavor]);
     assert.equal(value.request.sdk.api, APIS[flavor]);
     assert.equal(value.request.floor, "module");
-    assert.equal(value.request.prompt.includes(SYSTEM_DEFINITION), true);
-    assert.equal(value.request.prompt.includes(MODULE_DEFINITION), true);
-    assert.equal(value.request.prompt.includes("Depth floor for this request: module."), true);
+    assert.equal(value.request.instructions.includes(SYSTEM_DEFINITION), true);
+    assert.equal(value.request.instructions.includes(MODULE_DEFINITION), true);
+    assert.equal(value.request.instructions.includes("Depth floor for this request: module."), true);
     for (const other of FLAVOR_IDS) {
       if (other === flavor) continue;
       assert.notEqual(value.request.flavor, other);
@@ -113,7 +113,7 @@ test("a configured depth is the floor on the request, and an invalid depth stays
   );
   assert.equal(value.request.floor, "component");
   assert.equal(value.request.flavor, "muse");
-  assert.equal(value.request.prompt.includes("Depth floor for this request: component."), true);
+  assert.equal(value.request.instructions.includes("Depth floor for this request: component."), true);
 
   const broken = tempProject({ flavor: "claude", depth: "function" });
   const { value: skipped } = await silence(() =>
@@ -125,6 +125,33 @@ test("a configured depth is the floor on the request, and an invalid depth stays
   assert.equal(skipped.adapterInvoked, false);
   assert.equal(skipped.request, null);
   assert.equal(readBytes(designFile(broken)), null);
+});
+
+test("Codex configuration passes model and reasoning effort to its agent request", async () => {
+  const root = tempProject({
+    flavor: "codex",
+    model: "gpt-6-luna",
+    reasoningEffort: "high",
+  });
+  const found = readConfig(root);
+  assert.equal(found.config.model, "gpt-6-luna");
+  assert.equal(found.config.reasoningEffort, "high");
+  const { value } = await silence(() =>
+    handleHook({
+      cwd: root,
+      timeoutMs: 800,
+      stdin: JSON.stringify({ hook_event_name: "UserPromptSubmit", prompt: "Design the ledger" }),
+    }),
+  );
+  assert.equal(value.request.model, "gpt-6-luna");
+  assert.equal(value.request.reasoningEffort, "high");
+});
+
+test("an unsupported reasoning effort leaves Smartypants inert", () => {
+  const root = tempProject({ flavor: "codex", reasoningEffort: "ultra" });
+  const found = readConfig(root);
+  assert.equal(found.config, null);
+  assert.equal(found.reason, "invalid-reasoning-effort");
 });
 
 test("an invalid flavor invokes none and does not fall through", async () => {

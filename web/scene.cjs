@@ -5,16 +5,10 @@
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.SmartypantsScene = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
-  var SIZE = {
-    system: { w: 560, h: 248 },
-    component: { w: 360, h: 256 },
-    module: { w: 300, h: 244 },
-    unmapped: { w: 340, h: 220 },
-  };
-  var GAP_X = 40;
-  var GAP_Y = 96;
-  var TREE_GAP = 88;
-  var FLAG_EXTRA = 92;
+  var WIDTH = { system: 460, component: 280, module: 250, unmapped: 280 };
+  var COLUMN_GAP = 36;
+  var STACK_GAP = 22;
+  var LEVEL_GAP = 48;
 
   function slug(name) {
     return String(name || "")
@@ -30,20 +24,35 @@
     return want === parent.id || slug(want) === parent.id || slug(want) === slug(parent.name);
   }
 
-  function sizeOf(node) {
-    var base = SIZE[node.kind] || SIZE.module;
-    var flags = Array.isArray(node.flags) ? node.flags.length : 0;
-    return { w: base.w, h: base.h + flags * FLAG_EXTRA };
+  function lineCount(text, perLine) {
+    var words = String(text || "").split(/\s+/).filter(Boolean);
+    if (!words.length) return 1;
+    var lines = 1;
+    var length = 0;
+    words.forEach(function (word) {
+      var next = length === 0 ? word.length : length + 1 + word.length;
+      if (length > 0 && next > perLine) {
+        lines += 1;
+        length = word.length;
+      } else {
+        length = next;
+      }
+    });
+    return lines;
   }
 
-  function rowWidth(widths) {
-    if (!widths.length) return 0;
-    var total = 0;
-    for (var i = 0; i < widths.length; i += 1) {
-      total += widths[i];
-      if (i) total += GAP_X;
-    }
-    return total;
+  function sizeOf(node) {
+    var kind = WIDTH[node.kind] ? node.kind : "module";
+    var w = WIDTH[kind];
+    var per = kind === "system" ? 40 : kind === "component" ? 28 : 26;
+    var flags = Array.isArray(node.flags) ? node.flags : [];
+    var h = 16 + 14 + lineCount(node.name, per - 6) * 24;
+    h += 8 + 12 + lineCount(node.what, per) * 17;
+    h += 6 + 12 + lineCount(node.why, per) * 17 + 16;
+    flags.forEach(function (flag) {
+      h += 28 + lineCount(flag.intent, per) * 18 + lineCount(flag.difference, per) * 18 + 12;
+    });
+    return { w: w, h: h };
   }
 
   function labelOf(node) {
@@ -85,69 +94,72 @@
         return node.kind === "component" && sameParent(node, system);
       });
       var compBlocks = comps.map(function (comp) {
-        var mods = nodes.filter(function (node) {
-          return node.kind === "module" && sameParent(node, comp);
-        });
-        var modWidths = mods.map(function (mod) {
-          return sizeOf(mod).w;
-        });
         return {
           node: comp,
-          mods: mods,
-          width: Math.max(sizeOf(comp).w, rowWidth(modWidths)),
+          mods: nodes.filter(function (node) {
+            return node.kind === "module" && sameParent(node, comp);
+          }),
         };
       });
-      var compWidths = compBlocks.map(function (block) {
-        return block.width;
-      });
-      return {
-        node: system,
-        comps: compBlocks,
-        width: Math.max(sizeOf(system).w, rowWidth(compWidths)),
-      };
+      return { node: system, comps: compBlocks };
     });
 
     var placed = [];
-    var edges = [];
+    var columns = [];
+    trees.forEach(function (tree) {
+      tree.comps.forEach(function (block) {
+        var width = sizeOf(block.node).w;
+        block.mods.forEach(function (mod) {
+          width = Math.max(width, sizeOf(mod).w);
+        });
+        columns.push({ tree: tree, block: block, width: width });
+      });
+      if (!tree.comps.length) columns.push({ tree: tree, block: null, width: sizeOf(tree.node).w });
+    });
     var cursor = 0;
-    trees.forEach(function (tree, index) {
-      if (index) cursor += TREE_GAP;
-      var sysSize = sizeOf(tree.node);
-      var sysX = cursor + (tree.width - sysSize.w) / 2;
+    var systemBottom = 0;
+    trees.forEach(function (tree) {
+      var owned = columns.filter(function (column) { return column.tree === tree; });
+      var span = 0;
+      owned.forEach(function (column, index) {
+        if (index) span += COLUMN_GAP;
+        span += column.width;
+      });
+      var sys = sizeOf(tree.node);
+      var sysX = cursor + Math.max(0, (span - sys.w) / 2);
       var systemCard = place(tree.node, sysX, 0);
       placed.push(systemCard);
-
-      var compRow = rowWidth(
-        tree.comps.map(function (block) {
-          return block.width;
-        }),
-      );
-      var blockX = cursor + (tree.width - compRow) / 2;
-      var compY = systemCard.h + GAP_Y;
-      tree.comps.forEach(function (block) {
-        var compSize = sizeOf(block.node);
-        var compX = blockX + (block.width - compSize.w) / 2;
-        var compCard = place(block.node, compX, compY);
-        placed.push(compCard);
-        edges.push(edge(systemCard, compCard));
-        var modWidths = block.mods.map(function (mod) {
-          return sizeOf(mod).w;
-        });
-        var modRow = rowWidth(modWidths);
-        var modX = blockX + (block.width - modRow) / 2;
-        var modY = compCard.y + compCard.h + GAP_Y;
-        block.mods.forEach(function (mod) {
-          var modCard = place(mod, modX, modY);
-          placed.push(modCard);
-          edges.push(edge(compCard, modCard));
-          modX += modCard.w + GAP_X;
-        });
-        blockX += block.width + GAP_X;
+      systemBottom = Math.max(systemBottom, systemCard.h);
+      cursor += span + COLUMN_GAP;
+    });
+    cursor = 0;
+    columns.forEach(function (column) {
+      if (!column.block) {
+        cursor += column.width + COLUMN_GAP;
+        return;
+      }
+      var systemCard = placed.find(function (node) { return node.id === column.tree.node.id; });
+      var compSize = sizeOf(column.block.node);
+      var compX = cursor + (column.width - compSize.w) / 2;
+      var compY = systemBottom + LEVEL_GAP;
+      var compCard = place(column.block.node, compX, compY);
+      placed.push(compCard);
+      var previous = compCard;
+      column.block.mods.forEach(function (mod) {
+        var modSize = sizeOf(mod);
+        var modX = cursor + (column.width - modSize.w) / 2;
+        var modY = previous.y + previous.h + STACK_GAP;
+        var modCard = place(mod, modX, modY);
+        placed.push(modCard);
+        previous = modCard;
       });
-      cursor += tree.width;
+      cursor += column.width + COLUMN_GAP;
     });
 
-    var bounds = boundsOf(placed);
+    applySavedPositions(placed, nodes);
+    var connections = design && Array.isArray(design.connections) ? design.connections : [];
+    var edges = containmentEdges(placed).concat(flowEdges(placed, connections));
+    var bounds = expandForFlows(boundsOf(placed), edges);
     var unmappedSrc = design && Array.isArray(design.unmappedFlags) ? design.unmappedFlags : [];
     var unmapped = unmappedSrc.map(function (flag, index) {
       var node = {
@@ -160,18 +172,83 @@
         parentId: null,
       };
       var x = (bounds.w ? bounds.x + bounds.w + 80 : 0);
-      var y = (bounds.w || bounds.h ? bounds.y : 0) + index * (SIZE.unmapped.h + 32);
+      var y = (bounds.w || bounds.h ? bounds.y : 0) + index * (sizeOf(node).h + 32);
       return place(node, x, y);
     });
     placed = placed.concat(unmapped);
-    bounds = boundsOf(placed);
+    bounds = expandForFlows(boundsOf(placed), edges);
 
-    return { nodes: placed, edges: edges, unmapped: unmapped, bounds: bounds };
+    return { nodes: placed, edges: edges, connections: connections, unmapped: unmapped, bounds: bounds };
   }
 
-  function edge(parent, child) {
+  function applySavedPositions(placed, sources) {
+    placed.forEach(function (card) {
+      var source = sources.find(function (node) { return node.id === card.id; });
+      if (!source || !isFinite(source.x) || !isFinite(source.y)) return;
+      card.x = source.x;
+      card.y = source.y;
+    });
+  }
+
+  function containmentEdges(placed) {
+    var list = [];
+    placed.forEach(function (child) {
+      if (!child.parentId) return;
+      var parent = placed.find(function (node) { return node.id === child.parentId; });
+      if (!parent) return;
+      list.push(edge(parent, child));
+    });
+    return list;
+  }
+
+  function flowEdges(placed, connections) {
+    var list = [];
+    (connections || []).forEach(function (connection) {
+      var from = placed.find(function (node) { return node.id === connection.fromId; });
+      var to = placed.find(function (node) { return node.id === connection.toId; });
+      if (!from || !to) return;
+      var startX = from.x + from.w / 2;
+      var startY = from.y + from.h / 2;
+      var endX = to.x + to.w / 2;
+      var endY = to.y + to.h / 2;
+      var dx = endX - startX;
+      var dy = endY - startY;
+      var horizontal = Math.abs(dx) > Math.abs(dy);
+      var x1 = horizontal ? (dx >= 0 ? from.x + from.w : from.x) : startX;
+      var y1 = horizontal ? startY : (dy >= 0 ? from.y + from.h : from.y);
+      var x2 = horizontal ? (dx >= 0 ? to.x : to.x + to.w) : endX;
+      var y2 = horizontal ? endY : (dy >= 0 ? to.y : to.y + to.h);
+      var bend = Math.max(48, Math.min(140, Math.abs(horizontal ? x2 - x1 : y2 - y1) * 0.32));
+      list.push({
+        from: from.id,
+        to: to.id,
+        kind: connection.kind || "data",
+        label: connection.label || "",
+        x1: x1,
+        y1: y1,
+        cx: horizontal ? (x1 + x2) / 2 : (dx >= 0 ? Math.max(x1, x2) + bend : Math.min(x1, x2) - bend),
+        cy: horizontal ? (dy >= 0 ? Math.max(y1, y2) + bend : Math.min(y1, y2) - bend) : (y1 + y2) / 2,
+        x2: x2,
+        y2: y2,
+      });
+    });
+    return list;
+  }
+
+  function moveNode(scene, id, x, y) {
+    if (!scene || !isFinite(x) || !isFinite(y)) return scene;
+    var node = (scene.nodes || []).find(function (item) { return item.id === id; });
+    if (!node) return scene;
+    node.x = x;
+    node.y = y;
+    scene.edges = containmentEdges(scene.nodes).concat(flowEdges(scene.nodes, scene.connections || []));
+    scene.bounds = expandForFlows(boundsOf(scene.nodes), scene.edges);
+    return scene;
+  }
+
+  function edge(parent, child, fromId) {
     return {
-      from: parent.id,
+      from: fromId || parent.id,
       to: child.id,
       kind: "containment",
       x1: parent.x + parent.w / 2,
@@ -196,5 +273,22 @@
     return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
   }
 
-  return { buildScene: buildScene };
+  function expandForFlows(bounds, edges) {
+    var flows = edges.filter(function (item) { return item.kind !== "containment"; });
+    if (!flows.length || !bounds.w || !bounds.h) return bounds;
+    var pad = 72;
+    var minX = bounds.x;
+    var minY = bounds.y;
+    var maxX = bounds.x + bounds.w;
+    var maxY = bounds.y + bounds.h;
+    flows.forEach(function (item) {
+      minX = Math.min(minX, item.x1, item.x2, item.cx);
+      minY = Math.min(minY, item.y1, item.y2, item.cy);
+      maxX = Math.max(maxX, item.x1, item.x2, item.cx);
+      maxY = Math.max(maxY, item.y1, item.y2, item.cy);
+    });
+    return { x: minX - pad, y: minY - pad, w: maxX - minX + pad * 2, h: maxY - minY + pad * 2 };
+  }
+
+  return { buildScene: buildScene, moveNode: moveNode };
 });
