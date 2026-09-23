@@ -1,0 +1,206 @@
+:root {
+  color-scheme: dark;
+  --ink: #0c1016;
+  --ink-2: #141b26;
+  --paper: #e8eef8;
+  --muted: #a9b6c9;
+  --system: #8b97ff;
+  --component: #3ecfb0;
+  --module: #9eb0cc;
+  --drift: #e3b15a;
+  --drift-ink: #2a2116;
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  min-width: 1280px;
+  background: var(--ink);
+  color: var(--paper);
+  overflow: hidden;
+}
+
+#boot, .serve-help {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  text-align: center;
+}
+
+.serve-help {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.serve-help h1, #boot {
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  font-weight: 500;
+  font-size: 2rem;
+  letter-spacing: -0.03em;
+}
+
+.serve-help p { color: var(--muted); line-height: 1.5; }
+
+.serve-help code, .empty code {
+  font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  color: var(--paper);
+  background: #1c2433;
+  padding: 0.1em 0.4em;
+  border-radius: 6px;
+}
+
+#viewport {
+  position: fixed;
+  inset: 0;
+  touch-action: none;
+  cursor: grab;
+}
+
+#viewport.is-panning { cursor: grabbing; }
+
+#surface {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.card {
+  position: absolute;
+  border-radius: 18px;
+  padding: 16px 18px 14px;
+  background: #121a27;
+  border: 1px solid rgba(158, 176, 204, 0.45);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+
+.card.kind-system { border-color: var(--system); }
+.card.kind-component { border-color: var(--component); }
+.card.kind-module { border-color: var(--module); }
+.card.is-drift {
+  background: #2a2116;
+  border-color: var(--drift);
+  box-shadow: 0 0 0 1px rgba(227, 177, 90, 0.35), 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.kind-system .eyebrow { color: var(--system); }
+.kind-component .eyebrow { color: var(--component); }
+.kind-module .eyebrow { color: var(--module); }
+.is-drift .eyebrow.drift-label { color: var(--drift); }
+
+.card h2 {
+  margin: 0 0 10px;
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.field, .flag p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--paper);
+}
+
+.field span, .flag span {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.flag {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(227, 177, 90, 0.45);
+}
+
+#hud {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.pill {
+  background: rgba(12, 16, 22, 0.78);
+  border: 1px solid rgba(232, 238, 248, 0.12);
+  border-radius: 999px;
+  padding: 8px 14px;
+  backdrop-filter: blur(10px);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pill strong {
+  color: var(--paper);
+  font-weight: 600;
+}
+
+.legend { display: flex; gap: 10px; align-items: center; }
+.swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 99px;
+  display: inline-block;
+  margin-right: 5px;
+}
+.swatch.system { background: var(--system); }
+.swatch.component { background: var(--component); }
+.swatch.module { background: var(--module); }
+.swatch.drift { background: var(--drift); }
+
+.empty {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 32px;
+  pointer-events: none;
+}
+
+.empty[hidden] {
+  display: none;
+}
+
+.empty h2 {
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  font-weight: 500;
+  font-size: 2rem;
+  margin: 0 0 8px;
+}
+
+.empty p { color: var(--muted); max-width: 460px; line-height: 1.5; }

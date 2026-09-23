@@ -1,0 +1,163 @@
+{
+  "version": 1,
+  "floor": "module",
+  "updatedAt": "2026-09-23T17:41:59.444Z",
+  "seeded": true,
+  "seededAt": "2026-09-23T17:41:59.447Z",
+  "nodes": [
+    {
+      "id": "smartypants",
+      "name": "Smartypants",
+      "kind": "system",
+      "parentId": null,
+      "what": "Shows the system an agent is designing, and where the code that landed left that request",
+      "why": "Engineers need a picture of what the agent is building while it is still coding",
+      "flags": []
+    },
+    {
+      "id": "pipeline",
+      "name": "Hook pipeline",
+      "kind": "component",
+      "parentId": "smartypants",
+      "what": "Watches each prompt and edit, and updates the diagram without stopping the turn",
+      "why": "The picture has to move with the agent, and the agent has to keep working if the picture fails",
+      "flags": []
+    },
+    {
+      "id": "model",
+      "name": "Design model",
+      "kind": "component",
+      "parentId": "smartypants",
+      "what": "Stores the system, its components, and their modules, each with a what and a why",
+      "why": "The hooks and the canvas need one shared picture, not a new guess on every turn",
+      "flags": []
+    },
+    {
+      "id": "flavors",
+      "name": "Flavor adapters",
+      "kind": "component",
+      "parentId": "smartypants",
+      "what": "Sends the floor and the ladder to exactly one of Claude, Codex, Grok, Muse, or Pi",
+      "why": "The config picks the builder, and a bad flavor must not silently call another",
+      "flags": []
+    },
+    {
+      "id": "memory",
+      "name": "Memory ledger",
+      "kind": "component",
+      "parentId": "smartypants",
+      "what": "Remembers the baseline and later deltas as short gists",
+      "why": "A hook added mid-project needs to track what changed without keeping transcripts",
+      "flags": []
+    },
+    {
+      "id": "canvas",
+      "name": "Canvas",
+      "kind": "component",
+      "parentId": "smartypants",
+      "what": "Draws the design on a desktop surface you can pan and zoom",
+      "why": "The diagram is how an engineer sees what the agent is building",
+      "flags": []
+    },
+    {
+      "id": "hosts",
+      "name": "Host normalizer",
+      "kind": "module",
+      "parentId": "pipeline",
+      "what": "Turns Claude, Codex, Grok, Muse, and Pi events into one user message or one delivered edit",
+      "why": "Five hosts should feed one pipeline instead of five different diagrams",
+      "flags": []
+    },
+    {
+      "id": "gate",
+      "name": "Config gate",
+      "kind": "module",
+      "parentId": "pipeline",
+      "what": "Reads smartypants.config.json and stays quiet when that file is missing or invalid",
+      "why": "The hook should do nothing until someone turns it on in that project",
+      "flags": []
+    },
+    {
+      "id": "guard",
+      "name": "Re-entry guard",
+      "kind": "module",
+      "parentId": "pipeline",
+      "what": "Returns immediately while a builder turn is already running",
+      "why": "Muse and Pi would otherwise start another builder from the hook they just fired",
+      "flags": []
+    },
+    {
+      "id": "floor",
+      "name": "Depth floor",
+      "kind": "module",
+      "parentId": "model",
+      "what": "Keeps the diagram at system, or system and components, or system through module",
+      "why": "The picture should stop at the level the config asked for, and module is the usual stop",
+      "flags": []
+    },
+    {
+      "id": "drift",
+      "name": "Drift flags",
+      "kind": "module",
+      "parentId": "model",
+      "what": "Records the intent and how the delivered code differs, once for each divergence",
+      "why": "An engineer needs to see where the build left the request, including code that fits no node",
+      "flags": []
+    },
+    {
+      "id": "request",
+      "name": "Request builder",
+      "kind": "module",
+      "parentId": "flavors",
+      "what": "Puts the floor, the ladder, and the ledger gists into that one flavor's request",
+      "why": "The builder has to use this project's depth, not invent files and functions as nodes",
+      "flags": []
+    },
+    {
+      "id": "gists",
+      "name": "Gist",
+      "kind": "module",
+      "parentId": "memory",
+      "what": "Keeps the useful words from a turn and drops the filler",
+      "why": "The memory has to stay about the project, not the chatter around it",
+      "flags": []
+    },
+    {
+      "id": "compact",
+      "name": "Compaction",
+      "kind": "module",
+      "parentId": "memory",
+      "what": "Folds older gists once the ledger passes about ten thousand tokens",
+      "why": "The history sent on the next turn has to stay small",
+      "flags": []
+    },
+    {
+      "id": "sketch",
+      "name": "Seed sketch",
+      "kind": "module",
+      "parentId": "memory",
+      "what": "Names the files already in the tree so the first diagram matches the project",
+      "why": "A baseline has to come from the code that is there before later turns track deltas",
+      "flags": []
+    },
+    {
+      "id": "layout",
+      "name": "Scene layout",
+      "kind": "module",
+      "parentId": "canvas",
+      "what": "Places each module inside its component and each component inside the system",
+      "why": "The picture has to show containment, not a flat list of names",
+      "flags": []
+    },
+    {
+      "id": "camera",
+      "name": "Pan and zoom",
+      "kind": "module",
+      "parentId": "canvas",
+      "what": "Lets you drag and scroll across the desktop surface",
+      "why": "A system diagram grows past one screen",
+      "flags": []
+    }
+  ],
+  "unmappedFlags": []
+}

@@ -1,0 +1,5 @@
+{
+  "flavor": "claude",
+  "depth": "module",
+  "seed": false
+}

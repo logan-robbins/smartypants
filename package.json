@@ -1,0 +1,19 @@
+{
+  "name": "smartypants",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hook and infinite-canvas diagram of a system being designed, from system to component to module, with intent-drift flags.",
+  "bin": {
+    "smartypants-hook": "./bin/smartypants-hook.mjs",
+    "smartypants-serve": "./bin/smartypants-serve.mjs"
+  },
+  "scripts": {
+    "test": "node --test",
+    "hook": "node bin/smartypants-hook.mjs",
+    "serve": "node bin/smartypants-serve.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
