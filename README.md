@@ -59,7 +59,9 @@ files while the canvas server is running:
 
 Use `"host": "codex"` and the Codex home directory for a Codex instance. For a
 single session, use `"session": "/absolute/path/to/session.jsonl"` in place of
-`home`. A home follows new session files after context resets. Existing
+`home`. `watch.host` selects the transcript format; `flavor` selects the model
+Smartypants uses to update the diagram. A home follows new session files after
+context resets. Existing
 transcript history is skipped the first time; subsequent server starts resume from
 offsets in `.smartypants/watch-state.json`. The watched instance needs no
 Smartypants hook, and the watch state stores offsets only, never transcript text.

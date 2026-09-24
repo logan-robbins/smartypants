@@ -23,7 +23,8 @@ When the user wants to document a separate Claude Code or Codex instance, add `w
 to the working project's `smartypants.config.json`: `{"host":"claude","home":"/absolute/claude-home"}`
 or `{"host":"codex","home":"/absolute/codex-home"}`. The canvas server reads new user
 turns from that home's session transcripts. To watch one session, use an absolute
-`session` JSONL path in place of `home`. Restart the server after changing `watch`. The
+`session` JSONL path in place of `home`. `watch.host` is the transcript format;
+`flavor` chooses the diagram builder. Restart the server after changing `watch`. The
 watched instance needs no Smartypants hook or plugin setting.
 
 For an hx Partner, the Claude home is `<hx-instance>/run/partner/home`. Tell the Partner
