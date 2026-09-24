@@ -76,6 +76,32 @@ npx smartypants reset
 
 Open http://127.0.0.1:4173. Drag a card to move that card. Drag empty space to pan. Scroll to zoom.
 
+## Skill
+
+The skill that runs those steps is in this repository. Add the marketplace, then install the plugin.
+
+Claude Code:
+
+```
+/plugin marketplace add logan-robbins/smartypants
+/plugin install smartypants@smartypants
+```
+
+Codex:
+
+```sh
+codex plugin marketplace add logan-robbins/smartypants
+```
+
+Grok Build:
+
+```sh
+grok plugin marketplace add logan-robbins/smartypants
+grok plugin install smartypants --trust
+```
+
+Cursor reads the plugin in `plugins/smartypants`. The public Cursor listing uses this same repository.
+
 Teal arrows are data. Amber arrows are control. Gray lines show what sits inside what.
 
 - Hosts send a prompt or an edit to the chosen model.

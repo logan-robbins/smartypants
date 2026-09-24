@@ -1,0 +1,20 @@
+{
+  "name": "smartypants",
+  "interface": {
+    "displayName": "Smartypants"
+  },
+  "plugins": [
+    {
+      "name": "smartypants",
+      "source": {
+        "source": "local",
+        "path": "./plugins/smartypants"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "smartypants",
+  "description": "System diagram for a project an agent is building.",
+  "owner": {
+    "name": "Logan Robbins",
+    "url": "https://github.com/logan-robbins"
+  },
+  "plugins": [
+    {
+      "name": "smartypants",
+      "source": "./plugins/smartypants",
+      "description": "Keep a system, component, and module diagram while an agent codes, and flag where the code leaves the request.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Logan Robbins",
+        "url": "https://github.com/logan-robbins"
+      },
+      "homepage": "https://github.com/logan-robbins/smartypants",
+      "repository": "https://github.com/logan-robbins/smartypants",
+      "keywords": ["diagram", "architecture", "intent", "hooks"]
+    }
+  ]
+}
