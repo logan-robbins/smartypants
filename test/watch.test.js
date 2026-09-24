@@ -19,7 +19,7 @@ test("watch config selects an absolute Claude or Codex home", () => {
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test("Claude watcher follows new human and peer turns without tool or system payloads", () => {
+test("Claude watcher follows new human and peer turns without tool or system payloads", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "smartypants-watch-"));
   const home = path.join(root, "claude-home");
   const projectDir = path.join(home, "projects", "-project");
@@ -38,14 +38,14 @@ test("Claude watcher follows new human and peer turns without tool or system pay
       line({ type: "user", isMeta: true, message: { content: "system injected text" } }),
       line({ type: "user", message: { content: [{ type: "tool_result", content: "file data" }] } }),
     ].join(""));
-    watcher.scan();
+    await watcher.scan();
     assert.deepEqual(received, ["draw a short link", "track clicks"]);
     watcher.close();
     watcher = startWatcher(root, { host: "claude", home }, (text) => received.push(text));
-    watcher.scan();
+    await watcher.scan();
     assert.deepEqual(received, ["draw a short link", "track clicks"]);
     fs.appendFileSync(transcript, line({ type: "user", message: { content: "new turn" } }));
-    watcher.scan();
+    await watcher.scan();
     assert.equal(received.at(-1), "new turn");
   } finally {
     watcher?.close();
@@ -53,7 +53,7 @@ test("Claude watcher follows new human and peer turns without tool or system pay
   }
 });
 
-test("Codex watcher reads user_message events", () => {
+test("Codex watcher reads user_message events", async () => {
   assert.equal(textFromRecord("codex", { type: "event_msg", payload: { type: "user_message", message: "build a redirect" } }), "build a redirect");
   assert.equal(textFromRecord("codex", { type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "build a redirect" }] } }), "build a redirect");
   assert.equal(textFromRecord("codex", { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "reply" }] } }), null);
@@ -68,8 +68,32 @@ test("Codex watcher reads user_message events", () => {
       { timestamp: "2026-09-24T10:00:00.000Z", type: "event_msg", payload: { type: "user_message", message: "build a redirect" } },
       { timestamp: "2026-09-24T10:00:00.100Z", type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "build a redirect" }] } },
     ].map((record) => `${JSON.stringify(record)}\n`).join(""));
-    watcher.scan();
+    await watcher.scan();
     assert.deepEqual(received, ["build a redirect"]);
+  } finally {
+    watcher.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a failed watched prompt is retried before advancing the saved position", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "smartypants-watch-retry-"));
+  const home = path.join(root, "claude-home");
+  const sessions = path.join(home, "projects", "-project");
+  fs.mkdirSync(sessions, { recursive: true });
+  const transcript = path.join(sessions, "session.jsonl");
+  fs.writeFileSync(transcript, "");
+  const seen = [];
+  let fail = true;
+  const watcher = startWatcher(root, { host: "claude", home }, async (text) => {
+    if (fail) { fail = false; throw new Error("builder stopped"); }
+    seen.push(text);
+  });
+  try {
+    fs.appendFileSync(transcript, `${JSON.stringify({ type: "user", message: { content: "new intent" } })}\n`);
+    await assert.rejects(watcher.scan(), /builder stopped/);
+    await watcher.scan();
+    assert.deepEqual(seen, ["new intent"]);
   } finally {
     watcher.close();
     fs.rmSync(root, { recursive: true, force: true });

@@ -56,16 +56,21 @@ export function startWatcher(projectRoot, watch, onPrompt, options = {}) {
   const source = `${watch.host}:${watch.home || watch.session}`;
   const stateFile = path.join(projectRoot, ".smartypants", "watch-state.json");
   let saved = {};
+  let validState = false;
   try {
     const state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
-    if (state.source === source && state.offsets && typeof state.offsets === "object") saved = state.offsets;
+    if (state.source === source && state.offsets && typeof state.offsets === "object") {
+      saved = state.offsets;
+      validState = true;
+    }
   } catch { /* First run begins with new prompts. */ }
   const offsets = new Map(Object.entries(saved));
   const lastUser = new Map();
+  let lastSaved = validState ? JSON.stringify(saved) : null;
   let initialized = Object.keys(saved).length > 0;
   let scanning = false;
 
-  function scan() {
+  async function scan() {
     if (scanning) return;
     scanning = true;
     try {
@@ -91,30 +96,35 @@ export function startWatcher(projectRoot, watch, onPrompt, options = {}) {
         if (lastNewline < 0) continue;
         for (const line of chunk.slice(0, lastNewline).split("\n")) {
           if (!line) continue;
-          try {
-            const record = JSON.parse(line);
-            const text = textFromRecord(watch.host, record);
-            if (text) {
-              const last = lastUser.get(file);
-              const at = Date.parse(record.timestamp || "");
-              const duplicate = watch.host === "codex" && last?.text === text &&
-                last.type !== record.type && Number.isFinite(at) &&
-                Math.abs(at - last.at) < 2000;
-              lastUser.set(file, { text, type: record.type, at });
-              if (!duplicate) onPrompt(text);
-            }
-          } catch { /* Ignore partial or malformed transcript records. */ }
+          let record;
+          try { record = JSON.parse(line); }
+          catch { continue; }
+          const text = textFromRecord(watch.host, record);
+          if (!text) continue;
+          const last = lastUser.get(file);
+          const at = Date.parse(record.timestamp || "");
+          const duplicate = watch.host === "codex" && last?.text === text &&
+            last.type !== record.type && Number.isFinite(at) &&
+            Math.abs(at - last.at) < 2000;
+          lastUser.set(file, { text, type: record.type, at });
+          if (!duplicate) await onPrompt(text);
         }
         offsets.set(file, offset + Buffer.byteLength(chunk.slice(0, lastNewline + 1)));
       }
       initialized = true;
-      fs.mkdirSync(path.dirname(stateFile), { recursive: true });
-      fs.writeFileSync(stateFile, `${JSON.stringify({ source, offsets: Object.fromEntries(offsets) })}\n`);
+      const next = JSON.stringify(Object.fromEntries(offsets));
+      if (next !== lastSaved) {
+        fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+        fs.writeFileSync(stateFile, `${JSON.stringify({ source, offsets: JSON.parse(next) })}\n`);
+        lastSaved = next;
+      }
     } finally { scanning = false; }
   }
 
-  scan();
-  const timer = setInterval(scan, options.intervalMs ?? 2000);
+  void scan().catch((error) => console.error(`smartypants watch: ${error.message}`));
+  const timer = setInterval(() => {
+    void scan().catch((error) => console.error(`smartypants watch: ${error.message}`));
+  }, options.intervalMs ?? 2000);
   timer.unref?.();
   return { scan, close: () => clearInterval(timer) };
 }

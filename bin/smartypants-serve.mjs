@@ -84,11 +84,7 @@ server.listen(port, host, () => {
   console.log(`Design root: ${projectRoot}`);
   const watch = lookupConfig(projectRoot)?.watch;
   if (watch) {
-    let queue = Promise.resolve();
-    startWatcher(projectRoot, watch, (text) => {
-      queue = queue.then(() => handleHook({ cwd: projectRoot, event: { type: "user", text } }))
-        .catch((error) => console.error(`smartypants watch: ${error.message}`));
-    });
+    startWatcher(projectRoot, watch, (text) => handleHook({ cwd: projectRoot, event: { type: "user", text } }));
     console.log(`Watching ${watch.host} ${watch.home ? "session home" : "session"}: ${watch.home || watch.session}`);
   }
 });
