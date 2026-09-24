@@ -5,16 +5,23 @@ description: >
   system, component, and module depth and flags code that leaves the
   user's intent. Use when the user says smartypants, system diagram,
   seed the design, intent drift, or runs /smartypants.
+  /smartypants reset clears the diagram.
+user-invocable: true
+argument-hint: reset
 ---
 
 # Smartypants
 
 Follow `README.md` in this repo for startup. Do the steps. Do not ask the user to run them.
 
-1. If `smartypants.config.json` is missing, copy `smartypants.config.example.json` to that name.
-2. Set `flavor` to the host in use: `claude`, `codex`, `grok`, `muse`, or `pi`. Set `depth` to `module` unless the user names `component` or `system`. Set `seed` to `true` only when the project already has code and `.smartypants/design.json` is not seeded.
-3. Confirm the host hook points at `bin/smartypants-hook.mjs`. Pi uses `.pi/extensions/smartypants/index.js`.
-4. When the user wants to see the diagram, run `node bin/smartypants-serve.mjs` and use http://127.0.0.1:4173.
+1. In the project, run `npm install github:logan-robbins/smartypants` if `@logan-robbins/smartypants` is not installed.
+2. Run `npx smartypants init --flavor <host>`. Add `--seed` only when the project already has code and `.smartypants/design.json` is not seeded. `flavor` is `claude`, `codex`, `grok`, `muse`, or `pi`.
+3. Leave an existing `smartypants.config.json` in place. Set `depth` to `module` unless the user names `component` or `system`.
+4. When the user wants to see the diagram, run `npx smartypants serve` and use http://127.0.0.1:4173.
+
+## Reset the graph
+
+When the user runs `/smartypants reset` or `/reset-graph`, or asks to clear the diagram, run `npx smartypants reset` in the project root. That deletes `.smartypants/design.json` and `.smartypants/ledger.json`. Leave `smartypants.config.json`. Do not ask again after the slash command. Tell them the graph is empty and the next design turn draws it again.
 
 ## Write the diagram
 

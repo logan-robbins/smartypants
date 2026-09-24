@@ -174,9 +174,9 @@
           };
           var fontSize = Math.max(10, 12 * camera.scale);
           ctx.font = "600 " + fontSize + "px ui-sans-serif, system-ui, sans-serif";
-          var maxLabelWidth = 180 * camera.scale;
+          var maxLabelWidth = 240 * camera.scale;
           var label = line.label;
-          while (label.length > 12 && ctx.measureText(label).width > maxLabelWidth) label = label.slice(0, -1);
+          while (label.length > 18 && ctx.measureText(label).width > maxLabelWidth) label = label.slice(0, -1);
           if (label !== line.label) label = label.slice(0, -1) + "…";
           var metrics = ctx.measureText(label);
           var padX = 8 * camera.scale;
@@ -210,7 +210,7 @@
       '<span><i class="swatch flow-control"></i>Control flow</span>' +
       '<span><i class="swatch drift"></i>Drift</span>' +
       "</div>" +
-      '<div class="pill">Drag to pan · Scroll to zoom</div>' +
+      '<div class="pill">Drag a card · Pan empty space · Scroll to zoom</div>' +
       "</header>" +
       '<div id="empty" class="empty" hidden>' +
       "<div><h2>No system on the canvas yet</h2>" +

@@ -8,13 +8,23 @@ The hook does nothing until `smartypants.config.json` is in the project root.
 
 ## Start
 
-1. Copy the starter config.
+1. Install the package in the project.
 
 ```sh
-cp smartypants.config.example.json smartypants.config.json
+npm install github:logan-robbins/smartypants
 ```
 
-2. Edit `smartypants.config.json`.
+The package name is `@logan-robbins/smartypants`. The npm name `smartypants` belongs to a different library.
+
+2. Wire the config and the host hooks. This writes `smartypants.config.json` when it is missing, and adds the hook without removing other hooks.
+
+```sh
+npx smartypants init --flavor claude
+```
+
+Use `--seed` when the project already has code. Use `--flavor` `claude`, `codex`, `grok`, `muse`, or `pi`.
+
+3. Edit `smartypants.config.json` if you need to change the starter.
 
 ```json
 {
@@ -32,7 +42,7 @@ cp smartypants.config.example.json smartypants.config.json
 - `model`: optional model ID for the selected flavor.
 - `reasoningEffort`: optional reasoning effort for the Codex flavor: `none`, `low`, `medium`, `high`, `xhigh`, or `max`.
 
-3. Install the SDK for that flavor.
+4. Install the SDK for that flavor.
 
 | flavor | install | key |
 | --- | --- | --- |
@@ -42,7 +52,7 @@ cp smartypants.config.example.json smartypants.config.json
 | `muse` | `@muse-code/sdk` plus a `muse` binary on `PATH` | |
 | `pi` | `@earendil-works/pi-coding-agent` | Pi's own login |
 
-4. Point the host at the hook. This repo already has these files. In another project, copy the file and set `command` to `node /absolute/path/to/smartypants/bin/smartypants-hook.mjs`. The working directory must be the project root.
+5. `npx smartypants init` writes these host files. Run it again after you move `node_modules`. Codex hooks need the `codex_hooks` feature and do not run on Windows. Pi loads `.pi/extensions/smartypants/index.js`.
 
 | host | file |
 | --- | --- |
@@ -52,15 +62,28 @@ cp smartypants.config.example.json smartypants.config.json
 | Muse Code | `.muse/hooks.json` |
 | Pi | `.pi/extensions/smartypants/index.js` |
 
-Codex hooks need the `codex_hooks` feature and do not run on Windows. Pi has no command hook. Start it with `pi -e .pi/extensions/smartypants/index.js`.
-
-5. Open the diagram.
+6. Open the diagram.
 
 ```sh
-node bin/smartypants-serve.mjs
+npx smartypants serve
 ```
 
-Open http://127.0.0.1:4173. Drag to pan. Scroll to zoom.
+Clear the diagram and start it over with `/reset-graph` or:
+
+```sh
+npx smartypants reset
+```
+
+Open http://127.0.0.1:4173. Drag a card to move that card. Drag empty space to pan. Scroll to zoom.
+
+Teal arrows are data. Amber arrows are control. Gray lines show what sits inside what.
+
+- Hosts send a prompt or an edit to the chosen model.
+- Switch sends flavor and depth.
+- Notes send gists. The chosen model writes a new gist back.
+- Starting picture sends file names when `seed` is on.
+- The chosen model writes the design into Picture, and Picture sends the diagram to the Board.
+- While that turn is drawing, control tells Quiet turn not to start another one.
 
 ## Levels
 

@@ -201,6 +201,12 @@
     return list;
   }
 
+  function hitsCard(x, y, placed, pad) {
+    return placed.some(function (node) {
+      return x >= node.x - pad && x <= node.x + node.w + pad && y >= node.y - pad && y <= node.y + node.h + pad;
+    });
+  }
+
   function flowEdges(placed, connections) {
     var list = [];
     (connections || []).forEach(function (connection) {
@@ -218,7 +224,26 @@
       var y1 = horizontal ? startY : (dy >= 0 ? from.y + from.h : from.y);
       var x2 = horizontal ? (dx >= 0 ? to.x : to.x + to.w) : endX;
       var y2 = horizontal ? endY : (dy >= 0 ? to.y : to.y + to.h);
-      var bend = Math.max(48, Math.min(140, Math.abs(horizontal ? x2 - x1 : y2 - y1) * 0.32));
+      var len = Math.hypot(x2 - x1, y2 - y1) || 1;
+      var px = -(y2 - y1) / len;
+      var py = (x2 - x1) / len;
+      var mx = (x1 + x2) / 2;
+      var my = (y1 + y2) / 2;
+      var cx = mx;
+      var cy = my;
+      var placedLabel = false;
+      for (var sign = 0; sign < 2 && !placedLabel; sign += 1) {
+        var direction = sign === 0 ? 1 : -1;
+        for (var dist = 64; dist <= 220; dist += 28) {
+          var lx = mx + px * dist * direction;
+          var ly = my + py * dist * direction;
+          if (hitsCard(lx, ly, placed, 28)) continue;
+          cx = lx;
+          cy = ly;
+          placedLabel = true;
+          break;
+        }
+      }
       list.push({
         from: from.id,
         to: to.id,
@@ -226,8 +251,8 @@
         label: connection.label || "",
         x1: x1,
         y1: y1,
-        cx: horizontal ? (x1 + x2) / 2 : (dx >= 0 ? Math.max(x1, x2) + bend : Math.min(x1, x2) - bend),
-        cy: horizontal ? (dy >= 0 ? Math.max(y1, y2) + bend : Math.min(y1, y2) - bend) : (y1 + y2) / 2,
+        cx: cx,
+        cy: cy,
         x2: x2,
         y2: y2,
       });

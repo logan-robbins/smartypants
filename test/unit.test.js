@@ -237,8 +237,10 @@ test("command hooks and the Pi extension point at the shared pipeline", () => {
     assert.equal(edit.matcher.includes("Edit"), true);
     assert.equal(edit.hooks[0].command.includes("bin/smartypants-hook.mjs"), true);
   }
-  const extension = fs.readFileSync(path.join(rootDir, ".pi/extensions/smartypants/index.js"), "utf8");
-  assert.equal(extension.includes('from "../../../src/pipeline.js"'), true);
+  const extension = fs.readFileSync(path.join(rootDir, "src/pi-extension.js"), "utf8");
+  const entry = fs.readFileSync(path.join(rootDir, ".pi/extensions/smartypants/index.js"), "utf8");
+  assert.equal(entry.includes('from "../../../src/pi-extension.js"'), true);
+  assert.equal(extension.includes('from "./pipeline.js"'), true);
   assert.equal(extension.includes('pi.on("input"'), true);
   assert.equal(extension.includes('pi.on("tool_result"'), true);
   assert.equal(extension.includes("isEditTool"), true);
