@@ -1,5 +1,6 @@
 import { readConfig } from "./config.js";
 import { applyDrift } from "./drift.js";
+import { loadEnvFile } from "./env.js";
 import { adapterFor } from "./flavors/index.js";
 import { LEDGER_TOKEN_BUDGET, loadLedger, projectSketch, rememberTurn, saveLedger, seedPending } from "./ledger.js";
 import { applyDesign, canvasModel, loadDesign, markSeeded, saveDesign } from "./model.js";
@@ -74,6 +75,13 @@ export async function handleHook(options = {}) {
   if (!adapter) {
     console.error("smartypants: config ignored (invalid-flavor)");
     return inert();
+  }
+
+  try {
+    loadEnvFile(cwd, found.config.envFile);
+  } catch (error) {
+    console.error(`smartypants: env file ignored (${error.message})`);
+    return inert(error.message);
   }
 
   const design = loadDesign(cwd);

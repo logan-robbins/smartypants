@@ -47,6 +47,9 @@ export function readConfig(root) {
   if (raw.reasoningEffort != null && !REASONING_EFFORTS.includes(raw.reasoningEffort)) {
     return { present: true, config: null, reason: "invalid-reasoning-effort" };
   }
+  if (raw.envFile != null && (typeof raw.envFile !== "string" || !raw.envFile.trim())) {
+    return { present: true, config: null, reason: "invalid-env-file" };
+  }
   return {
     present: true,
     reason: null,
@@ -56,6 +59,7 @@ export function readConfig(root) {
       seed,
       model: typeof raw.model === "string" && raw.model.trim() ? raw.model.trim() : null,
       reasoningEffort: raw.reasoningEffort ?? null,
+      envFile: raw.envFile?.trim() || null,
       timeoutMs: readTimeout(raw.timeoutMs),
       path: file,
     },

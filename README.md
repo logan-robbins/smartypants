@@ -38,6 +38,12 @@ Use `--seed` when the project already has code. Use `--flavor` `claude`, `codex`
 }
 ```
 
+To use API keys from a local dotenv file, set `"envFile": "../.env"` in
+`smartypants.config.json` (the path is relative to the project). Existing process
+environment variables take precedence. The file is read when a hook runs; keys
+are never copied into the diagram or ledger. `GROK_API_KEY` is accepted as an
+alias for `XAI_API_KEY`, and `ANTRHOPIC_API_KEY` for `ANTHROPIC_API_KEY`.
+
 - `flavor`: `claude`, `codex`, `grok`, `muse`, or `pi`. Use one. An unknown value does not call another.
 - `depth`: `module` (default), `component`, or `system`.
 - `seed`: `true` when the project already has code. The first turn draws that tree as the baseline. Later turns store only the delta. `false` when the design starts from the conversation.
