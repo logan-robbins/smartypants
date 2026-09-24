@@ -16,15 +16,21 @@ The hook does nothing until `smartypants.config.json` is in the project root.
 npm install github:logan-robbins/smartypants
 ```
 
+If the user supplied a local checkout, install that checkout instead, for example
+`npm install ../smartypants` from the project directory.
+
 The package name is `@logan-robbins/smartypants`. The npm name `smartypants` belongs to a different library.
 
-2. Wire the config and the host hooks. This writes `smartypants.config.json` when it is missing, and adds the hook without removing other hooks.
+2. For an agent working in this project, wire the config and host hooks. This writes
+`smartypants.config.json` when it is missing and adds the hook without removing other hooks.
 
 ```sh
 npx smartypants init --flavor claude
 ```
 
 Use `--seed` when the project already has code. Use `--flavor` `claude`, `codex`, `grok`, `muse`, or `pi`.
+If you are only watching a separate instance, create `smartypants.config.json` manually
+with `flavor`, `depth`, `seed`, and `watch` as shown below; no project hook is needed.
 
 3. Edit `smartypants.config.json` if you need to change the starter.
 
@@ -37,6 +43,26 @@ Use `--seed` when the project already has code. Use `--flavor` `claude`, `codex`
   "reasoningEffort": null
 }
 ```
+
+To watch a separate Claude Code or Codex instance, add `watch` with that instance's
+absolute home directory. Smartypants follows new user turns from its session JSONL
+files while the canvas server is running:
+
+```json
+{
+  "flavor": "codex",
+  "depth": "module",
+  "seed": false,
+  "watch": {"host": "claude", "home": "/absolute/path/to/claude-home"}
+}
+```
+
+Use `"host": "codex"` and the Codex home directory for a Codex instance. For a
+single session, use `"session": "/absolute/path/to/session.jsonl"` in place of
+`home`. A home follows new session files after context resets. Existing
+transcript history is skipped the first time; subsequent server starts resume from
+offsets in `.smartypants/watch-state.json`. The watched instance needs no
+Smartypants hook, and the watch state stores offsets only, never transcript text.
 
 To use API keys from a local dotenv file, set `"envFile": "../.env"` in
 `smartypants.config.json` (the path is relative to the project). Existing process
@@ -78,13 +104,16 @@ in its hook command. The hook writes the diagram in that project.
 npx smartypants serve
 ```
 
+If port 4173 belongs to another project, choose a free port, for example
+`SMARTPANTS_PORT=4174 npx smartypants serve`. Open the URL printed by the server.
+
 Clear the diagram and start it over with `/reset-graph` or:
 
 ```sh
 npx smartypants reset
 ```
 
-Open http://127.0.0.1:4173. Drag a card to move that card. Drag empty space to pan. Scroll to zoom.
+Open the printed canvas URL. Drag a card to move that card. Drag empty space to pan. Scroll to zoom.
 
 An arrow points the way the data moves. A reply or a write-back is a second arrow pointing back at the caller. Ink arrows are data. Amber arrows are control.
 
@@ -112,6 +141,10 @@ codex plugin marketplace add logan-robbins/smartypants
 codex plugin add smartypants@smartypants
 ```
 
+For local plugin installation, pass the absolute checkout path to the marketplace
+`add` command instead of the GitHub name. The Claude and Codex plugin directories
+are under `plugins/smartypants` in that checkout.
+
 Grok Build:
 
 ```sh
@@ -125,6 +158,28 @@ Claude Code, Codex, and Grok Build install from this repository. Two directories
 
 - Anthropic community catalog: https://platform.claude.com/plugins/submit
 - OpenAI directory for ChatGPT and Codex: https://platform.openai.com/plugins
+
+## Watching an hx Partner
+
+The hx Partner has a Claude home at `<hx-instance>/run/partner/home`. Point the
+working project's Smartypants config at that directory:
+
+```json
+{
+  "flavor": "codex",
+  "depth": "module",
+  "seed": false,
+  "watch": {"host":"claude","home":"/absolute/path/to/hx-instance/run/partner/home"}
+}
+```
+
+Restart the Smartypants server after editing the config. Tell the Partner the project
+path so it records the default work location. Tmux prompts and hx UI chat messages
+appear in the Partner transcript and reach the project diagram. Verify the Partner
+session has `main` and `companion` windows, both UI URLs respond, and the Smartypants
+server reports the watched home. A greeting can be observed while leaving the canvas
+empty because it provides no design information. Keep the hx instance outside the
+project when practical so a future `--seed` scan does not include harness files.
 
 ## Levels
 

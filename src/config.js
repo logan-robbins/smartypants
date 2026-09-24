@@ -50,6 +50,13 @@ export function readConfig(root) {
   if (raw.envFile != null && (typeof raw.envFile !== "string" || !raw.envFile.trim())) {
     return { present: true, config: null, reason: "invalid-env-file" };
   }
+  if (raw.watch != null && (
+    !raw.watch || typeof raw.watch !== "object" || Array.isArray(raw.watch) ||
+    !["claude", "codex"].includes(raw.watch.host) ||
+    (raw.watch.home == null) === (raw.watch.session == null) ||
+    (raw.watch.home != null && (typeof raw.watch.home !== "string" || !path.isAbsolute(raw.watch.home))) ||
+    (raw.watch.session != null && (typeof raw.watch.session !== "string" || !path.isAbsolute(raw.watch.session)))
+  )) return { present: true, config: null, reason: "invalid-watch" };
   return {
     present: true,
     reason: null,
@@ -60,6 +67,7 @@ export function readConfig(root) {
       model: typeof raw.model === "string" && raw.model.trim() ? raw.model.trim() : null,
       reasoningEffort: raw.reasoningEffort ?? null,
       envFile: raw.envFile?.trim() || null,
+      watch: raw.watch ? { host: raw.watch.host, ...(raw.watch.home ? { home: path.resolve(raw.watch.home) } : { session: path.resolve(raw.watch.session) }) } : null,
       timeoutMs: readTimeout(raw.timeoutMs),
       path: file,
     },

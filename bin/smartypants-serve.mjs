@@ -5,6 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { lookupConfig } from "../src/config.js";
 import { canvasModel, loadDesign, placeNode, saveDesign } from "../src/model.js";
+import { handleHook } from "../src/pipeline.js";
+import { startWatcher } from "../src/watch.js";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const webRoot = path.join(packageRoot, "web");
@@ -80,4 +82,13 @@ const server = http.createServer((req, res) => {
 server.listen(port, host, () => {
   console.log(`Smartypants canvas at http://${host}:${port}`);
   console.log(`Design root: ${projectRoot}`);
+  const watch = lookupConfig(projectRoot)?.watch;
+  if (watch) {
+    let queue = Promise.resolve();
+    startWatcher(projectRoot, watch, (text) => {
+      queue = queue.then(() => handleHook({ cwd: projectRoot, event: { type: "user", text } }))
+        .catch((error) => console.error(`smartypants watch: ${error.message}`));
+    });
+    console.log(`Watching ${watch.host} ${watch.home ? "session home" : "session"}: ${watch.home || watch.session}`);
+  }
 });
