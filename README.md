@@ -76,9 +76,18 @@ npx smartypants reset
 
 Open http://127.0.0.1:4173. Drag a card to move that card. Drag empty space to pan. Scroll to zoom.
 
+Teal arrows are data. Amber arrows are control. Gray lines show what sits inside what.
+
+- Hosts send a prompt or an edit to the chosen model.
+- Switch sends flavor and depth.
+- Notes send gists. The chosen model writes a new gist back.
+- Starting picture sends file names when `seed` is on.
+- The chosen model writes the design into Picture, and Picture sends the diagram to the Board.
+- While that turn is drawing, control tells Quiet turn not to start another one.
+
 ## Skill
 
-The skill that runs those steps is in this repository. Add the marketplace, then install the plugin.
+The skill in `plugins/smartypants` runs the start steps. `/smartypants reset` and `/reset-graph` clear the diagram and the gist ledger. They leave `smartypants.config.json`.
 
 Claude Code:
 
@@ -91,6 +100,7 @@ Codex:
 
 ```sh
 codex plugin marketplace add logan-robbins/smartypants
+codex plugin add smartypants@smartypants
 ```
 
 Grok Build:
@@ -100,16 +110,12 @@ grok plugin marketplace add logan-robbins/smartypants
 grok plugin install smartypants --trust
 ```
 
-Cursor reads the plugin in `plugins/smartypants`. The public Cursor listing uses this same repository.
+Cursor: submit https://github.com/logan-robbins/smartypants at https://cursor.com/marketplace/publish. The plugin directory is `plugins/smartypants`.
 
-Teal arrows are data. Amber arrows are control. Gray lines show what sits inside what.
+Claude Code, Codex, and Grok Build install from this repository. Two directories still need a signed-in review:
 
-- Hosts send a prompt or an edit to the chosen model.
-- Switch sends flavor and depth.
-- Notes send gists. The chosen model writes a new gist back.
-- Starting picture sends file names when `seed` is on.
-- The chosen model writes the design into Picture, and Picture sends the diagram to the Board.
-- While that turn is drawing, control tells Quiet turn not to start another one.
+- Anthropic community catalog: https://platform.claude.com/plugins/submit
+- OpenAI directory for ChatGPT and Codex: https://platform.openai.com/plugins
 
 ## Levels
 
