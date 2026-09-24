@@ -43,6 +43,8 @@ To use API keys from a local dotenv file, set `"envFile": "../.env"` in
 environment variables take precedence. The file is read when a hook runs; keys
 are never copied into the diagram or ledger. `GROK_API_KEY` is accepted as an
 alias for `XAI_API_KEY`, and `ANTRHOPIC_API_KEY` for `ANTHROPIC_API_KEY`.
+When an agent runs from another directory, set `SMARTPANTS_ROOT` to the project path
+in its hook command. The hook writes the diagram in that project.
 
 - `flavor`: `claude`, `codex`, `grok`, `muse`, or `pi`. Use one. An unknown value does not call another.
 - `depth`: `module` (default), `component`, or `system`.

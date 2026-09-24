@@ -58,7 +58,7 @@ function inert(error = null) {
  * flavor, or a builder failure leaves the persisted design as it was.
  */
 export async function handleHook(options = {}) {
-  const cwd = options.cwd || process.cwd();
+  const cwd = process.env.SMARTPANTS_ROOT || options.cwd || process.cwd();
   if (builderIsRunning()) return inert();
   const found = readConfig(cwd);
   if (!found.config) {
