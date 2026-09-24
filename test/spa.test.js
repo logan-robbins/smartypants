@@ -18,7 +18,7 @@ function designed() {
   return canvasModel(stored, "module");
 }
 
-test("the scene builder lays out containment, what, why, and drift", () => {
+test("the scene builder lays out a flow, what, why, and drift", () => {
   const scene = buildScene(designed());
   assert.ok(scene.nodes.length >= 3);
   const labels = scene.nodes.map((node) => node.label).join("\n");
@@ -31,16 +31,10 @@ test("the scene builder lays out containment, what, why, and drift", () => {
   const component = scene.nodes.find((node) => node.kind === "component");
   const moduleNode = scene.nodes.find((node) => node.kind === "module");
   assert.ok(component.y > system.y);
-  assert.ok(moduleNode.y > component.y);
+  assert.equal(moduleNode.parentId, component.id);
+  assert.equal(moduleNode.group, "");
   assert.equal(component.flagged, true);
-  assert.equal(
-    scene.edges.some((edge) => edge.from === system.id && edge.to === component.id && edge.kind === "containment"),
-    true,
-  );
-  assert.equal(
-    scene.edges.some((edge) => edge.from === component.id && edge.to === moduleNode.id),
-    true,
-  );
+  assert.equal(scene.edges.some((edge) => edge.kind === "containment"), false);
   assert.ok(scene.bounds.w > 0 && scene.bounds.h > 0);
   for (let i = 0; i < scene.nodes.length; i += 1) {
     for (let j = i + 1; j < scene.nodes.length; j += 1) {
@@ -66,9 +60,7 @@ test("a dragged card moves by itself and keeps its place", () => {
   assert.equal(afterModule.y, startY - 120);
   assert.equal(afterSystem.x, systemX);
   assert.equal(afterSystem.y, before.y);
-  const link = moved.edges.find((edge) => edge.to === moduleNode.id && edge.kind === "containment");
-  assert.equal(link.x2, afterModule.x + afterModule.w / 2);
-  assert.equal(link.y2, afterModule.y);
+  assert.equal(moved.edges.some((edge) => edge.kind === "containment"), false);
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "smartypants-place-"));
   saveDesign(root, designed());
@@ -83,7 +75,7 @@ test("a dragged card moves by itself and keeps its place", () => {
   assert.equal(pinned.nodes.find((node) => node.id === moduleNode.id).y, 80);
 });
 
-test("the scene builder adds labeled directional flows over containment", () => {
+test("the scene builder draws labeled flows from left to right", () => {
   const source = {
     ...ledgerResult,
     connections: [
@@ -91,12 +83,41 @@ test("the scene builder adds labeled directional flows over containment", () => 
     ],
   };
   const scene = buildScene(canvasModel(applyDesign(emptyDesign(), source, "module").design, "module"));
-  assert.equal(scene.edges.some((edge) => edge.kind === "containment"), true);
+  assert.equal(scene.edges.some((edge) => edge.kind === "containment"), false);
   const flow = scene.edges.find((edge) => edge.kind === "data");
+  const from = scene.nodes.find((node) => node.id === "receipts");
+  const to = scene.nodes.find((node) => node.id === "capture");
   assert.equal(flow.from, "receipts");
   assert.equal(flow.to, "capture");
   assert.equal(flow.label, "purchase record");
+  assert.ok(from.x + from.w <= to.x);
   assert.ok(Number.isFinite(flow.cx) && Number.isFinite(flow.cy));
+  const moved = moveNode(scene, "capture", to.x + 80, to.y + 40);
+  const again = moved.edges.find((edge) => edge.kind === "data");
+  const shifted = moved.nodes.find((node) => node.id === "capture");
+  assert.equal(again.x2, shifted.x);
+  assert.equal(again.y2, shifted.y + shifted.h / 2);
+});
+
+test("a return arrow points back at the caller", () => {
+  const source = {
+    ...ledgerResult,
+    connections: [
+      { id: "receipt-record", fromId: "receipts", toId: "capture", kind: "data", label: "purchase record" },
+      { id: "stored", fromId: "capture", toId: "receipts", kind: "data", label: "stored purchase" },
+    ],
+  };
+  const scene = buildScene(canvasModel(applyDesign(emptyDesign(), source, "module").design, "module"));
+  const caller = scene.nodes.find((node) => node.id === "receipts");
+  const service = scene.nodes.find((node) => node.id === "capture");
+  const back = scene.edges.find((edge) => edge.label === "stored purchase");
+  const low = Math.max(caller.y + caller.h, service.y + service.h);
+  assert.equal(back.from, "capture");
+  assert.equal(back.to, "receipts");
+  assert.equal(back.x2, caller.x + caller.w);
+  assert.ok(back.x1 > back.x2);
+  assert.ok(back.cy >= Math.min(caller.y, service.y) - 8);
+  assert.ok(back.cy <= low + 8);
 });
 
 test("a file: load shows how to serve the canvas", () => {

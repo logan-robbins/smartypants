@@ -28,7 +28,7 @@ export const DESIGN_SCHEMA = {
     },
     connections: {
       type: "array",
-      description: "Directional runtime or information flows between durable architecture nodes; separate from containment by parentId.",
+      description: "Directed messages between architecture boxes. A request and its reply or write-back are two connections. The way back points at the caller, toId is who receives that payload. parentId is containment, not an arrow.",
       items: {
         type: "object",
         additionalProperties: false,

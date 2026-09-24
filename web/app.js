@@ -14,11 +14,10 @@
     document.body.innerHTML = SERVE_HELP;
   }
 
-  function kindLabel(kind) {
-    if (kind === "system") return "System";
-    if (kind === "component") return "Component";
-    if (kind === "module") return "Module";
-    return "Drift";
+  function kindLabel(node) {
+    if (node.kind === "module" && node.group) return node.group;
+    if (node.kind === "unmapped") return "Drift";
+    return "";
   }
 
   function esc(text) {
@@ -35,10 +34,10 @@
         return (
           '<aside class="flag">' +
           '<p class="eyebrow drift-label">Drift</p>' +
-          "<p><span>Intent</span> " +
+          "<p>" +
           esc(flag.intent) +
           "</p>" +
-          "<p><span>Differs</span> " +
+          "<p class=\"differs\">" +
           esc(flag.difference) +
           "</p></aside>"
         );
@@ -59,16 +58,16 @@
       "px;height:" +
       node.h +
       'px">' +
-      '<p class="eyebrow">' +
-      kindLabel(node.kind) +
-      "</p>" +
+      (kindLabel(node)
+        ? '<p class="eyebrow">' + esc(kindLabel(node)) + "</p>"
+        : "") +
       "<h2>" +
       esc(node.name) +
       "</h2>" +
-      '<p class="field what"><span>What</span> ' +
+      '<p class="field what">' +
       esc(node.what) +
       "</p>" +
-      '<p class="field why"><span>Why</span> ' +
+      '<p class="field why">' +
       esc(node.why) +
       "</p>" +
       flags +
@@ -107,90 +106,95 @@
 
   function paint(ctx, scene, camera, viewW, viewH) {
     ctx.clearRect(0, 0, viewW, viewH);
-    var sky = ctx.createLinearGradient(0, 0, viewW, viewH);
-    sky.addColorStop(0, "#1a2233");
-    sky.addColorStop(0.45, "#10151e");
-    sky.addColorStop(1, "#243044");
-    ctx.fillStyle = sky;
+    ctx.fillStyle = "#f4f1ea";
     ctx.fillRect(0, 0, viewW, viewH);
-    var inset = Math.max(18, Math.min(viewW, viewH) * 0.04);
-    ctx.fillStyle = "#182232";
-    fillRound(ctx, inset, inset, Math.max(0, viewW - inset * 2), Math.max(0, viewH - inset * 2), 28);
-    ctx.fill();
 
     ctx.save();
-    ctx.strokeStyle = "rgba(168, 184, 210, 0.08)";
-    ctx.lineWidth = 1;
-    var spacing = 56 * camera.scale;
-    if (spacing < 16) spacing = 16;
+    ctx.fillStyle = "rgba(48, 42, 36, 0.22)";
+    var spacing = 28 * camera.scale;
+    if (spacing < 12) spacing = 12;
     var origin = screenOf(camera, viewW, viewH, 0, 0);
-    var startX = origin.x % spacing;
-    var startY = origin.y % spacing;
+    var startX = ((origin.x % spacing) + spacing) % spacing;
+    var startY = ((origin.y % spacing) + spacing) % spacing;
+    var dot = Math.max(1.2, 1.4 * camera.scale);
     for (var x = startX; x < viewW; x += spacing) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, viewH);
-      ctx.stroke();
-    }
-    for (var y = startY; y < viewH; y += spacing) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(viewW, y);
-      ctx.stroke();
+      for (var y = startY; y < viewH; y += spacing) {
+        ctx.fillRect(x, y, dot, dot);
+      }
     }
     ctx.restore();
 
-    ctx.lineWidth = 1.5;
-    (scene.edges || []).forEach(function (line) {
-      var a = screenOf(camera, viewW, viewH, line.x1, line.y1);
-      var b = screenOf(camera, viewW, viewH, line.x2, line.y2);
-      var isFlow = line.kind !== "containment";
-      var colors = { data: "#48d6c0", control: "#f1b95e", dependency: "#a99cff" };
-      ctx.strokeStyle = isFlow ? (colors[line.kind] || colors.data) : "rgba(180, 196, 220, 0.38)";
-      ctx.lineWidth = isFlow ? 2.5 : 1.4;
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      if (isFlow && typeof ctx.quadraticCurveTo === "function") {
-        var control = screenOf(camera, viewW, viewH, line.cx, line.cy);
-        ctx.quadraticCurveTo(control.x, control.y, b.x, b.y);
-      } else ctx.lineTo(b.x, b.y);
+    (scene.groups || []).forEach(function (group) {
+      var originGroup = screenOf(camera, viewW, viewH, group.x, group.y);
+      ctx.save();
+      ctx.fillStyle = "rgba(36, 48, 74, 0.035)";
+      ctx.strokeStyle = "rgba(36, 42, 54, 0.55)";
+      ctx.lineWidth = Math.max(1, 1.25 * camera.scale);
+      ctx.setLineDash([7 * camera.scale, 6 * camera.scale]);
+      fillRound(ctx, originGroup.x, originGroup.y, group.w * camera.scale, group.h * camera.scale, 12 * camera.scale);
+      ctx.fill();
       ctx.stroke();
-      if (isFlow) {
-        var prev = screenOf(camera, viewW, viewH, line.cx, line.cy);
-        var angle = Math.atan2(b.y - prev.y, b.x - prev.x);
-        var head = 9;
-        ctx.fillStyle = ctx.strokeStyle;
-        ctx.beginPath();
-        ctx.moveTo(b.x, b.y);
-        ctx.lineTo(b.x - head * Math.cos(angle - Math.PI / 6), b.y - head * Math.sin(angle - Math.PI / 6));
-        ctx.lineTo(b.x - head * Math.cos(angle + Math.PI / 6), b.y - head * Math.sin(angle + Math.PI / 6));
-        ctx.closePath();
-        ctx.fill();
-        if (line.label) {
-          var t = 0.5;
-          var labelAt = {
-            x: (1 - t) * (1 - t) * a.x + 2 * (1 - t) * t * prev.x + t * t * b.x,
-            y: (1 - t) * (1 - t) * a.y + 2 * (1 - t) * t * prev.y + t * t * b.y,
-          };
-          var fontSize = Math.max(10, 12 * camera.scale);
-          ctx.font = "600 " + fontSize + "px ui-sans-serif, system-ui, sans-serif";
-          var maxLabelWidth = 240 * camera.scale;
-          var label = line.label;
-          while (label.length > 18 && ctx.measureText(label).width > maxLabelWidth) label = label.slice(0, -1);
-          if (label !== line.label) label = label.slice(0, -1) + "…";
-          var metrics = ctx.measureText(label);
-          var padX = 8 * camera.scale;
-          var labelW = metrics.width + padX * 2;
-          var labelH = fontSize + 8 * camera.scale;
-          ctx.fillStyle = "rgba(12, 18, 28, 0.94)";
-          fillRound(ctx, labelAt.x - labelW / 2, labelAt.y - labelH / 2, labelW, labelH, 7 * camera.scale);
-          ctx.fill();
-          ctx.fillStyle = colors[line.kind] || colors.data;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(label, labelAt.x, labelAt.y);
-        }
-      }
+      ctx.restore();
+    });
+
+    (scene.captions || []).forEach(function (caption) {
+      var at = screenOf(camera, viewW, viewH, caption.x, caption.y);
+      var nameSize = Math.max(11, 12 * camera.scale);
+      ctx.fillStyle = "#1c1915";
+      ctx.font = "700 " + nameSize + "px ui-sans-serif, system-ui, sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText(caption.name.toUpperCase(), at.x, at.y + 10);
+    });
+
+    var colors = { data: "#1e2430", control: "#9a5b12", dependency: "#2c5d8a" };
+    (scene.edges || []).forEach(function (line) {
+      var raw = line.points && line.points.length ? line.points : [
+        { x: line.x1, y: line.y1 },
+        { x: line.cx, y: line.cy },
+        { x: line.x2, y: line.y2 },
+      ];
+      var points = raw.map(function (point) {
+        return screenOf(camera, viewW, viewH, point.x, point.y);
+      });
+      ctx.strokeStyle = colors[line.kind] || colors.data;
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.lineWidth = Math.max(1.6, 2 * camera.scale);
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (var i = 1; i < points.length; i += 1) ctx.lineTo(points[i].x, points[i].y);
+      ctx.stroke();
+      var prev = points[points.length - 2];
+      var end = points[points.length - 1];
+      var angle = Math.atan2(end.y - prev.y, end.x - prev.x);
+      var head = Math.max(8, 11 * camera.scale);
+      ctx.beginPath();
+      ctx.moveTo(end.x, end.y);
+      ctx.lineTo(end.x - head * Math.cos(angle - Math.PI / 7), end.y - head * Math.sin(angle - Math.PI / 7));
+      ctx.lineTo(end.x - head * Math.cos(angle + Math.PI / 7), end.y - head * Math.sin(angle + Math.PI / 7));
+      ctx.closePath();
+      ctx.fill();
+      if (!line.label) return;
+      var labelAt = screenOf(camera, viewW, viewH, line.cx, line.cy);
+      var fontSize = Math.max(11, 13 * camera.scale);
+      ctx.font = "600 " + fontSize + "px ui-sans-serif, system-ui, sans-serif";
+      var maxLabelWidth = 220 * camera.scale;
+      var label = line.label;
+      while (label.length > 22 && ctx.measureText(label).width > maxLabelWidth) label = label.slice(0, -1);
+      if (label !== line.label) label = label.slice(0, -1) + "…";
+      var metrics = ctx.measureText(label);
+      var padX = 7 * camera.scale;
+      var labelW = metrics.width + padX * 2;
+      var labelH = fontSize + 8 * camera.scale;
+      ctx.fillStyle = "#f4f1ea";
+      fillRound(ctx, labelAt.x - labelW / 2, labelAt.y - labelH / 2, labelW, labelH, 4 * camera.scale);
+      ctx.fill();
+      ctx.fillStyle = colors[line.kind] || colors.data;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, labelAt.x, labelAt.y);
     });
   }
 
@@ -203,11 +207,8 @@
       '<header id="hud">' +
       '<div class="pill" id="title"><strong>Smartypants</strong> <span id="floor-label"></span></div>' +
       '<div class="pill legend">' +
-      '<span><i class="swatch system"></i>System</span>' +
-      '<span><i class="swatch component"></i>Component</span>' +
-      '<span><i class="swatch module"></i>Module</span>' +
-      '<span><i class="swatch flow-data"></i>Data flow</span>' +
-      '<span><i class="swatch flow-control"></i>Control flow</span>' +
+      '<span><i class="swatch flow-data"></i>Data</span>' +
+      '<span><i class="swatch flow-control"></i>Control</span>' +
       '<span><i class="swatch drift"></i>Drift</span>' +
       "</div>" +
       '<div class="pill">Drag a card · Pan empty space · Scroll to zoom</div>' +

@@ -5,10 +5,9 @@
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.SmartypantsScene = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
-  var WIDTH = { system: 460, component: 280, module: 250, unmapped: 280 };
-  var COLUMN_GAP = 36;
-  var STACK_GAP = 22;
-  var LEVEL_GAP = 48;
+  var WIDTH = { system: 520, component: 210, module: 200, unmapped: 220 };
+  var GAP_X = 108;
+  var GAP_Y = 26;
 
   function slug(name) {
     return String(name || "")
@@ -18,10 +17,18 @@
       .replace(/^-+|-+$/g, "");
   }
 
-  function sameParent(node, parent) {
-    if (!node || !parent || !node.parentId) return false;
-    var want = String(node.parentId);
-    return want === parent.id || slug(want) === parent.id || slug(want) === slug(parent.name);
+  function findNode(nodes, id) {
+    if (!id) return null;
+    var want = String(id);
+    return nodes.find(function (node) {
+      return node.id === want || slug(node.id) === slug(want) || slug(node.name) === slug(want);
+    });
+  }
+
+  function serviceName(node, nodes) {
+    var parent = findNode(nodes, node.parentId);
+    if (!parent || parent.kind === "system") return "";
+    return parent.name || "";
   }
 
   function lineCount(text, perLine) {
@@ -44,19 +51,26 @@
   function sizeOf(node) {
     var kind = WIDTH[node.kind] ? node.kind : "module";
     var w = WIDTH[kind];
-    var per = kind === "system" ? 40 : kind === "component" ? 28 : 26;
+    if (kind === "system") {
+      var titleLines = lineCount(node.name, 32);
+      var bodyLines = lineCount(node.what, 58) + lineCount(node.why, 58);
+      return { w: w, h: 18 + titleLines * 28 + bodyLines * 18 + 16 };
+    }
+    var per = kind === "component" ? 26 : 24;
     var flags = Array.isArray(node.flags) ? node.flags : [];
-    var h = 16 + 14 + lineCount(node.name, per - 6) * 24;
-    h += 8 + 12 + lineCount(node.what, per) * 17;
-    h += 6 + 12 + lineCount(node.why, per) * 17 + 16;
+    var h = 16;
+    if (node.group) h += 16;
+    h += lineCount(node.name, per - 4) * 22;
+    h += 6 + lineCount(node.what, per) * 16;
+    h += 4 + lineCount(node.why, per) * 15 + 14;
     flags.forEach(function (flag) {
-      h += 28 + lineCount(flag.intent, per) * 18 + lineCount(flag.difference, per) * 18 + 12;
+      h += 22 + lineCount(flag.intent, per) * 16 + lineCount(flag.difference, per) * 16 + 10;
     });
     return { w: w, h: h };
   }
 
   function labelOf(node) {
-    var parts = [node.name, node.what, node.why];
+    var parts = [node.group, node.name, node.what, node.why];
     var flags = node.flags || [];
     for (var i = 0; i < flags.length; i += 1) {
       parts.push(flags[i].intent);
@@ -71,6 +85,7 @@
       id: node.id,
       kind: node.kind,
       name: node.name,
+      group: node.group || "",
       what: node.what || "",
       why: node.why || "",
       flags: node.flags || [],
@@ -84,82 +99,180 @@
     };
   }
 
+  function annotate(nodes) {
+    return nodes.map(function (node) {
+      return Object.assign({}, node, { group: serviceName(node, nodes) });
+    });
+  }
+
+  function flowMaps(nodes, connections) {
+    var incoming = {};
+    var outgoing = {};
+    nodes.forEach(function (node) {
+      incoming[node.id] = [];
+      outgoing[node.id] = [];
+    });
+    (connections || []).forEach(function (connection) {
+      if (!incoming[connection.toId] || !outgoing[connection.fromId]) return;
+      incoming[connection.toId].push(connection.fromId);
+      outgoing[connection.fromId].push(connection.toId);
+    });
+    return { incoming: incoming, outgoing: outgoing };
+  }
+
+  function familyKey(node) {
+    if (!node) return "";
+    if (node.kind === "component") return node.id;
+    return node.parentId || node.id;
+  }
+
+  function isBoundary(node, maps, nodes) {
+    if (!node || node.kind !== "component") return false;
+    if (inFlow(node.id, maps)) return false;
+    if ((node.flags || []).length) return false;
+    return nodes.some(function (other) {
+      return other.kind === "module" && (other.parentId === node.id || slug(other.parentId) === slug(node.id));
+    });
+  }
+
+  function inFlow(id, maps) {
+    return maps.incoming[id].length > 0 || maps.outgoing[id].length > 0;
+  }
+
+  function familyIds(node, nodes) {
+    var ids = [];
+    var parent = findNode(nodes, node.parentId);
+    if (parent && parent.kind !== "system") ids.push(parent.id);
+    nodes.forEach(function (other) {
+      if (other.id === node.id) return;
+      if (other.parentId === node.id) ids.push(other.id);
+      if (node.parentId && other.parentId === node.parentId) ids.push(other.id);
+    });
+    return ids;
+  }
+
+  function ranksFor(nodes, maps) {
+    var memo = {};
+    var stack = {};
+    function rankOf(id) {
+      if (memo[id] != null) return memo[id];
+      if (stack[id]) return 0;
+      stack[id] = true;
+      var best = 0;
+      if (maps.incoming[id].length) {
+        maps.incoming[id].forEach(function (src) {
+          best = Math.max(best, rankOf(src) + 1);
+        });
+      } else if (!maps.outgoing[id].length) {
+        var found = null;
+        familyIds(findNode(nodes, id), nodes).forEach(function (fid) {
+          if (!inFlow(fid, maps) || stack[fid]) return;
+          var value = rankOf(fid);
+          found = found == null ? value : Math.min(found, value);
+        });
+        best = found == null ? 0 : found;
+      }
+      stack[id] = false;
+      memo[id] = best;
+      return best;
+    }
+    nodes.forEach(function (node) {
+      rankOf(node.id);
+    });
+    return memo;
+  }
+
   function buildScene(design) {
-    var nodes = design && Array.isArray(design.nodes) ? design.nodes : [];
+    var sourceNodes = design && Array.isArray(design.nodes) ? design.nodes : [];
+    var nodes = annotate(sourceNodes);
     var systems = nodes.filter(function (node) {
       return node.kind === "system";
     });
-    var trees = systems.map(function (system) {
-      var comps = nodes.filter(function (node) {
-        return node.kind === "component" && sameParent(node, system);
-      });
-      var compBlocks = comps.map(function (comp) {
-        return {
-          node: comp,
-          mods: nodes.filter(function (node) {
-            return node.kind === "module" && sameParent(node, comp);
-          }),
-        };
-      });
-      return { node: system, comps: compBlocks };
+    var rest = nodes.filter(function (node) {
+      return node.kind !== "system";
     });
-
-    var placed = [];
-    var columns = [];
-    trees.forEach(function (tree) {
-      tree.comps.forEach(function (block) {
-        var width = sizeOf(block.node).w;
-        block.mods.forEach(function (mod) {
-          width = Math.max(width, sizeOf(mod).w);
-        });
-        columns.push({ tree: tree, block: block, width: width });
-      });
-      if (!tree.comps.length) columns.push({ tree: tree, block: null, width: sizeOf(tree.node).w });
-    });
-    var cursor = 0;
-    var systemBottom = 0;
-    trees.forEach(function (tree) {
-      var owned = columns.filter(function (column) { return column.tree === tree; });
-      var span = 0;
-      owned.forEach(function (column, index) {
-        if (index) span += COLUMN_GAP;
-        span += column.width;
-      });
-      var sys = sizeOf(tree.node);
-      var sysX = cursor + Math.max(0, (span - sys.w) / 2);
-      var systemCard = place(tree.node, sysX, 0);
-      placed.push(systemCard);
-      systemBottom = Math.max(systemBottom, systemCard.h);
-      cursor += span + COLUMN_GAP;
-    });
-    cursor = 0;
-    columns.forEach(function (column) {
-      if (!column.block) {
-        cursor += column.width + COLUMN_GAP;
-        return;
-      }
-      var systemCard = placed.find(function (node) { return node.id === column.tree.node.id; });
-      var compSize = sizeOf(column.block.node);
-      var compX = cursor + (column.width - compSize.w) / 2;
-      var compY = systemBottom + LEVEL_GAP;
-      var compCard = place(column.block.node, compX, compY);
-      placed.push(compCard);
-      var previous = compCard;
-      column.block.mods.forEach(function (mod) {
-        var modSize = sizeOf(mod);
-        var modX = cursor + (column.width - modSize.w) / 2;
-        var modY = previous.y + previous.h + STACK_GAP;
-        var modCard = place(mod, modX, modY);
-        placed.push(modCard);
-        previous = modCard;
-      });
-      cursor += column.width + COLUMN_GAP;
-    });
-
-    applySavedPositions(placed, nodes);
     var connections = design && Array.isArray(design.connections) ? design.connections : [];
-    var edges = containmentEdges(placed).concat(flowEdges(placed, connections));
-    var bounds = expandForFlows(boundsOf(placed), edges);
+    var maps = flowMaps(rest, connections);
+    var ranks = ranksFor(rest, maps);
+    var boundaries = rest.filter(function (node) {
+      return isBoundary(node, maps, rest);
+    });
+    var boxes = rest.filter(function (node) {
+      return !isBoundary(node, maps, rest);
+    });
+    var columns = {};
+    boxes.forEach(function (node) {
+      var rank = ranks[node.id] || 0;
+      if (!columns[rank]) columns[rank] = [];
+      columns[rank].push(node);
+    });
+    var placed = [];
+    var cursorX = 0;
+    Object.keys(columns)
+      .map(Number)
+      .sort(function (a, b) { return a - b; })
+      .forEach(function (rank) {
+        var column = columns[rank].slice().sort(function (a, b) {
+          var familyA = familyKey(a);
+          var familyB = familyKey(b);
+          if (familyA !== familyB) return familyA.localeCompare(familyB);
+          var flowA = inFlow(a.id, maps) ? 0 : 1;
+          var flowB = inFlow(b.id, maps) ? 0 : 1;
+          if (flowA !== flowB) return flowA - flowB;
+          if (a.kind !== b.kind) return a.kind === "component" ? -1 : 1;
+          return String(a.name).localeCompare(String(b.name));
+        });
+        var cursorY = 0;
+        var columnWidth = 0;
+        var seenFamily = {};
+        column.forEach(function (node) {
+          var family = familyKey(node);
+          var key = family + ":" + rank;
+          if (boundaries.some(function (item) { return item.id === family; }) && !seenFamily[key]) {
+            cursorY += 40;
+            seenFamily[key] = true;
+          }
+          var card = place(node, cursorX, cursorY);
+          placed.push(card);
+          cursorY += card.h + GAP_Y;
+          columnWidth = Math.max(columnWidth, card.w);
+        });
+        cursorX += columnWidth + GAP_X;
+      });
+
+    var body = boundsOf(placed);
+    var titleH = 0;
+    systems.forEach(function (node) {
+      titleH = Math.max(titleH, sizeOf(node).h);
+    });
+    if (systems.length) {
+      var shift = titleH + 36;
+      placed.forEach(function (card) {
+        card.y += shift;
+      });
+      systems.forEach(function (node, index) {
+        var card = place(node, 0, index * (sizeOf(node).h + 12));
+        card.x = body.w ? body.x + Math.max(0, (body.w - card.w) / 2) : 0;
+        placed.unshift(card);
+      });
+    }
+
+    placed.forEach(function (card) {
+      if (card.kind !== "module") return;
+      var parent = placed.find(function (item) { return item.id === card.parentId && item.kind === "component"; });
+      if (parent) card.group = "";
+    });
+    applySavedPositions(placed, sourceNodes);
+    var edges = flowEdges(placed, connections);
+    var groups = groupsFor(placed);
+    var captions = captionsFor(placed, boundaries);
+    captions.forEach(function (caption) {
+      var under = placed.find(function (node) {
+        return Math.abs(node.x - caption.x) < 2 && Math.abs(node.y - (caption.y + 36)) < 8;
+      });
+      if (under) under.group = "";
+    });
+    var bounds = expandForFlows(boundsOf(placed.concat(groups, captions)), edges);
     var unmappedSrc = design && Array.isArray(design.unmappedFlags) ? design.unmappedFlags : [];
     var unmapped = unmappedSrc.map(function (flag, index) {
       var node = {
@@ -170,15 +283,26 @@
         why: flag.difference,
         flags: [flag],
         parentId: null,
+        group: "",
       };
-      var x = (bounds.w ? bounds.x + bounds.w + 80 : 0);
-      var y = (bounds.w || bounds.h ? bounds.y : 0) + index * (sizeOf(node).h + 32);
+      var x = bounds.w ? bounds.x + bounds.w + 48 : 0;
+      var y = (bounds.w || bounds.h ? bounds.y : 0) + index * (sizeOf(node).h + 24);
       return place(node, x, y);
     });
     placed = placed.concat(unmapped);
-    bounds = expandForFlows(boundsOf(placed), edges);
-
-    return { nodes: placed, edges: edges, connections: connections, unmapped: unmapped, bounds: bounds };
+    bounds = expandForFlows(boundsOf(placed.concat(groups, captions)), edges);
+    return {
+      nodes: placed,
+      edges: edges,
+      groups: groups,
+      captions: captions,
+      boundaries: boundaries.map(function (node) {
+        return { id: node.id, name: node.name, what: node.what || "" };
+      }),
+      connections: connections,
+      unmapped: unmapped,
+      bounds: bounds,
+    };
   }
 
   function applySavedPositions(placed, sources) {
@@ -190,59 +314,134 @@
     });
   }
 
-  function containmentEdges(placed) {
-    var list = [];
-    placed.forEach(function (child) {
-      if (!child.parentId) return;
-      var parent = placed.find(function (node) { return node.id === child.parentId; });
-      if (!parent) return;
-      list.push(edge(parent, child));
+  function groupsFor(placed) {
+    var buckets = {};
+    placed.forEach(function (node) {
+      if (node.kind === "component") {
+        if (!buckets[node.id]) buckets[node.id] = [];
+        buckets[node.id].push(node);
+      }
+      if (node.kind === "module" && node.parentId) {
+        var parent = placed.find(function (item) { return item.id === node.parentId; });
+        var key = parent && parent.kind === "component" ? parent.id : node.parentId;
+        if (!buckets[key]) buckets[key] = [];
+        buckets[key].push(node);
+      }
     });
-    return list;
+    var groups = [];
+    Object.keys(buckets).forEach(function (key) {
+      var members = buckets[key];
+      if (members.length < 2) return;
+      var bounds = boundsOf(members);
+      var widest = 0;
+      members.forEach(function (member) {
+        widest = Math.max(widest, member.w);
+      });
+      if (bounds.w > widest + GAP_X) return;
+      groups.push({
+        id: key,
+        x: bounds.x - 14,
+        y: bounds.y - 14,
+        w: bounds.w + 28,
+        h: bounds.h + 28,
+      });
+    });
+    return groups;
   }
 
-  function hitsCard(x, y, placed, pad) {
+  function segmentHits(x1, y1, x2, y2, placed, skip) {
+    var minX = Math.min(x1, x2);
+    var maxX = Math.max(x1, x2);
+    var minY = Math.min(y1, y2);
+    var maxY = Math.max(y1, y2);
     return placed.some(function (node) {
-      return x >= node.x - pad && x <= node.x + node.w + pad && y >= node.y - pad && y <= node.y + node.h + pad;
+      if (skip[node.id] || node.kind === "system") return false;
+      var pad = 10;
+      return maxX >= node.x - pad && minX <= node.x + node.w + pad && maxY >= node.y - pad && minY <= node.y + node.h + pad;
     });
+  }
+
+  function portY(node, slot, count) {
+    if (!count || count < 2) return node.y + node.h / 2;
+    var span = Math.max(18, Math.min(node.h - 28, (count - 1) * 16));
+    var start = node.y + node.h / 2 - span / 2;
+    return start + (span * slot) / (count - 1);
+  }
+
+  function pairKey(a, b) {
+    return a < b ? a + "~" + b : b + "~" + a;
+  }
+
+  function clampPort(value, node) {
+    var min = node.y + 16;
+    var max = node.y + node.h - 16;
+    if (max <= min) return node.y + node.h / 2;
+    return Math.max(min, Math.min(max, value));
   }
 
   function flowEdges(placed, connections) {
+    var outCount = {};
+    var inCount = {};
+    var pairCount = {};
+    (connections || []).forEach(function (connection) {
+      outCount[connection.fromId] = (outCount[connection.fromId] || 0) + 1;
+      inCount[connection.toId] = (inCount[connection.toId] || 0) + 1;
+      var key = pairKey(connection.fromId, connection.toId);
+      pairCount[key] = (pairCount[key] || 0) + 1;
+    });
+    var outSlot = {};
+    var inSlot = {};
+    var pairSlot = {};
+    var laneSlot = 0;
     var list = [];
     (connections || []).forEach(function (connection) {
       var from = placed.find(function (node) { return node.id === connection.fromId; });
       var to = placed.find(function (node) { return node.id === connection.toId; });
       if (!from || !to) return;
-      var startX = from.x + from.w / 2;
-      var startY = from.y + from.h / 2;
-      var endX = to.x + to.w / 2;
-      var endY = to.y + to.h / 2;
-      var dx = endX - startX;
-      var dy = endY - startY;
-      var horizontal = Math.abs(dx) > Math.abs(dy);
-      var x1 = horizontal ? (dx >= 0 ? from.x + from.w : from.x) : startX;
-      var y1 = horizontal ? startY : (dy >= 0 ? from.y + from.h : from.y);
-      var x2 = horizontal ? (dx >= 0 ? to.x : to.x + to.w) : endX;
-      var y2 = horizontal ? endY : (dy >= 0 ? to.y : to.y + to.h);
-      var len = Math.hypot(x2 - x1, y2 - y1) || 1;
-      var px = -(y2 - y1) / len;
-      var py = (x2 - x1) / len;
-      var mx = (x1 + x2) / 2;
-      var my = (y1 + y2) / 2;
-      var cx = mx;
-      var cy = my;
-      var placedLabel = false;
-      for (var sign = 0; sign < 2 && !placedLabel; sign += 1) {
-        var direction = sign === 0 ? 1 : -1;
-        for (var dist = 64; dist <= 220; dist += 28) {
-          var lx = mx + px * dist * direction;
-          var ly = my + py * dist * direction;
-          if (hitsCard(lx, ly, placed, 28)) continue;
-          cx = lx;
-          cy = ly;
-          placedLabel = true;
-          break;
-        }
+      var fromSlot = outSlot[from.id] || 0;
+      outSlot[from.id] = fromSlot + 1;
+      var toSlot = inSlot[to.id] || 0;
+      inSlot[to.id] = toSlot + 1;
+      var key = pairKey(from.id, to.id);
+      var slot = pairSlot[key] || 0;
+      pairSlot[key] = slot + 1;
+      var spread = pairCount[key] > 1 ? (slot === 0 ? -18 : 18) : 0;
+      var goingRight = to.x + to.w / 2 >= from.x + from.w / 2;
+      var y1 = clampPort(portY(from, fromSlot, outCount[from.id]) + spread, from);
+      var y2 = clampPort(portY(to, toSlot, inCount[to.id]) + spread, to);
+      var x1 = goingRight ? from.x + from.w : from.x;
+      var x2 = goingRight ? to.x : to.x + to.w;
+      var midX = (x1 + x2) / 2;
+      var points = [
+        { x: x1, y: y1 },
+        { x: midX, y: y1 },
+        { x: midX, y: y2 },
+        { x: x2, y: y2 },
+      ];
+      var skip = {};
+      skip[from.id] = true;
+      skip[to.id] = true;
+      var blocked = segmentHits(x1, y1, midX, y1, placed, skip)
+        || segmentHits(midX, y1, midX, y2, placed, skip)
+        || segmentHits(midX, y2, x2, y2, placed, skip);
+      var cx = midX;
+      var cy = (y1 + y2) / 2;
+      if (blocked) {
+        var pairBottom = Math.max(from.y + from.h, to.y + to.h);
+        var lane = pairBottom + 28 + laneSlot * 26;
+        laneSlot += 1;
+        var outX = goingRight ? x1 + 28 : x1 - 28;
+        var inX = goingRight ? x2 - 28 : x2 + 28;
+        points = [
+          { x: x1, y: y1 },
+          { x: outX, y: y1 },
+          { x: outX, y: lane },
+          { x: inX, y: lane },
+          { x: inX, y: y2 },
+          { x: x2, y: y2 },
+        ];
+        cx = (outX + inX) / 2;
+        cy = lane;
       }
       list.push({
         from: from.id,
@@ -255,9 +454,35 @@
         cy: cy,
         x2: x2,
         y2: y2,
+        points: points,
       });
     });
     return list;
+  }
+
+  function captionsFor(placed, boundaries) {
+    var captions = [];
+    (boundaries || []).forEach(function (component) {
+      var members = placed.filter(function (node) { return node.parentId === component.id; });
+      var tops = {};
+      members.forEach(function (node) {
+        var key = String(Math.round(node.x));
+        if (!tops[key] || node.y < tops[key].y) tops[key] = node;
+      });
+      Object.keys(tops).forEach(function (key) {
+        var top = tops[key];
+        captions.push({
+          id: component.id + "@" + key,
+          name: component.name,
+          what: component.what || "",
+          x: top.x,
+          y: top.y - 36,
+          w: top.w,
+          h: 32,
+        });
+      });
+    });
+    return captions;
   }
 
   function moveNode(scene, id, x, y) {
@@ -266,30 +491,21 @@
     if (!node) return scene;
     node.x = x;
     node.y = y;
-    scene.edges = containmentEdges(scene.nodes).concat(flowEdges(scene.nodes, scene.connections || []));
-    scene.bounds = expandForFlows(boundsOf(scene.nodes), scene.edges);
+    scene.edges = flowEdges(scene.nodes, scene.connections || []);
+    scene.groups = groupsFor(scene.nodes);
+    scene.captions = captionsFor(scene.nodes, scene.boundaries || []);
+    scene.bounds = expandForFlows(boundsOf(scene.nodes.concat(scene.groups || [])), scene.edges);
     return scene;
   }
 
-  function edge(parent, child, fromId) {
-    return {
-      from: fromId || parent.id,
-      to: child.id,
-      kind: "containment",
-      x1: parent.x + parent.w / 2,
-      y1: parent.y + parent.h,
-      x2: child.x + child.w / 2,
-      y2: child.y,
-    };
-  }
-
   function boundsOf(items) {
-    if (!items.length) return { x: 0, y: 0, w: 0, h: 0 };
+    var list = (items || []).filter(Boolean);
+    if (!list.length) return { x: 0, y: 0, w: 0, h: 0 };
     var minX = Infinity;
     var minY = Infinity;
     var maxX = -Infinity;
     var maxY = -Infinity;
-    items.forEach(function (item) {
+    list.forEach(function (item) {
       minX = Math.min(minX, item.x);
       minY = Math.min(minY, item.y);
       maxX = Math.max(maxX, item.x + item.w);
@@ -299,18 +515,24 @@
   }
 
   function expandForFlows(bounds, edges) {
-    var flows = edges.filter(function (item) { return item.kind !== "containment"; });
-    if (!flows.length || !bounds.w || !bounds.h) return bounds;
-    var pad = 72;
+    if (!bounds.w || !bounds.h) return bounds;
+    var pad = 48;
     var minX = bounds.x;
     var minY = bounds.y;
     var maxX = bounds.x + bounds.w;
     var maxY = bounds.y + bounds.h;
-    flows.forEach(function (item) {
-      minX = Math.min(minX, item.x1, item.x2, item.cx);
-      minY = Math.min(minY, item.y1, item.y2, item.cy);
-      maxX = Math.max(maxX, item.x1, item.x2, item.cx);
-      maxY = Math.max(maxY, item.y1, item.y2, item.cy);
+    (edges || []).forEach(function (item) {
+      var points = item.points || [
+        { x: item.x1, y: item.y1 },
+        { x: item.cx, y: item.cy },
+        { x: item.x2, y: item.y2 },
+      ];
+      points.forEach(function (point) {
+        minX = Math.min(minX, point.x);
+        minY = Math.min(minY, point.y);
+        maxX = Math.max(maxX, point.x);
+        maxY = Math.max(maxY, point.y);
+      });
     });
     return { x: minX - pad, y: minY - pad, w: maxX - minX + pad * 2, h: maxY - minY + pad * 2 };
   }

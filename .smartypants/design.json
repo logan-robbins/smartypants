@@ -1,254 +1,260 @@
 {
   "version": 1,
   "floor": "module",
-  "updatedAt": "2026-09-24T01:27:46.804Z",
+  "updatedAt": "2026-09-24T02:17:08.076Z",
   "seeded": true,
-  "seededAt": "2026-09-24T01:27:46.805Z",
+  "seededAt": "2026-09-24T02:17:08.077Z",
   "nodes": [
     {
-      "id": "smartypants",
-      "name": "Smartypants",
+      "id": "shortener",
+      "name": "Shortener",
       "kind": "system",
       "parentId": null,
-      "what": "The picture of a system while an agent is building it",
-      "why": "A person can see the shape of the work and where the code left the request",
-      "x": 760,
-      "y": 16,
+      "what": "Turns a long web address into a short link, then sends each click to the original page",
+      "why": "People share a short link, and the owner can see that the link was used",
+      "x": 430,
+      "y": 8,
       "flags": []
     },
     {
-      "id": "watch",
-      "name": "Watch",
+      "id": "client",
+      "name": "Client",
       "kind": "component",
-      "parentId": "smartypants",
-      "what": "Hears what the person asks and what the agent writes",
-      "why": "The picture has to change with the work, and the agent keeps going if the picture fails",
+      "parentId": "shortener",
+      "what": "The person who creates a link or clicks one",
+      "why": "Every arrow in this system starts or ends with that person",
+      "flags": []
+    },
+    {
+      "id": "create",
+      "name": "Create",
+      "kind": "component",
+      "parentId": "shortener",
+      "what": "Makes a short link from a long address",
+      "why": "Writing a link is a different path from opening one",
+      "flags": []
+    },
+    {
+      "id": "jump",
+      "name": "Jump",
+      "kind": "component",
+      "parentId": "shortener",
+      "what": "Sends a click to the original page",
+      "why": "Opening the link is the path people hit the most",
+      "flags": []
+    },
+    {
+      "id": "directory",
+      "name": "Directory",
+      "kind": "component",
+      "parentId": "shortener",
+      "what": "Holds the map from short code to long address",
+      "why": "Creating a link and opening it have to agree on the same map",
+      "flags": []
+    },
+    {
+      "id": "count",
+      "name": "Count",
+      "kind": "component",
+      "parentId": "shortener",
+      "what": "Remembers that a short link was used",
+      "why": "The owner needs a count that does not slow the click",
+      "flags": []
+    },
+    {
+      "id": "browser",
+      "name": "Browser",
+      "kind": "module",
+      "parentId": "client",
+      "what": "Asks for a short link, or opens one someone shared",
+      "why": "The shortener is for a person who is not inside it",
       "x": 24,
-      "y": 230,
+      "y": 360,
       "flags": []
     },
     {
-      "id": "picture",
-      "name": "Picture",
-      "kind": "component",
-      "parentId": "smartypants",
-      "what": "Holds the system, the parts of that system, and the slices inside each part",
-      "why": "The watch and the board share one picture instead of guessing again each turn",
-      "x": 1160,
-      "y": 230,
-      "flags": []
-    },
-    {
-      "id": "builder",
-      "name": "Builder",
-      "kind": "component",
-      "parentId": "smartypants",
-      "what": "Asks one model to write or update the picture",
-      "why": "The switch names that model, and a wrong name must not call a different one",
-      "x": 400,
-      "y": 230,
-      "flags": []
-    },
-    {
-      "id": "memory",
-      "name": "Memory",
-      "kind": "component",
-      "parentId": "smartypants",
-      "what": "Remembers the first picture and what changed after it",
-      "why": "A project that already has code needs a start, then only the changes",
-      "x": 780,
-      "y": 230,
-      "flags": []
-    },
-    {
-      "id": "board",
-      "name": "Board",
-      "kind": "component",
-      "parentId": "smartypants",
-      "what": "Draws the picture on a desktop surface",
-      "why": "This is how a person sees what the agent is building",
-      "x": 1540,
-      "y": 230,
-      "flags": []
-    },
-    {
-      "id": "hosts",
-      "name": "Hosts",
+      "id": "desk",
+      "name": "Create link",
       "kind": "module",
-      "parentId": "watch",
-      "what": "Claude, Codex, Grok, Muse, and Pi arrive as one kind of event",
-      "why": "Five hosts should feed one picture",
-      "x": 24,
-      "y": 470,
+      "parentId": "create",
+      "what": "Takes a long address and returns a short link",
+      "why": "Creating a link is a different job from sending a click onward",
+      "x": 360,
+      "y": 200,
       "flags": []
     },
     {
-      "id": "switch",
-      "name": "Switch",
+      "id": "mint",
+      "name": "Code mint",
       "kind": "module",
-      "parentId": "watch",
-      "what": "The project file that turns the watch on and names the builder",
-      "why": "Nothing runs until that file is in the project root",
-      "x": 24,
-      "y": 690,
+      "parentId": "create",
+      "what": "Chooses a short code that no link uses yet",
+      "why": "Two addresses must not end up on the same code",
+      "x": 720,
+      "y": 200,
       "flags": []
     },
     {
-      "id": "quiet",
-      "name": "Quiet turn",
+      "id": "redirect",
+      "name": "Redirect",
       "kind": "module",
-      "parentId": "watch",
-      "what": "A turn that is already drawing the picture does not start another one",
-      "why": "Muse and Pi would otherwise draw the picture again from inside the drawing",
-      "x": 24,
-      "y": 930,
+      "parentId": "jump",
+      "what": "Finds the long address for a code and points the browser at it",
+      "why": "A click has to leave for the real page without waiting on counts",
+      "x": 360,
+      "y": 540,
       "flags": []
     },
     {
-      "id": "depth",
-      "name": "Depth",
+      "id": "cache",
+      "name": "Hot cache",
       "kind": "module",
-      "parentId": "picture",
-      "what": "Shows the system, or its parts, or the slices inside those parts",
-      "why": "The picture stops at the level the project asked for",
-      "x": 1160,
-      "y": 480,
+      "parentId": "jump",
+      "what": "Keeps the codes people are clicking right now",
+      "why": "Most clicks should not read the directory",
+      "x": 720,
+      "y": 540,
       "flags": []
     },
     {
-      "id": "drift",
-      "name": "Drift",
+      "id": "table",
+      "name": "Link table",
       "kind": "module",
-      "parentId": "picture",
-      "what": "Marks where the code left what was asked, once for each difference",
-      "why": "A person needs that mark even when the code fits no part of the picture",
-      "x": 1160,
-      "y": 720,
+      "parentId": "directory",
+      "what": "Stores each code and the address it opens",
+      "why": "The link still has to work after the cache drops it",
+      "x": 1080,
+      "y": 200,
       "flags": []
     },
     {
-      "id": "chosen",
-      "name": "Chosen model",
+      "id": "stream",
+      "name": "Click stream",
       "kind": "module",
-      "parentId": "builder",
-      "what": "Sends the depth, the ladder, and the short notes to that one model",
-      "why": "The model has to use this project's depth, not files and functions as parts",
-      "x": 400,
-      "y": 500,
+      "parentId": "count",
+      "what": "Carries the fact of a click away from the redirect",
+      "why": "The person should not wait while the click is counted",
+      "x": 720,
+      "y": 880,
       "flags": []
     },
     {
-      "id": "notes",
-      "name": "Notes",
+      "id": "tallies",
+      "name": "Tallies",
       "kind": "module",
-      "parentId": "memory",
-      "what": "Keeps the useful words from a turn",
-      "why": "The memory is about the project, not the whole conversation",
-      "x": 780,
-      "y": 470,
-      "flags": []
-    },
-    {
-      "id": "folding",
-      "name": "Older notes",
-      "kind": "module",
-      "parentId": "memory",
-      "what": "Collapses earlier notes when the memory gets long",
-      "why": "The next turn can still carry the history",
-      "x": 780,
-      "y": 700,
-      "flags": []
-    },
-    {
-      "id": "start",
-      "name": "Starting picture",
-      "kind": "module",
-      "parentId": "memory",
-      "what": "Uses the file names already in the tree as the first picture",
-      "why": "The start comes from the code that is there, before later turns track changes",
-      "x": 780,
-      "y": 910,
-      "flags": []
-    },
-    {
-      "id": "nesting",
-      "name": "Nesting",
-      "kind": "module",
-      "parentId": "board",
-      "what": "Puts each slice inside its part, and each part inside the system",
-      "why": "The picture shows what contains what",
-      "x": 1540,
-      "y": 450,
-      "flags": []
-    },
-    {
-      "id": "view",
-      "name": "The view",
-      "kind": "module",
-      "parentId": "board",
-      "what": "Drag and scroll when the picture is larger than the window",
-      "why": "A system picture grows past one screen",
-      "x": 1540,
-      "y": 680,
+      "parentId": "count",
+      "what": "Turns clicks into numbers the owner can read",
+      "why": "The owner shared the link to learn if people used it",
+      "x": 1080,
+      "y": 880,
       "flags": []
     }
   ],
   "connections": [
     {
-      "id": "prompt-or-edit",
-      "fromId": "hosts",
-      "toId": "chosen",
+      "id": "long-url",
+      "fromId": "browser",
+      "toId": "desk",
       "kind": "data",
-      "label": "prompt or edit"
+      "label": "long URL"
     },
     {
-      "id": "flavor-and-depth",
-      "fromId": "switch",
-      "toId": "chosen",
+      "id": "need-code",
+      "fromId": "desk",
+      "toId": "mint",
       "kind": "control",
-      "label": "flavor and depth"
+      "label": "need a code"
     },
     {
-      "id": "gists-in",
-      "fromId": "notes",
-      "toId": "chosen",
+      "id": "short-code",
+      "fromId": "mint",
+      "toId": "desk",
       "kind": "data",
-      "label": "gists"
+      "label": "short code"
     },
     {
-      "id": "file-names",
-      "fromId": "start",
-      "toId": "chosen",
+      "id": "save-pair",
+      "fromId": "desk",
+      "toId": "table",
       "kind": "data",
-      "label": "file names"
+      "label": "save the pair"
     },
     {
-      "id": "design-out",
-      "fromId": "chosen",
-      "toId": "picture",
+      "id": "saved",
+      "fromId": "table",
+      "toId": "desk",
       "kind": "data",
-      "label": "design"
+      "label": "saved"
     },
     {
-      "id": "gist-out",
-      "fromId": "chosen",
-      "toId": "notes",
+      "id": "short-link",
+      "fromId": "desk",
+      "toId": "browser",
       "kind": "data",
-      "label": "new gist"
+      "label": "short link"
     },
     {
-      "id": "diagram-out",
-      "fromId": "picture",
-      "toId": "board",
+      "id": "click-code",
+      "fromId": "browser",
+      "toId": "redirect",
       "kind": "data",
-      "label": "diagram"
+      "label": "short code"
     },
     {
-      "id": "while-drawing",
-      "fromId": "chosen",
-      "toId": "quiet",
-      "kind": "control",
-      "label": "while drawing"
+      "id": "cache-lookup",
+      "fromId": "redirect",
+      "toId": "cache",
+      "kind": "data",
+      "label": "lookup"
+    },
+    {
+      "id": "cache-hit",
+      "fromId": "cache",
+      "toId": "redirect",
+      "kind": "data",
+      "label": "cached URL"
+    },
+    {
+      "id": "table-miss",
+      "fromId": "redirect",
+      "toId": "table",
+      "kind": "data",
+      "label": "miss"
+    },
+    {
+      "id": "table-hit",
+      "fromId": "table",
+      "toId": "redirect",
+      "kind": "data",
+      "label": "stored URL"
+    },
+    {
+      "id": "cache-fill",
+      "fromId": "redirect",
+      "toId": "cache",
+      "kind": "data",
+      "label": "remember"
+    },
+    {
+      "id": "send-on",
+      "fromId": "redirect",
+      "toId": "browser",
+      "kind": "data",
+      "label": "go to the page"
+    },
+    {
+      "id": "click",
+      "fromId": "redirect",
+      "toId": "stream",
+      "kind": "data",
+      "label": "click"
+    },
+    {
+      "id": "clicks",
+      "fromId": "stream",
+      "toId": "tallies",
+      "kind": "data",
+      "label": "clicks"
     }
   ],
   "unmappedFlags": []

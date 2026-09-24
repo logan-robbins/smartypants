@@ -2,7 +2,9 @@
 
 Keep a system diagram while an agent codes. Flag where the code leaves the request.
 
-![Smartypants system diagram](diagram.png)
+![Bitly-style URL shortener](diagram.png)
+
+The picture is a Bitly-style URL shortener. A person gets a short link. A click on that link is sent to the original page, and the owner can see that it was used.
 
 The hook does nothing until `smartypants.config.json` is in the project root.
 
@@ -76,14 +78,13 @@ npx smartypants reset
 
 Open http://127.0.0.1:4173. Drag a card to move that card. Drag empty space to pan. Scroll to zoom.
 
-Teal arrows are data. Amber arrows are control. Gray lines show what sits inside what.
+An arrow points the way the data moves. A reply or a write-back is a second arrow pointing back at the caller. Ink arrows are data. Amber arrows are control.
 
-- Hosts send a prompt or an edit to the chosen model.
-- Switch sends flavor and depth.
-- Notes send gists. The chosen model writes a new gist back.
-- Starting picture sends file names when `seed` is on.
-- The chosen model writes the design into Picture, and Picture sends the diagram to the Board.
-- While that turn is drawing, control tells Quiet turn not to start another one.
+- The browser sends a long URL to Create link. Create link asks Code mint for a code, and the short code comes back.
+- Create link saves the code and the long URL in the link table. The table answers that it saved. Create link hands the short link back to the browser.
+- A click sends the short code to Redirect. Redirect asks the hot cache, and a hit comes back as the cached URL.
+- On a miss, Redirect reads the link table and the stored URL comes back. Redirect tells the cache to remember it.
+- Redirect sends the browser on to the original page, and sends the click to the click stream. The stream feeds Tallies.
 
 ## Skill
 
