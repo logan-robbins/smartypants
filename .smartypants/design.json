@@ -68,8 +68,8 @@
       "parentId": "client",
       "what": "Asks for a short link, or opens one someone shared",
       "why": "The shortener is for a person who is not inside it",
-      "x": 24,
-      "y": 360,
+      "x": -253.1877055921052,
+      "y": 360.1997327302632,
       "flags": []
     },
     {
@@ -79,8 +79,8 @@
       "parentId": "create",
       "what": "Takes a long address and returns a short link",
       "why": "Creating a link is a different job from sending a click onward",
-      "x": 360,
-      "y": 200,
+      "x": 318.7104235197369,
+      "y": 35.08963815789474,
       "flags": []
     },
     {
@@ -101,8 +101,8 @@
       "parentId": "jump",
       "what": "Finds the long address for a code and points the browser at it",
       "why": "A click has to leave for the real page without waiting on counts",
-      "x": 360,
-      "y": 540,
+      "x": 265.40933388157896,
+      "y": 770.7119654605262,
       "flags": []
     },
     {
