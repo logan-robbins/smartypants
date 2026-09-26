@@ -1,46 +1,71 @@
 {
   "version": 1,
   "floor": "module",
-  "updatedAt": "2026-09-26T19:16:30.445Z",
+  "updatedAt": "2026-09-26T20:01:19.741Z",
   "level": "component",
   "nodes": [
     {
-      "id": "sys-newsfeed",
-      "name": "News Feed",
+      "id": "fb-newsfeed",
+      "name": "Facebook News Feed",
       "kind": "system",
       "parentId": null,
       "what": "Publishes posts and serves ranked feeds",
-      "why": "Product users open to see friends and pages",
+      "why": "Connect users with friends and pages posts",
       "shape": "service",
       "flags": []
     },
     {
       "id": "edge-gateway",
-      "name": "Edge Gateway",
+      "name": "Feed API Gateway",
       "kind": "component",
-      "parentId": "sys-newsfeed",
-      "what": "Routes post and feed API traffic",
-      "why": "Single edge for auth and routing",
+      "parentId": "fb-newsfeed",
+      "what": "Routes publish and feed read requests",
+      "why": "Single edge entry for feed traffic",
       "shape": "gateway",
       "flags": []
     },
     {
-      "id": "graph-service",
-      "name": "Graph Service",
+      "id": "post-publisher",
+      "name": "Post Publishing Service",
       "kind": "component",
-      "parentId": "sys-newsfeed",
-      "what": "Owns friends and page follows",
-      "why": "Defines who sees whose posts",
+      "parentId": "fb-newsfeed",
+      "what": "Accepts and validates new posts",
+      "why": "Owns post creation path",
       "shape": "service",
       "flags": []
     },
     {
-      "id": "post-service",
-      "name": "Post Service",
+      "id": "social-graph",
+      "name": "Social Graph Service",
       "kind": "component",
-      "parentId": "sys-newsfeed",
-      "what": "Creates and serves posts",
-      "why": "Write path for user publishing",
+      "parentId": "fb-newsfeed",
+      "what": "Stores friends and page follows",
+      "why": "Defines feed audience and sources",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "feed-fanout",
+      "name": "Feed Fanout Worker",
+      "kind": "component",
+      "parentId": "fb-newsfeed",
+      "what": "Fans normal posts to follower caches, skips celebrity posts",
+      "why": "Avoids 1M+ writes per celebrity post",
+      "shape": "worker",
+      "flags": [
+        {
+          "intent": "Feed Fanout Worker fans normal posts to follower caches, skips celebrity posts - fanout-on-write-except-celebrity-over-1M",
+          "difference": "on_post fans out to all followers with no celebrity follower-count check, performing 1M+ cache writes per celebrity post instead of skipping fanout for celebrity posts over 1M for merge-on-read"
+        }
+      ]
+    },
+    {
+      "id": "feed-ranker",
+      "name": "Feed Ranking Service",
+      "kind": "component",
+      "parentId": "fb-newsfeed",
+      "what": "Merges cached feed with celebrity posts at read time and ranks",
+      "why": "Serves celebrity posts fresh without fanout blowup",
       "shape": "service",
       "flags": []
     },
@@ -48,49 +73,75 @@
       "id": "post-store",
       "name": "Post Store",
       "kind": "component",
-      "parentId": "sys-newsfeed",
-      "what": "Durably stores post content",
+      "parentId": "fb-newsfeed",
+      "what": "Persists post content durably",
       "why": "Source of truth for posts",
       "shape": "store",
       "flags": []
     },
     {
-      "id": "feed-fanout",
-      "name": "Feed Fanout",
+      "id": "feed-cache",
+      "name": "Feed Cache",
       "kind": "component",
-      "parentId": "sys-newsfeed",
-      "what": "Fans regular posts to followers, skips celebrities over 1M",
-      "why": "Keeps write fanout bounded for huge followings",
-      "shape": "worker",
+      "parentId": "fb-newsfeed",
+      "what": "Holds precomputed per-user feeds",
+      "why": "Serves ranked reads with low latency",
+      "shape": "cache",
       "flags": []
     },
     {
-      "id": "feed-store",
-      "name": "Feed Store",
-      "kind": "component",
-      "parentId": "sys-newsfeed",
-      "what": "Holds per-user candidate feeds",
-      "why": "Precomputed inbox for ranking",
-      "shape": "store",
+      "id": "feed-lists",
+      "name": "Feed List Storage",
+      "kind": "module",
+      "parentId": "feed-cache",
+      "what": "Stores ordered post IDs per user",
+      "why": "Serve candidate fetch in single shard lookup",
+      "shape": "cache",
+      "notes": [
+        "sorted-set per userId key, member postId score publish-time",
+        "sharded by hash(userId), replication factor 3 per shard",
+        "trims to top ~1000 entries per user, paginated read by ZRANGE",
+        "hot users pinned in memory, cold users on SSD tier"
+      ],
       "flags": []
     },
     {
-      "id": "feed-ranker",
-      "name": "Feed Ranker",
-      "kind": "component",
-      "parentId": "sys-newsfeed",
-      "what": "Ranks cached posts and merges celebrity posts at read time",
-      "why": "Serves fast feeds while avoiding celebrity fanout blowup",
+      "id": "feed-ingest",
+      "name": "Fanout Ingest Path",
+      "kind": "module",
+      "parentId": "feed-cache",
+      "what": "Absorbs fanout pushes into lists",
+      "why": "Protect read latency from write bursts",
       "shape": "service",
+      "notes": [
+        "batches fanout pushes per destination shard",
+        "dedups repeat postId per user list",
+        "backpressures fanout worker on queue full"
+      ],
+      "flags": []
+    },
+    {
+      "id": "feed-eviction",
+      "name": "Expiry and Eviction Policy",
+      "kind": "module",
+      "parentId": "feed-cache",
+      "what": "Enforces TTL and LRU eviction",
+      "why": "Bound memory while keeping hit rate high",
+      "shape": "worker",
+      "notes": [
+        "TTL ~days plus LRU on memory pressure",
+        "lazy expiry on read plus background scan",
+        "never evicts pinned hot celebrity-follower lists first"
+      ],
       "flags": []
     },
     {
       "id": "media-store",
-      "name": "Media Store",
+      "name": "Media Blob Store",
       "kind": "component",
-      "parentId": "sys-newsfeed",
-      "what": "Stores image and video blobs",
-      "why": "Keep large media out of Post Store",
+      "parentId": "fb-newsfeed",
+      "what": "Stores image and video blobs, returns URL",
+      "why": "Keeps large media out of Post Store",
       "shape": "store",
       "flags": []
     },
@@ -98,239 +149,278 @@
       "id": "media-cdn",
       "name": "Media CDN",
       "kind": "component",
-      "parentId": "sys-newsfeed",
-      "what": "Caches and serves media worldwide",
-      "why": "Cut media latency and origin load",
+      "parentId": "fb-newsfeed",
+      "what": "Caches and delivers media bytes at edge",
+      "why": "Offloads media reads and cuts playback latency",
       "shape": "gateway",
       "flags": []
     },
     {
-      "id": "candidate-loader",
-      "name": "Candidate Loader",
+      "id": "rank-merge",
+      "name": "Candidate Merger",
       "kind": "module",
       "parentId": "feed-ranker",
-      "what": "Reads fanned-out candidates from Feed Store",
-      "why": "Serves fast feed without scanning all posts",
+      "what": "Merges cached feed IDs with fresh celebrity posts",
+      "why": "Combine fanout and non-fanned sources in one set",
       "shape": "service",
+      "notes": [
+        "keys: userId -> cached IDs + celebrity author IDs",
+        "pulls celeb posts from post-store on read, no fanout",
+        "fan-in: feed-lists read + post details fetch",
+        "dedups by postId before filter"
+      ],
       "flags": []
     },
     {
-      "id": "celeb-merger",
-      "name": "Celebrity Merger",
+      "id": "rank-filter",
+      "name": "Visibility Filter",
       "kind": "module",
       "parentId": "feed-ranker",
-      "what": "Fetches followed celebs and their recent posts",
-      "why": "Avoids fanout blowup over 1M followers",
+      "what": "Removes ineligible and duplicate posts",
+      "why": "Enforce privacy and quality before ranking",
       "shape": "service",
+      "notes": [
+        "drops blocked, hidden, deleted, out-of-privacy posts",
+        "checks author privacy against social-graph rules",
+        "runs before scoring to save rank compute",
+        "stateless, fail-closed on privacy-check error"
+      ],
       "flags": []
     },
     {
-      "id": "relevance-scorer",
+      "id": "rank-scoring",
       "name": "Relevance Scorer",
       "kind": "module",
       "parentId": "feed-ranker",
-      "what": "Scores merged candidates and sorts feed page",
-      "why": "Meets p99<200ms ranked feed",
+      "what": "Orders visible candidates by relevance score",
+      "why": "Show most engaging posts first",
       "shape": "service",
+      "notes": [
+        "scores by recency, affinity, engagement features",
+        "top-K sort, K=page size ~20-50",
+        "hot-path budget part of p99<200ms feed read",
+        "falls back to chronological on scorer timeout"
+      ],
       "flags": []
     }
   ],
   "connections": [
     {
-      "id": "c-gateway-post",
+      "id": "c-publish",
       "fromId": "edge-gateway",
-      "toId": "post-service",
+      "toId": "post-publisher",
       "kind": "data",
-      "label": "create-post request"
+      "label": "publish-post"
     },
     {
-      "id": "c-post-store-write",
-      "fromId": "post-service",
+      "id": "c-write-post",
+      "fromId": "post-publisher",
       "toId": "post-store",
       "kind": "data",
-      "label": "persist post"
+      "label": "write-post"
     },
     {
-      "id": "c-post-fanout",
-      "fromId": "post-service",
+      "id": "c-write-ack",
+      "fromId": "post-store",
+      "toId": "post-publisher",
+      "kind": "data",
+      "label": "post-ack"
+    },
+    {
+      "id": "c-new-post",
+      "fromId": "post-publisher",
       "toId": "feed-fanout",
       "kind": "data",
-      "label": "new-post event"
+      "label": "new-post-event"
     },
     {
-      "id": "c-fanout-graph",
+      "id": "c-get-followers",
       "fromId": "feed-fanout",
-      "toId": "graph-service",
+      "toId": "social-graph",
       "kind": "data",
-      "label": "get followers request"
+      "label": "get-followers"
     },
     {
-      "id": "c-graph-fanout",
-      "fromId": "graph-service",
-      "toId": "feed-fanout",
-      "kind": "data",
-      "label": "follower lists"
-    },
-    {
-      "id": "c-fanout-store",
+      "id": "c-push-fanout",
       "fromId": "feed-fanout",
-      "toId": "feed-store",
+      "toId": "feed-cache",
       "kind": "data",
-      "label": "write fanout feeds"
+      "label": "push-fanout-item"
     },
     {
-      "id": "c-gateway-rank",
+      "id": "c-get-feed",
       "fromId": "edge-gateway",
       "toId": "feed-ranker",
       "kind": "data",
-      "label": "feed request"
+      "label": "get-feed-request"
     },
     {
-      "id": "c-rank-store",
+      "id": "c-get-candidates",
       "fromId": "feed-ranker",
-      "toId": "feed-store",
+      "toId": "feed-cache",
       "kind": "data",
-      "label": "read candidate posts"
+      "label": "fetch-candidate-posts"
     },
     {
-      "id": "c-store-rank",
-      "fromId": "feed-store",
+      "id": "c-candidates",
+      "fromId": "feed-cache",
       "toId": "feed-ranker",
       "kind": "data",
-      "label": "candidate posts"
+      "label": "candidate-posts"
     },
     {
-      "id": "c-rank-gateway",
-      "fromId": "feed-ranker",
-      "toId": "edge-gateway",
-      "kind": "data",
-      "label": "ranked feed"
-    },
-    {
-      "id": "c-rank-graph-celeb",
-      "fromId": "feed-ranker",
-      "toId": "graph-service",
-      "kind": "data",
-      "label": "get followed celebrities"
-    },
-    {
-      "id": "c-graph-rank-celeb",
-      "fromId": "graph-service",
-      "toId": "feed-ranker",
-      "kind": "data",
-      "label": "followed celebrities"
-    },
-    {
-      "id": "c-rank-post-celeb",
+      "id": "c-get-details",
       "fromId": "feed-ranker",
       "toId": "post-store",
       "kind": "data",
-      "label": "read celebrity posts"
+      "label": "fetch-post-details"
     },
     {
-      "id": "c-post-rank-celeb",
+      "id": "c-post-details",
       "fromId": "post-store",
       "toId": "feed-ranker",
       "kind": "data",
-      "label": "celebrity posts"
+      "label": "post-details"
     },
     {
-      "id": "c-post-media-upload",
-      "fromId": "post-service",
+      "id": "c-ranked-feed",
+      "fromId": "feed-ranker",
+      "toId": "edge-gateway",
+      "kind": "data",
+      "label": "ranked-feed"
+    },
+    {
+      "id": "c-follower-list",
+      "fromId": "social-graph",
+      "toId": "feed-fanout",
+      "kind": "data",
+      "label": "follower-list"
+    },
+    {
+      "id": "c-celeb-fetch",
+      "fromId": "feed-ranker",
+      "toId": "post-store",
+      "kind": "data",
+      "label": "fetch-celebrity-posts"
+    },
+    {
+      "id": "c-celeb-posts",
+      "fromId": "post-store",
+      "toId": "feed-ranker",
+      "kind": "data",
+      "label": "celebrity-posts"
+    },
+    {
+      "id": "c-push-ingest",
+      "fromId": "feed-fanout",
+      "toId": "feed-ingest",
+      "kind": "data",
+      "label": "push-fanout-item"
+    },
+    {
+      "id": "c-ingest-append",
+      "fromId": "feed-ingest",
+      "toId": "feed-lists",
+      "kind": "data",
+      "label": "append-item"
+    },
+    {
+      "id": "c-rank-fetch",
+      "fromId": "feed-ranker",
+      "toId": "feed-lists",
+      "kind": "data",
+      "label": "fetch-candidate-posts"
+    },
+    {
+      "id": "c-lists-candidates",
+      "fromId": "feed-lists",
+      "toId": "feed-ranker",
+      "kind": "data",
+      "label": "candidate-posts"
+    },
+    {
+      "id": "c-evict",
+      "fromId": "feed-eviction",
+      "toId": "feed-lists",
+      "kind": "control",
+      "label": "evict-expire"
+    },
+    {
+      "id": "c-media-upload",
+      "fromId": "post-publisher",
       "toId": "media-store",
       "kind": "data",
-      "label": "upload media"
+      "label": "upload-media"
     },
     {
-      "id": "c-media-post-url",
+      "id": "c-media-url",
       "fromId": "media-store",
-      "toId": "post-service",
+      "toId": "post-publisher",
       "kind": "data",
-      "label": "media URL"
+      "label": "media-url"
     },
     {
-      "id": "c-cdn-store-fetch",
-      "fromId": "media-cdn",
-      "toId": "media-store",
-      "kind": "data",
-      "label": "origin fetch"
-    },
-    {
-      "id": "c-store-cdn-origin",
+      "id": "c-origin-fill",
       "fromId": "media-store",
       "toId": "media-cdn",
       "kind": "data",
-      "label": "origin media"
+      "label": "origin-fill"
     },
     {
-      "id": "c-cdn-gateway-media",
-      "fromId": "media-cdn",
-      "toId": "edge-gateway",
+      "id": "c-rank-in",
+      "fromId": "edge-gateway",
+      "toId": "rank-merge",
       "kind": "data",
-      "label": "cached media"
+      "label": "get-feed-request"
     },
     {
-      "id": "c-loader-store",
-      "fromId": "candidate-loader",
-      "toId": "feed-store",
+      "id": "c-rank-lists",
+      "fromId": "feed-lists",
+      "toId": "rank-merge",
       "kind": "data",
-      "label": "read candidate posts"
+      "label": "candidate-posts"
     },
     {
-      "id": "c-store-loader",
-      "fromId": "feed-store",
-      "toId": "candidate-loader",
+      "id": "c-rank-details",
+      "fromId": "post-store",
+      "toId": "rank-merge",
       "kind": "data",
-      "label": "candidate posts"
+      "label": "post-details+celebrity-posts"
     },
     {
-      "id": "c-merger-graph",
-      "fromId": "celeb-merger",
-      "toId": "graph-service",
+      "id": "c-filter-score",
+      "fromId": "rank-filter",
+      "toId": "rank-scoring",
       "kind": "data",
-      "label": "get followed celebrities"
+      "label": "visible-candidates"
     },
     {
-      "id": "c-graph-merger",
-      "fromId": "graph-service",
-      "toId": "celeb-merger",
+      "id": "c-merge-fetch-lists",
+      "fromId": "rank-merge",
+      "toId": "feed-lists",
       "kind": "data",
-      "label": "followed celebrities"
+      "label": "fetch-candidate-posts"
     },
     {
-      "id": "c-merger-post",
-      "fromId": "celeb-merger",
+      "id": "c-merge-fetch-store",
+      "fromId": "rank-merge",
       "toId": "post-store",
       "kind": "data",
-      "label": "read celebrity posts"
+      "label": "fetch-details+celebrity-posts"
     },
     {
-      "id": "c-post-merger",
-      "fromId": "post-store",
-      "toId": "celeb-merger",
+      "id": "c-merge-filter",
+      "fromId": "rank-merge",
+      "toId": "rank-filter",
       "kind": "data",
-      "label": "celebrity posts"
+      "label": "merged-candidates"
     },
     {
-      "id": "c-loader-scorer",
-      "fromId": "candidate-loader",
-      "toId": "relevance-scorer",
-      "kind": "data",
-      "label": "fanned candidates"
-    },
-    {
-      "id": "c-merger-scorer",
-      "fromId": "celeb-merger",
-      "toId": "relevance-scorer",
-      "kind": "data",
-      "label": "recent celeb posts"
-    },
-    {
-      "id": "c-scorer-gateway",
-      "fromId": "relevance-scorer",
+      "id": "c-rank-out",
+      "fromId": "rank-scoring",
       "toId": "edge-gateway",
       "kind": "data",
-      "label": "ranked feed"
+      "label": "ranked-feed"
     }
   ],
   "unmappedFlags": []

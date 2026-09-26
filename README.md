@@ -1,133 +1,178 @@
 # Smartypants
 
-Keep a system diagram while an agent codes. Flag where the code leaves the request.
+A live system diagram for the project your coding agent is building. Smartypants listens to
+the conversation and the edits, keeps a Mermaid-style diagram (system → component → module),
+remembers your architectural intent in a compact code, goes deeper on any part when asked,
+and flags where the code leaves the intent.
 
-![Bitly-style URL shortener](diagram.png)
+![YouTube Top-K drawn by Smartypants](diagram.png)
 
-The picture is a Bitly-style URL shortener. A person gets a short link. A click on that link is sent to the original page, and the owner can see that it was used.
-
-The hook does nothing until `smartypants.config.json` is in the project root.
+- **Cheap by design.** A free local triage and a Jev-style selector decide what each turn is
+  worth. Greetings, "run the tests", and pure numbers never reach the builder; only turns that
+  change the design do.
+- **Meta by default.** The builder runs on the Meta Model API with **Muse Spark 1.3 in
+  Contributor mode** (`muse-spark-1.3-contributor`, $0.10/M in, $0.20/M out).
+- **Works in** Claude Code, Codex, Pi, Muse Code, and Grok Build.
 
 ## Start
 
-1. Install the package in the project.
-
 ```sh
 npm install github:logan-robbins/smartypants
+npx smartypants init            # meta builder, auto depth, background mode
+export META_API_KEY=...         # Meta Model API key (or set envFile in the config)
+npx smartypants serve           # open the printed URL
 ```
 
-If the user supplied a local checkout, install that checkout instead, for example
-`npm install ../smartypants` from the project directory.
+Then talk about the system in your agent: *"Design YouTube top-K: the 100 most viewed videos
+in the last hour, day, and all time."* The canvas fills in. Say *"go deeper on the
+aggregator"* (or double-click it) to expand it.
 
-The package name is `@logan-robbins/smartypants`. The npm name `smartypants` belongs to a different library.
-
-2. For an agent working in this project, wire the config and host hooks. This writes
-`smartypants.config.json` when it is missing and adds the hook without removing other hooks.
-
-```sh
-npx smartypants init --flavor claude
-```
-
-Use `--seed` when the project already has code. Use `--flavor` `claude`, `codex`, `grok`, `muse`, or `pi`.
-If you are only watching a separate instance, create `smartypants.config.json` manually
-with `flavor`, `depth`, `seed`, and `watch` as shown below; no project hook is needed.
-
-3. Edit `smartypants.config.json` if you need to change the starter.
+`init` writes `smartypants.config.json` and the host hooks (`.claude/settings.json`,
+`.codex/hooks.json`, `.grok/hooks/smartypants.json`, `.muse/hooks.json`,
+`.pi/extensions/smartypants/index.js`) without touching other hooks. Nothing happens in a
+project without `smartypants.config.json`.
 
 ```json
 {
-  "flavor": "claude",
-  "depth": "module",
+  "flavor": "meta",
+  "depth": "auto",
   "seed": false,
+  "decider": "auto",
+  "background": true,
   "model": null,
   "reasoningEffort": null
 }
 ```
 
-To watch a separate Claude Code or Codex instance, add `watch` with that instance's
-absolute home directory. Smartypants follows new user turns from its session JSONL
-files while the canvas server is running:
+| key | values |
+|---|---|
+| `flavor` | builder: `meta` (default), `claude`, `codex`, `grok`, `muse`, `pi` |
+| `depth` | `auto` (start from what the user said, go finer as they do), or a fixed `system`, `component`, `module` |
+| `decider` | selector: `auto` (Jev if `TYPESAFE_API_KEY`, else Muse Spark if `META_API_KEY`, else local), `jev`, `meta`, `heuristic` |
+| `background` | `true`: hooks return at once and a project worker does the work |
+| `autoDeepen` | pressure that expands a part on its own (default `3`), or `false` |
+| `model` | builder model; `muse-spark-1.3` for the standard (non-training) tier |
+| `reasoningEffort` | override the per-call effort (`minimal` … `max`) |
+| `intentTokens` | IntentCode budget (default 1200) |
+| `seed` | `true` for an existing codebase: the first turn draws the tree as a baseline |
+| `envFile` | dotenv path relative to the project; process env wins |
+| `watch` | follow another Claude Code or Codex instance (below) |
+
+| flavor | needs |
+|---|---|
+| `meta` | `META_API_KEY` (or `MODEL_API_KEY`) |
+| `claude` | `@anthropic-ai/claude-agent-sdk`, `ANTHROPIC_API_KEY` |
+| `codex` | `@openai/agents`, `OPENAI_API_KEY` |
+| `grok` | `openai`, `XAI_API_KEY` |
+| `muse` | `@muse-code/sdk` and the `muse` binary |
+| `pi` | `@earendil-works/pi-coding-agent` and Pi's login |
+
+## Commands
+
+```
+smartypants deeper <part>   go one level deeper (system → components → modules → notes)
+smartypants intent          print the IntentCode memory
+smartypants drift           list where code left the intent
+smartypants mermaid         print the diagram as Mermaid source
+smartypants stats           turns skipped, builder calls, tokens, cost
+smartypants demo <example>  load youtube-top-k | uber | news-feed | messenger | url-shortener
+smartypants reset           clear the diagram and memory, keep the config
+```
+
+In chat, *"go deeper on X"*, *"zoom into X"*, *"dig into X"*, and *"tell me more about X"* all
+go deeper.
+
+## The canvas
+
+Mermaid's look on an infinite canvas: rounded services, cylinder stores and caches, hexagon
+queues, stadium clients, trapezoid gateways, and components with modules drawn as yellow
+subgraphs. Solid arrows carry data, dashed arrows control; drift is red.
+
+- **Click** a box to read more: what, why, deep-dive notes, drift, flows, and the intent atoms
+  about it. **Go deeper**, **Collapse/Expand**, and **Center** are in the panel.
+- **Double-click** a box to go deeper. **Drag** a box to move it (the place is saved).
+- **Scroll** to zoom, drag empty space or two-finger scroll to pan, **F** to fit, **/** to search,
+  **I** for the intent memory and efficiency stats, the minimap to jump.
+- **Mermaid** copies the diagram as Mermaid source.
+- Long pipelines wrap into rows automatically; set `"direction": "TB"` in the design for top to bottom.
+
+![Click a box to read more](docs/panel.png)
+
+## How it decides
+
+```mermaid
+flowchart LR
+  turn(["turn or edit"]) --> local["local triage<br/>free"]
+  local -->|"noise"| skip["skip"]
+  local -->|"numbers only"| remember[("IntentCode")]
+  local -->|"ambiguous"| jev{{"selector<br/>Jev or Muse Spark minimal"}}
+  jev -->|"none"| skip
+  jev -->|"annotate"| remember
+  jev -->|"extend, restructure,<br/>deepen, diverges"| builder["builder<br/>Muse Spark 1.3 Contributor"]
+  builder -->|"delta"| diagram[("design.json")]
+  builder --> remember
+```
+
+This is the WindTunnel [Jev + Mercury](https://github.com/nekuda-ai/WindTunnel/tree/main/results/2026-09-18-jev-mercury)
+split applied to design memory: a selector picks from closed menus with a confidence, and the
+writer only writes when the pick says something changed. Details:
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/INTENTCODE.md](docs/INTENTCODE.md),
+[docs/PROMPTING.md](docs/PROMPTING.md).
+
+**IntentCode** keeps intent as typed, keyed atoms, grouped by subject:
+
+```
+sys|G top-100-videos hour-day-alltime|N load-views-day 1B views/day|N freshness <1min
+aggregator|D flink count-min+min-heap|X sketch-for-alltime
+topk-cache|D redis
+```
+
+A user who changes a decision evolves the intent (the old choice becomes `X`); code that
+contradicts a `D`, `N`, or `X` atom is drift.
+
+## Results
+
+Live runs on the Meta Model API, 2026-09-26: [results/2026-09-26-meta-jev](results/2026-09-26-meta-jev/README.md).
+
+| | Jev/Muse Spark selector | local rules only |
+|---|---:|---:|
+| held-out triage, exact (34 turns) | **30/34** | 18/34 |
+| held-out "worth remembering" (keep vs skip) | **34/34** | 23/34 |
+| held-out drift verdicts (10 edits) | **9/10**, 0 missed | 5/10, 1 missed |
+| interview transcripts: triage · recall · drift | 32/32 · 33/33 · 10/10 | 32/32 · 33/33 · 9/10 |
+| builder calls for 5 interviews (32 turns, 10 edits) | 27 | 29 |
+| cost for 5 interviews | $0.016 | $0.013 |
+
+The graph context the builder sees is 45% of the JSON size, and IntentCode keeps each
+interview's intent in 133 to 222 tokens. Real Jev (`TYPESAFE_API_KEY`) was not available for
+these runs.
+
+## Hosts
+
+| host | wiring | notes |
+|---|---|---|
+| Claude Code | `.claude/settings.json` or the plugin's hooks | verified with `claude -p` |
+| Codex | `.codex/hooks.json` | approve the hooks once in Codex's startup hooks review; `apply_patch` edits are parsed |
+| Pi | `.pi/extensions/smartypants/index.js`, or `pi install git:github.com/logan-robbins/smartypants` | Pi can itself run on Muse Spark (below) |
+| Muse Code | `.muse/hooks.json` | the `muse` flavor drives Muse Code headless |
+| Grok Build | `.grok/hooks/smartypants.json` | |
+
+Pi on Muse Spark: put this in `~/.pi/agent/models.json` and run `pi --provider meta --model muse-spark-1.3-contributor`.
 
 ```json
 {
-  "flavor": "codex",
-  "depth": "module",
-  "seed": false,
-  "watch": {"host": "claude", "home": "/absolute/path/to/claude-home"}
+  "providers": {
+    "meta": {
+      "baseUrl": "https://api.meta.ai/v1",
+      "api": "openai-completions",
+      "apiKey": "$META_API_KEY",
+      "models": [{ "id": "muse-spark-1.3-contributor", "reasoning": true, "input": ["text"], "contextWindow": 262144, "maxTokens": 32768, "cost": { "input": 0.1, "output": 0.2, "cacheRead": 0.01, "cacheWrite": 0 } }]
+    }
+  }
 }
 ```
 
-Use `"host": "codex"` and the Codex home directory for a Codex instance. For a
-single session, use `"session": "/absolute/path/to/session.jsonl"` in place of
-`home`. `watch.host` selects the transcript format; `flavor` selects the model
-Smartypants uses to update the diagram. A home follows new session files after
-context resets. Existing
-transcript history is skipped the first time; subsequent server starts resume from
-offsets in `.smartypants/watch-state.json`. The watched instance needs no
-Smartypants hook, and the watch state stores offsets only, never transcript text.
-
-To use API keys from a local dotenv file, set `"envFile": "../.env"` in
-`smartypants.config.json` (the path is relative to the project). Existing process
-environment variables take precedence. The file is read when a hook runs; keys
-are never copied into the diagram or ledger. `GROK_API_KEY` is accepted as an
-alias for `XAI_API_KEY`, and `ANTRHOPIC_API_KEY` for `ANTHROPIC_API_KEY`.
-When an agent runs from another directory, set `SMARTPANTS_ROOT` to the project path
-in its hook command. The hook writes the diagram in that project.
-
-- `flavor`: `claude`, `codex`, `grok`, `muse`, or `pi`. Use one. An unknown value does not call another.
-- `depth`: `module` (default), `component`, or `system`.
-- `seed`: `true` when the project already has code. The first turn draws that tree as the baseline. Later turns store only the delta. `false` when the design starts from the conversation.
-- `model`: optional model ID for the selected flavor.
-- `reasoningEffort`: optional reasoning effort for the Codex flavor: `none`, `low`, `medium`, `high`, `xhigh`, or `max`.
-
-4. Install the SDK for that flavor.
-
-| flavor | install | key |
-| --- | --- | --- |
-| `claude` | `@anthropic-ai/claude-agent-sdk` | `ANTHROPIC_API_KEY` |
-| `codex` | `@openai/agents` | `OPENAI_API_KEY` |
-| `grok` | `openai`, base URL `https://api.x.ai/v1` | `XAI_API_KEY` |
-| `muse` | `@muse-code/sdk` plus a `muse` binary on `PATH` | |
-| `pi` | `@earendil-works/pi-coding-agent` | Pi's own login |
-
-5. `npx smartypants init` writes these host files. Run it again after you move `node_modules`. Codex hooks need the `codex_hooks` feature and do not run on Windows. Pi loads `.pi/extensions/smartypants/index.js`.
-
-| host | file |
-| --- | --- |
-| Claude Code | `.claude/settings.json` |
-| Codex | `.codex/hooks.json` |
-| Grok Build | `.grok/hooks/smartypants.json` |
-| Muse Code | `.muse/hooks.json` |
-| Pi | `.pi/extensions/smartypants/index.js` |
-
-6. Open the diagram.
-
-```sh
-npx smartypants serve
-```
-
-If port 4173 belongs to another project, choose a free port, for example
-`SMARTPANTS_PORT=4174 npx smartypants serve`. Open the URL printed by the server.
-
-Clear the diagram and start it over with `/reset-graph` or:
-
-```sh
-npx smartypants reset
-```
-
-Open the printed canvas URL. Drag a card to move that card. Drag empty space to pan. Scroll to zoom.
-
-An arrow points the way the data moves. A reply or a write-back is a second arrow pointing back at the caller. Ink arrows are data. Amber arrows are control.
-
-- The browser sends a long URL to Create link. Create link asks Code mint for a code, and the short code comes back.
-- Create link saves the code and the long URL in the link table. The table answers that it saved. Create link hands the short link back to the browser.
-- A click sends the short code to Redirect. Redirect asks the hot cache, and a hit comes back as the cached URL.
-- On a miss, Redirect reads the link table and the stored URL comes back. Redirect tells the cache to remember it.
-- Redirect sends the browser on to the original page, and sends the click to the click stream. The stream feeds Tallies.
-
-## Skill
-
-The skill in `plugins/smartypants` runs the start steps. `/smartypants reset` and `/reset-graph` clear the diagram and the gist ledger. They leave `smartypants.config.json`.
+## Plugins
 
 Claude Code:
 
@@ -136,30 +181,27 @@ Claude Code:
 /plugin install smartypants@smartypants
 ```
 
-Codex:
+The plugin adds `/smartypants` (set up), `/smartypants:deeper`, `/smartypants:intent`,
+`/smartypants:drift`, `/smartypants:diagram`, `/smartypants:mermaid`, `/smartypants:reset-graph`,
+and hooks that forward turns to the project's installed Smartypants (no-op without a config).
 
-```sh
-codex plugin marketplace add logan-robbins/smartypants
-codex plugin add smartypants@smartypants
+Codex: `codex plugin marketplace add logan-robbins/smartypants` then
+`codex plugin add smartypants@smartypants`. Grok Build: `grok plugin marketplace add
+logan-robbins/smartypants` then `grok plugin install smartypants --trust`. Cursor: submit
+`plugins/smartypants` at https://cursor.com/marketplace/publish. Submission status and the
+remaining owner steps: [SUBMISSION.md](SUBMISSION.md).
+
+## Watching another agent
+
+To diagram a separate Claude Code or Codex instance, add `watch` with that instance's home:
+
+```json
+{ "flavor": "meta", "depth": "auto", "watch": { "host": "claude", "home": "/absolute/path/to/claude-home" } }
 ```
 
-For local plugin installation, pass the absolute checkout path to the marketplace
-`add` command instead of the GitHub name. The Claude and Codex plugin directories
-are under `plugins/smartypants` in that checkout.
-
-Grok Build:
-
-```sh
-grok plugin marketplace add logan-robbins/smartypants
-grok plugin install smartypants --trust
-```
-
-Cursor: submit https://github.com/logan-robbins/smartypants at https://cursor.com/marketplace/publish. The plugin directory is `plugins/smartypants`.
-
-Claude Code, Codex, and Grok Build install from this repository. Two directories still need a signed-in review:
-
-- Anthropic community catalog: https://platform.claude.com/plugins/submit
-- OpenAI directory for ChatGPT and Codex: https://platform.openai.com/plugins
+Use `"host": "codex"` for Codex, or `"session": "/absolute/session.jsonl"` for one session.
+The canvas server follows new user turns; offsets (never text) go in
+`.smartypants/watch-state.json`. The watched instance needs no hook.
 
 ## Watching an hx Partner
 
@@ -168,8 +210,8 @@ working project's Smartypants config at that directory:
 
 ```json
 {
-  "flavor": "codex",
-  "depth": "module",
+  "flavor": "meta",
+  "depth": "auto",
   "seed": false,
   "watch": {"host":"claude","home":"/absolute/path/to/hx-instance/run/partner/home"}
 }
@@ -183,23 +225,26 @@ server reports the watched home. A greeting can be observed while leaving the ca
 empty because it provides no design information. Keep the hx instance outside the
 project when practical so a future `--seed` scan does not include harness files.
 
-## Levels
-
-- **system**: the whole application a person would name.
-- **component**: one job other parts can use without its internals. Not a file or a function.
-- **module**: one slice of that job, inside exactly one component. Above files, classes, functions, and endpoints.
-
-Each node has `what` and `why`. Both are required. They are not the same sentence.
-
 ## Files
 
-- `smartypants.config.json` — the on switch.
-- `.smartypants/design.json` — the diagram.
-- `.smartypants/ledger.json` — gists only. Folded near 10000 tokens. Never a transcript.
+- `smartypants.config.json`: the on switch.
+- `.smartypants/design.json`: the diagram.
+- `.smartypants/intent.json`: IntentCode atoms, never a transcript.
+- `.smartypants/stats.json`: skipped turns, calls, tokens, cost.
+- `.smartypants/queue.jsonl`, `worker.lock`: background mode.
 
 ## Hook rules
 
-- Exit 0. Do not block or rewrite the user turn.
+- Exit 0. Never block or rewrite the user turn.
 - A builder failure leaves the previous design on disk.
 - The same result twice does not add a second copy of a node.
-- A drift flag states the intent and how the code differs. Store each divergence once. Keep a divergence that fits no node.
+- A drift flag states the intent and how the code differs, once per divergence; a divergence
+  no node owns is kept as unmapped.
+
+## Develop
+
+```sh
+npm test                       # 60 tests, no network
+npm run eval                   # live transcripts on the Meta API (a few cents)
+npm run eval:triage            # held-out triage benchmark
+```

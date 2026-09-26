@@ -257,6 +257,53 @@
     return { at: out, w: ids.length ? maxX - minX : 0, h: ids.length ? maxY - minY : 0 };
   }
 
+  var ROW_WRAP_GAP = 110;
+
+  /** Split a left-to-right layout into rows of whole rank columns. */
+  function wrap(top, rows) {
+    var ids = Object.keys(top.at);
+    var columns = [];
+    ids.forEach(function (id) {
+      var x = Math.round(top.at[id].x + top.at[id].w / 2);
+      var column = columns.find(function (col) { return Math.abs(col.center - x) < 24; });
+      if (!column) columns.push(column = { center: x, ids: [], left: Infinity, right: -Infinity });
+      column.ids.push(id);
+      column.left = Math.min(column.left, top.at[id].x);
+      column.right = Math.max(column.right, top.at[id].x + top.at[id].w);
+    });
+    columns.sort(function (a, b) { return a.left - b.left; });
+    var target = top.w / rows;
+    var groups = [[]];
+    columns.forEach(function (col) {
+      var current = groups[groups.length - 1];
+      if (current.length && col.right - current[0].left > target * 1.08 && groups.length < rows) groups.push(current = []);
+      current.push(col);
+    });
+    var at = {};
+    var y = 0;
+    var width = 0;
+    groups.forEach(function (group) {
+      var minY = Infinity;
+      var maxY = -Infinity;
+      group.forEach(function (col) {
+        col.ids.forEach(function (id) {
+          minY = Math.min(minY, top.at[id].y);
+          maxY = Math.max(maxY, top.at[id].y + top.at[id].h);
+        });
+      });
+      var left = group[0].left;
+      group.forEach(function (col) {
+        col.ids.forEach(function (id) {
+          var spot = top.at[id];
+          at[id] = { x: spot.x - left, y: spot.y - minY + y, w: spot.w, h: spot.h };
+          width = Math.max(width, spot.x - left + spot.w);
+        });
+      });
+      y += maxY - minY + ROW_WRAP_GAP;
+    });
+    return { at: at, w: width, h: y - ROW_WRAP_GAP };
+  }
+
   function buildScene(design) {
     var sourceNodes = design && Array.isArray(design.nodes) ? design.nodes : [];
     var nodes = annotate(sourceNodes);
@@ -280,55 +327,83 @@
       return id;
     }
 
-    var inner = {};
-    Object.keys(members).forEach(function (cid) {
-      var list = [byId[cid]].concat(members[cid]);
-      var local = {};
-      list.forEach(function (node) { local[node.id] = true; });
-      var items = list.map(function (node) { var size = sizeOf(node); return { id: node.id, w: size.w, h: size.h }; });
-      var links = connections.filter(function (c) { return local[c.fromId] && local[c.toId]; }).map(function (c) { return { from: c.fromId, to: c.toId }; });
-      // Unlinked modules hang off their component so the cluster reads left to right.
-      list.slice(1).forEach(function (node) {
-        var linked = links.some(function (l) { return l.from === node.id || l.to === node.id; });
-        if (!linked) links.push({ from: cid, to: node.id });
-      });
-      inner[cid] = layered(items, links);
-    });
-
-    var topItems = [];
-    rest.forEach(function (node) {
-      if (ownerOf(node.id) !== node.id) return;
-      if (inner[node.id]) {
-        topItems.push({ id: node.id, w: inner[node.id].w + CLUSTER_PAD * 2, h: inner[node.id].h + CLUSTER_PAD * 2 + CLUSTER_TITLE });
-      } else {
+    // Lay out left to right; for top to bottom, lay out in a transposed space
+    // (rank axis vertical) and swap axes back, so one algorithm serves both.
+    var wrapRows = 1;
+    function arrange(swap) {
+      function dims(node) {
         var size = sizeOf(node);
-        topItems.push({ id: node.id, w: size.w, h: size.h });
+        return swap ? { w: size.h, h: size.w } : size;
       }
-    });
-    var topLinks = [];
-    connections.forEach(function (c) {
-      var from = ownerOf(c.fromId);
-      var to = ownerOf(c.toId);
-      if (from && to && from !== to) topLinks.push({ from: from, to: to });
-    });
-    var top = layered(topItems, topLinks);
+      var titleAlongX = swap ? CLUSTER_TITLE : 0;
+      var titleAlongY = swap ? 0 : CLUSTER_TITLE;
+      var inner = {};
+      Object.keys(members).forEach(function (cid) {
+        var list = [byId[cid]].concat(members[cid]);
+        var local = {};
+        list.forEach(function (node) { local[node.id] = true; });
+        var items = list.map(function (node) { var size = dims(node); return { id: node.id, w: size.w, h: size.h }; });
+        var links = connections.filter(function (c) { return local[c.fromId] && local[c.toId]; }).map(function (c) { return { from: c.fromId, to: c.toId }; });
+        // Unlinked modules hang off their component so the cluster reads in flow order.
+        list.slice(1).forEach(function (node) {
+          var linked = links.some(function (l) { return l.from === node.id || l.to === node.id; });
+          if (!linked) links.push({ from: cid, to: node.id });
+        });
+        inner[cid] = layered(items, links);
+      });
+      var topItems = [];
+      rest.forEach(function (node) {
+        if (ownerOf(node.id) !== node.id) return;
+        if (inner[node.id]) {
+          topItems.push({ id: node.id, w: inner[node.id].w + CLUSTER_PAD * 2 + titleAlongX, h: inner[node.id].h + CLUSTER_PAD * 2 + titleAlongY });
+        } else {
+          var size = dims(node);
+          topItems.push({ id: node.id, w: size.w, h: size.h });
+        }
+      });
+      var topLinks = [];
+      connections.forEach(function (c) {
+        var from = ownerOf(c.fromId);
+        var to = ownerOf(c.toId);
+        if (from && to && from !== to) topLinks.push({ from: from, to: to });
+      });
+      var top = layered(topItems, topLinks);
+      if (!swap && wrapRows > 1) top = wrap(top, wrapRows);
+      var out = [];
+      topItems.forEach(function (item) {
+        var at = top.at[item.id];
+        if (inner[item.id]) {
+          var box = inner[item.id];
+          Object.keys(box.at).forEach(function (id) {
+            var spot = box.at[id];
+            var lx = at.x + CLUSTER_PAD + titleAlongX + spot.x;
+            var ly = at.y + CLUSTER_PAD + titleAlongY + spot.y;
+            out.push(place(byId[id], swap ? ly : lx, swap ? lx : ly));
+          });
+        } else {
+          out.push(place(byId[item.id], swap ? at.y : at.x, swap ? at.x : at.y));
+        }
+      });
+      return { placed: out, w: swap ? top.h : top.w, h: swap ? top.w : top.h, ranks: topItems.length };
+    }
 
-    var placed = [];
+    var wanted = (design && design.direction) || "auto";
+    var layout = arrange(false);
+    var direction = "LR";
+    if (wanted === "TB") {
+      layout = arrange(true);
+      direction = "TB";
+    } else if (wanted === "auto" && layout.h > 0 && layout.w > 1600 && layout.w / layout.h > 2.4) {
+      // A long chain reads better wrapped into rows than as one thin strip.
+      wrapRows = Math.max(2, Math.min(4, Math.round(Math.sqrt(layout.w / (1.6 * layout.h)))));
+      layout = arrange(false);
+    }
+    var placed = layout.placed;
+    var top = { w: layout.w };
     var titleH = 0;
     systems.forEach(function (node) { titleH = Math.max(titleH, sizeOf(node).h); });
     var offsetY = systems.length ? titleH + 48 : 0;
-    topItems.forEach(function (item) {
-      var at = top.at[item.id];
-      if (inner[item.id]) {
-        var box = inner[item.id];
-        Object.keys(box.at).forEach(function (id) {
-          var spot = box.at[id];
-          placed.push(place(byId[id], at.x + CLUSTER_PAD + spot.x, offsetY + at.y + CLUSTER_PAD + CLUSTER_TITLE + spot.y));
-        });
-      } else {
-        placed.push(place(byId[item.id], at.x, offsetY + at.y));
-      }
-    });
+    placed.forEach(function (card) { card.y += offsetY; });
     systems.forEach(function (node, index) {
       var card = place(node, 0, index * (sizeOf(node).h + 12));
       card.x = top.w ? Math.max(0, (top.w - card.w) / 2) : 0;
@@ -341,7 +416,7 @@
       if (parent) card.group = "";
     });
     applySavedPositions(placed, sourceNodes);
-    var edges = flowEdges(placed, connections);
+    var edges = routeEdges(placed, connections, direction);
     var groups = groupsFor(placed);
     var captions = [];
     var bounds = expandForFlows(boundsOf(placed.concat(groups)), edges);
@@ -374,7 +449,22 @@
       connections: connections,
       unmapped: unmapped,
       bounds: bounds,
+      direction: direction,
     };
+  }
+
+  /** Route in left-to-right space; for TB, route the transposed picture and swap back. */
+  function routeEdges(placed, connections, direction) {
+    if (direction !== "TB") return flowEdges(placed, connections);
+    var flipped = placed.map(function (node) {
+      return Object.assign({}, node, { x: node.y, y: node.x, w: node.h, h: node.w });
+    });
+    return flowEdges(flipped, connections).map(function (edge) {
+      return Object.assign({}, edge, {
+        x1: edge.y1, y1: edge.x1, x2: edge.y2, y2: edge.x2, cx: edge.cy, cy: edge.cx,
+        points: (edge.points || []).map(function (p) { return { x: p.y, y: p.x }; }),
+      });
+    });
   }
 
   function applySavedPositions(placed, sources) {
@@ -525,7 +615,7 @@
     if (!node) return scene;
     node.x = x;
     node.y = y;
-    scene.edges = flowEdges(scene.nodes, scene.connections || []);
+    scene.edges = routeEdges(scene.nodes, scene.connections || [], scene.direction);
     scene.groups = groupsFor(scene.nodes);
     scene.captions = captionsFor(scene.nodes, scene.boundaries || []);
     scene.bounds = expandForFlows(boundsOf(scene.nodes.concat(scene.groups || [])), scene.edges);

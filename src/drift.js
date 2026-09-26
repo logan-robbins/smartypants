@@ -21,6 +21,24 @@ function flagIdentity(target, intent, difference) {
   return `${target || "unmapped"}\n${intent.trim().toLowerCase()}\n${difference.trim().toLowerCase()}`;
 }
 
+function words(text) {
+  return new Set(String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((w) => w.length > 2));
+}
+
+function similar(a, b) {
+  const x = words(a);
+  const y = words(b);
+  if (!x.size || !y.size) return false;
+  let shared = 0;
+  for (const w of x) if (y.has(w)) shared += 1;
+  return shared / (x.size + y.size - shared) >= 0.4;
+}
+
+/** The same divergence reworded is not a new flag: same intent and a similar difference. */
+function sameFlag(a, b) {
+  return similar(a.intent, b.intent) && similar(a.difference, b.difference);
+}
+
 function findNode(nodes, nodeId) {
   if (nodeId == null || nodeId === "") return null;
   const want = String(nodeId);
@@ -65,7 +83,7 @@ export function applyDrift(design, result) {
     if (node) {
       const key = flagIdentity(node.id, flag.intent, flag.difference);
       const already = (node.flags || []).some(
-        (existing) => flagIdentity(node.id, existing.intent, existing.difference) === key,
+        (existing) => flagIdentity(node.id, existing.intent, existing.difference) === key || sameFlag(existing, flag),
       );
       if (already) continue;
       node.flags = [...(node.flags || []), { intent: flag.intent, difference: flag.difference }];
@@ -92,6 +110,7 @@ export function applyDrift(design, result) {
       floor: current.floor,
       updatedAt: new Date().toISOString(),
       nodes,
+      connections: (current.connections || []).map((connection) => ({ ...connection })),
       unmappedFlags,
     }),
     changed: true,

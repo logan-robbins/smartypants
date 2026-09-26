@@ -1,7 +1,7 @@
 {
   "version": 1,
   "floor": "module",
-  "updatedAt": "2026-09-26T19:16:22.657Z",
+  "updatedAt": "2026-09-26T20:01:14.693Z",
   "level": "component",
   "nodes": [
     {
@@ -9,19 +9,39 @@
       "name": "URL Shortener",
       "kind": "system",
       "parentId": null,
-      "what": "Creates short links and redirects clicks to long URLs",
-      "why": "Provide Bitly-like short links with owner click counts",
+      "what": "Creates short links and redirects clicks",
+      "why": "Provide Bitly-like short links with click counts",
       "shape": "service",
       "flags": []
     },
     {
-      "id": "keygen",
-      "name": "Key Range Service",
+      "id": "owner-client",
+      "name": "Owner Client",
       "kind": "component",
       "parentId": "url-shortener",
-      "what": "Pre-generates unique short-code ranges",
-      "why": "Lets creators assign codes without colliding",
-      "shape": "service",
+      "what": "Creates links and views click counts",
+      "why": "Entry point for link owners",
+      "shape": "client",
+      "flags": []
+    },
+    {
+      "id": "visitor-client",
+      "name": "Visitor Client",
+      "kind": "component",
+      "parentId": "url-shortener",
+      "what": "Opens short links in a browser",
+      "why": "Generates redirect traffic and clicks",
+      "shape": "client",
+      "flags": []
+    },
+    {
+      "id": "edge-gateway",
+      "name": "Edge Gateway",
+      "kind": "component",
+      "parentId": "url-shortener",
+      "what": "Routes create, redirect, and stats calls",
+      "why": "Single edge for routing and offload",
+      "shape": "gateway",
       "flags": []
     },
     {
@@ -29,19 +49,9 @@
       "name": "Link Service",
       "kind": "component",
       "parentId": "url-shortener",
-      "what": "Creates short links from assigned ranges",
-      "why": "Handles link creation separately from redirect load",
+      "what": "Mints short codes and serves stats",
+      "why": "Owns link lifecycle and ownership",
       "shape": "service",
-      "flags": []
-    },
-    {
-      "id": "link-store",
-      "name": "Link Store",
-      "kind": "component",
-      "parentId": "url-shortener",
-      "what": "Key-value table of code to long URL",
-      "why": "Durable source of truth for links",
-      "shape": "store",
       "flags": []
     },
     {
@@ -49,63 +59,83 @@
       "name": "Redirect Service",
       "kind": "component",
       "parentId": "url-shortener",
-      "what": "Resolves short codes to long URLs",
-      "why": "Serves high-volume redirects within latency budget",
+      "what": "Resolves codes to long URLs",
+      "why": "Keeps click path fast and isolated",
       "shape": "service",
       "flags": [
         {
-          "intent": "Redirect Service serves high-volume redirects within latency budget and never blocks on counting with fire-and-forget click event publish",
-          "difference": "Delivered handler awaits `UPDATE links SET clicks = clicks + 1` before 301, blocking the redirect path on counting instead of fire-and-forget publish; collapses cache-resolver and click-emitter responsibilities directly into the handler."
+          "intent": "Redirect Service keeps click path fast and isolated; click-counting-must-never-slow-redirect with p99<50ms",
+          "difference": "handler awaits db UPDATE links SET clicks before res.redirect, putting counting synchronously on redirect hot path instead of async after redirect"
         }
       ]
     },
     {
-      "id": "redirect-cache",
-      "name": "Redirect Cache",
+      "id": "link-store",
+      "name": "Link Store",
+      "kind": "component",
+      "parentId": "url-shortener",
+      "what": "Persists code to URL plus counts",
+      "why": "Durable source of truth for links",
+      "shape": "store",
+      "flags": []
+    },
+    {
+      "id": "click-cache",
+      "name": "Click Cache",
       "kind": "component",
       "parentId": "url-shortener",
       "what": "Caches hot code to URL mappings",
-      "why": "Keeps redirect p99 under 50ms",
+      "why": "Serves redirects without hitting store",
       "shape": "cache",
       "flags": []
     },
     {
       "id": "click-stream",
-      "name": "Click Event Stream",
+      "name": "Click Stream",
       "kind": "component",
       "parentId": "url-shortener",
-      "what": "Carries redirect click events",
-      "why": "Decouple counting from redirect path",
+      "what": "Buffers click events",
+      "why": "Decouples redirects from counting",
       "shape": "queue",
       "flags": []
     },
     {
-      "id": "click-aggregator",
-      "name": "Click Aggregator",
+      "id": "analytics-worker",
+      "name": "Analytics Worker",
       "kind": "component",
       "parentId": "url-shortener",
-      "what": "Aggregates click events into counts",
-      "why": "Keep redirect fast while enabling counts",
+      "what": "Aggregates clicks per short link",
+      "why": "Provides owner click counts async",
       "shape": "worker",
       "flags": []
     },
     {
-      "id": "redirect-handler",
-      "name": "Redirect Handler",
-      "kind": "module",
-      "parentId": "redirect-service",
-      "what": "Validates code and returns 301 redirect",
-      "why": "Keeps edge path fast and isolated from lookups",
+      "id": "key-range-service",
+      "name": "Key Range Service",
+      "kind": "component",
+      "parentId": "url-shortener",
+      "what": "Pre-generates unique short-code ranges",
+      "why": "Lets creators mint codes without colliding",
       "shape": "service",
       "flags": []
     },
     {
-      "id": "cache-resolver",
-      "name": "Cache Resolver",
+      "id": "redirect-api",
+      "name": "Redirect API",
       "kind": "module",
       "parentId": "redirect-service",
-      "what": "Read-through resolve from cache then store",
-      "why": "Meets p99<50ms for hot codes",
+      "what": "Validates code and returns HTTP redirect",
+      "why": "Keeps edge protocol separate from lookup logic",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "mapping-lookup",
+      "name": "Mapping Lookup",
+      "kind": "module",
+      "parentId": "redirect-service",
+      "what": "Checks cache then store for long URL",
+      "why": "Hits p99<50ms via cache-first read",
       "shape": "service",
       "flags": []
     },
@@ -114,12 +144,244 @@
       "name": "Click Emitter",
       "kind": "module",
       "parentId": "redirect-service",
-      "what": "Fire-and-forget click event publish",
-      "why": "Never blocks redirect on counting",
+      "what": "Fires async click event after redirect",
+      "why": "Keeps counting off the redirect hot path",
       "shape": "service",
       "flags": []
     }
   ],
-  "connections": [],
+  "connections": [
+    {
+      "id": "c1",
+      "fromId": "owner-client",
+      "toId": "edge-gateway",
+      "kind": "data",
+      "label": "create-link request"
+    },
+    {
+      "id": "c2",
+      "fromId": "edge-gateway",
+      "toId": "link-service",
+      "kind": "data",
+      "label": "forwarded create request"
+    },
+    {
+      "id": "c3",
+      "fromId": "edge-gateway",
+      "toId": "owner-client",
+      "kind": "data",
+      "label": "short link result"
+    },
+    {
+      "id": "c4",
+      "fromId": "link-service",
+      "toId": "link-store",
+      "kind": "data",
+      "label": "persist mapping"
+    },
+    {
+      "id": "c5",
+      "fromId": "link-store",
+      "toId": "link-service",
+      "kind": "data",
+      "label": "persist ack"
+    },
+    {
+      "id": "c6",
+      "fromId": "link-service",
+      "toId": "edge-gateway",
+      "kind": "data",
+      "label": "short link result"
+    },
+    {
+      "id": "c7",
+      "fromId": "visitor-client",
+      "toId": "edge-gateway",
+      "kind": "data",
+      "label": "open short link"
+    },
+    {
+      "id": "c8",
+      "fromId": "edge-gateway",
+      "toId": "redirect-service",
+      "kind": "data",
+      "label": "resolve request"
+    },
+    {
+      "id": "c9",
+      "fromId": "redirect-service",
+      "toId": "click-cache",
+      "kind": "data",
+      "label": "lookup code"
+    },
+    {
+      "id": "c10",
+      "fromId": "click-cache",
+      "toId": "redirect-service",
+      "kind": "data",
+      "label": "cached long URL"
+    },
+    {
+      "id": "c11",
+      "fromId": "redirect-service",
+      "toId": "link-store",
+      "kind": "data",
+      "label": "lookup code on miss"
+    },
+    {
+      "id": "c12",
+      "fromId": "link-store",
+      "toId": "redirect-service",
+      "kind": "data",
+      "label": "long URL"
+    },
+    {
+      "id": "c13",
+      "fromId": "redirect-service",
+      "toId": "edge-gateway",
+      "kind": "data",
+      "label": "HTTP redirect"
+    },
+    {
+      "id": "c14",
+      "fromId": "edge-gateway",
+      "toId": "visitor-client",
+      "kind": "data",
+      "label": "HTTP redirect"
+    },
+    {
+      "id": "c15",
+      "fromId": "redirect-service",
+      "toId": "click-stream",
+      "kind": "data",
+      "label": "publish click event"
+    },
+    {
+      "id": "c16",
+      "fromId": "click-stream",
+      "toId": "analytics-worker",
+      "kind": "data",
+      "label": "click event"
+    },
+    {
+      "id": "c17",
+      "fromId": "analytics-worker",
+      "toId": "link-store",
+      "kind": "data",
+      "label": "increment click count"
+    },
+    {
+      "id": "c18",
+      "fromId": "edge-gateway",
+      "toId": "link-service",
+      "kind": "data",
+      "label": "get click counts"
+    },
+    {
+      "id": "c19",
+      "fromId": "link-service",
+      "toId": "link-store",
+      "kind": "data",
+      "label": "read counts"
+    },
+    {
+      "id": "c20",
+      "fromId": "link-store",
+      "toId": "link-service",
+      "kind": "data",
+      "label": "click counts"
+    },
+    {
+      "id": "c21",
+      "fromId": "link-service",
+      "toId": "edge-gateway",
+      "kind": "data",
+      "label": "click counts"
+    },
+    {
+      "id": "c22",
+      "fromId": "link-service",
+      "toId": "key-range-service",
+      "kind": "data",
+      "label": "request code range"
+    },
+    {
+      "id": "c23",
+      "fromId": "key-range-service",
+      "toId": "link-service",
+      "kind": "data",
+      "label": "assign code range"
+    },
+    {
+      "id": "r1",
+      "fromId": "edge-gateway",
+      "toId": "redirect-api",
+      "kind": "data",
+      "label": "resolve request"
+    },
+    {
+      "id": "r2",
+      "fromId": "redirect-api",
+      "toId": "mapping-lookup",
+      "kind": "data",
+      "label": "lookup code"
+    },
+    {
+      "id": "r3",
+      "fromId": "mapping-lookup",
+      "toId": "click-cache",
+      "kind": "data",
+      "label": "lookup code"
+    },
+    {
+      "id": "r4",
+      "fromId": "click-cache",
+      "toId": "mapping-lookup",
+      "kind": "data",
+      "label": "cached long URL"
+    },
+    {
+      "id": "r5",
+      "fromId": "mapping-lookup",
+      "toId": "link-store",
+      "kind": "data",
+      "label": "lookup code on miss"
+    },
+    {
+      "id": "r6",
+      "fromId": "link-store",
+      "toId": "mapping-lookup",
+      "kind": "data",
+      "label": "long URL"
+    },
+    {
+      "id": "r7",
+      "fromId": "mapping-lookup",
+      "toId": "redirect-api",
+      "kind": "data",
+      "label": "long URL"
+    },
+    {
+      "id": "r8",
+      "fromId": "redirect-api",
+      "toId": "click-emitter",
+      "kind": "data",
+      "label": "validated click"
+    },
+    {
+      "id": "r9",
+      "fromId": "click-emitter",
+      "toId": "click-stream",
+      "kind": "data",
+      "label": "publish click event"
+    },
+    {
+      "id": "r10",
+      "fromId": "redirect-api",
+      "toId": "edge-gateway",
+      "kind": "data",
+      "label": "HTTP redirect"
+    }
+  ],
   "unmappedFlags": []
 }

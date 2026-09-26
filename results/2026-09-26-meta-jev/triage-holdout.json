@@ -1,0 +1,828 @@
+{
+ "rows": [
+  {
+   "decider": "heuristic",
+   "turns": 34,
+   "exact": 18,
+   "keepOk": 23,
+   "falseSkip": 0,
+   "falseKeep": 11,
+   "edits": 10,
+   "editOk": 5,
+   "missedDrift": 1,
+   "builderAvoided": 2,
+   "selectorCalls": 0,
+   "cost": 0,
+   "ms": 325
+  },
+  {
+   "decider": "meta",
+   "turns": 34,
+   "exact": 30,
+   "keepOk": 34,
+   "falseSkip": 0,
+   "falseKeep": 0,
+   "edits": 10,
+   "editOk": 9,
+   "missedDrift": 0,
+   "builderAvoided": 4,
+   "selectorCalls": 40,
+   "cost": 0.00566037,
+   "ms": 145576
+  }
+ ],
+ "detail": [
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "can you make the redirect handler return a 302 instead of 301 so browsers don't cache it",
+   "expect": "remember",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "rename the variable shortCode to code in handler.js",
+   "expect": "skip",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "noise/none"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "what's the difference between 301 and 302 again?",
+   "expect": "skip",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "noise/none"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "let's put a WAF in front of everything to block abusive link creation",
+   "expect": "build",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "noise/none"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "we don't need analytics anymore, drop the click stream entirely",
+   "expect": "build",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "the link table should be DynamoDB with the code as the partition key",
+   "expect": "build",
+   "got": "build",
+   "via": "local",
+   "reason": "strong-arch"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "custom aliases: users can pick their own short code if it's free",
+   "expect": "build",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "links expire after 5 years by default",
+   "expect": "remember",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "noise/none"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "please add jsdoc comments to the create endpoint",
+   "expect": "skip",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "I think the cache hit rate should stay above 90%",
+   "expect": "remember",
+   "got": "remember",
+   "via": "local",
+   "reason": "numeric-constraint"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "how would you estimate storage for this?",
+   "expect": "skip",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "tell me more about the key range service",
+   "expect": "deepen",
+   "got": "deepen",
+   "via": "local",
+   "reason": "command"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "zoom into the cache",
+   "expect": "deepen",
+   "got": "deepen",
+   "via": "local",
+   "reason": "command"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "let's pause here and pick it up tomorrow",
+   "expect": "skip",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "each create server leases a range of 1000 codes from the key service so there's no coordination per request",
+   "expect": "build",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "npm install failed with EACCES, can you fix it",
+   "expect": "skip",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "noise/none"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "only signed-in users can create links; anonymous users have to pass a captcha first",
+   "expect": "build",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "noise/none"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "also support QR codes for each short link, generated lazily and stored in S3",
+   "expect": "build",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "the tests in redirect.test.js are flaky, look into it",
+   "expect": "skip",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "noise/none"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "payments must be idempotent: retry with an idempotency key per trip",
+   "expect": "remember",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "replace the in-memory geo index with Redis GEO so it survives restarts",
+   "expect": "build",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "detail/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "we should text riders when the driver is one minute away",
+   "expect": "build",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "the arrow from pricing to dispatch is backwards, dispatch asks pricing for the fare",
+   "expect": "build",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "drivers can reject up to 3 offers before we deprioritize them",
+   "expect": "remember",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "noise/none"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "write a unit test for the surge multiplier function",
+   "expect": "skip",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "how does matching latency look in the load test?",
+   "expect": "skip",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "go deeper on the location service",
+   "expect": "deepen",
+   "got": "deepen",
+   "via": "local",
+   "reason": "command"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "ETAs come from a separate routing service that uses road graph data from a map provider",
+   "expect": "build",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "can you run gofmt on the repo",
+   "expect": "skip",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "noise/none"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "surge is capped at 3x in regulated cities",
+   "expect": "remember",
+   "got": "remember",
+   "via": "heuristic",
+   "reason": "constraint"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "lol that was fast",
+   "expect": "skip",
+   "got": "skip",
+   "via": "heuristic",
+   "reason": "no-signal"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "dispatch can't be a single point of failure, run it active-active in two regions",
+   "expect": "remember",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "switch the offer flow so we send the request to the three closest drivers at once and take the first accept",
+   "expect": "build",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "turn",
+   "text": "nah never mind, keep it as is",
+   "expect": "skip",
+   "got": "build",
+   "via": "heuristic",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "edit",
+   "path": "dispatch/offer.go",
+   "expect": "diverges",
+   "got": "diverges",
+   "via": "heuristic",
+   "reason": "diverges"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "edit",
+   "path": "location/index.go",
+   "expect": "conforms",
+   "got": "diverges",
+   "via": "heuristic",
+   "reason": "diverges"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "edit",
+   "path": "payments/charge.go",
+   "expect": "diverges",
+   "got": "diverges",
+   "via": "heuristic",
+   "reason": "diverges"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "edit",
+   "path": "pricing/surge_test.go",
+   "expect": "conforms",
+   "got": "conforms",
+   "via": "local",
+   "reason": "quiet-path"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "edit",
+   "path": "pricing/surge.go",
+   "expect": "conforms",
+   "got": "diverges",
+   "via": "heuristic",
+   "reason": "diverges"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "edit",
+   "path": "location/store.go",
+   "expect": "diverges",
+   "got": "diverges",
+   "via": "heuristic",
+   "reason": "diverges"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "edit",
+   "path": "dispatch/match.go",
+   "expect": "conforms",
+   "got": "diverges",
+   "via": "heuristic",
+   "reason": "diverges"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "edit",
+   "path": "create/handler.js",
+   "expect": "diverges",
+   "got": "conforms",
+   "via": "heuristic",
+   "reason": "not-architectural"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "edit",
+   "path": "redirect/cache.js",
+   "expect": "conforms",
+   "got": "diverges",
+   "via": "heuristic",
+   "reason": "diverges"
+  },
+  {
+   "decider": "heuristic",
+   "kind": "edit",
+   "path": "redirect/handler.js",
+   "expect": "diverges",
+   "got": "diverges",
+   "via": "heuristic",
+   "reason": "diverges"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "can you make the redirect handler return a 302 instead of 301 so browsers don't cache it",
+   "expect": "remember",
+   "got": "build",
+   "via": "meta",
+   "reason": "detail/extend"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "rename the variable shortCode to code in handler.js",
+   "expect": "skip",
+   "got": "skip",
+   "via": "meta",
+   "reason": "noise"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "what's the difference between 301 and 302 again?",
+   "expect": "skip",
+   "got": "skip",
+   "via": "meta",
+   "reason": "noise"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "let's put a WAF in front of everything to block abusive link creation",
+   "expect": "build",
+   "got": "build",
+   "via": "meta",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "we don't need analytics anymore, drop the click stream entirely",
+   "expect": "build",
+   "got": "build",
+   "via": "meta",
+   "reason": "arch/restructure"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "the link table should be DynamoDB with the code as the partition key",
+   "expect": "build",
+   "got": "build",
+   "via": "local",
+   "reason": "strong-arch"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "custom aliases: users can pick their own short code if it's free",
+   "expect": "build",
+   "got": "build",
+   "via": "meta",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "links expire after 5 years by default",
+   "expect": "remember",
+   "got": "remember",
+   "via": "meta",
+   "reason": "constraint"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "please add jsdoc comments to the create endpoint",
+   "expect": "skip",
+   "got": "skip",
+   "via": "meta",
+   "reason": "noise"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "I think the cache hit rate should stay above 90%",
+   "expect": "remember",
+   "got": "remember",
+   "via": "local",
+   "reason": "numeric-constraint"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "how would you estimate storage for this?",
+   "expect": "skip",
+   "got": "skip",
+   "via": "meta",
+   "reason": "noise"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "tell me more about the key range service",
+   "expect": "deepen",
+   "got": "deepen",
+   "via": "local",
+   "reason": "command"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "zoom into the cache",
+   "expect": "deepen",
+   "got": "deepen",
+   "via": "local",
+   "reason": "command"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "let's pause here and pick it up tomorrow",
+   "expect": "skip",
+   "got": "skip",
+   "via": "meta",
+   "reason": "noise"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "each create server leases a range of 1000 codes from the key service so there's no coordination per request",
+   "expect": "build",
+   "got": "build",
+   "via": "meta",
+   "reason": "detail/extend"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "npm install failed with EACCES, can you fix it",
+   "expect": "skip",
+   "got": "skip",
+   "via": "meta",
+   "reason": "noise"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "only signed-in users can create links; anonymous users have to pass a captcha first",
+   "expect": "build",
+   "got": "remember",
+   "via": "meta",
+   "reason": "constraint"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "also support QR codes for each short link, generated lazily and stored in S3",
+   "expect": "build",
+   "got": "build",
+   "via": "meta",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "the tests in redirect.test.js are flaky, look into it",
+   "expect": "skip",
+   "got": "skip",
+   "via": "meta",
+   "reason": "noise"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "payments must be idempotent: retry with an idempotency key per trip",
+   "expect": "remember",
+   "got": "build",
+   "via": "meta",
+   "reason": "detail/extend"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "replace the in-memory geo index with Redis GEO so it survives restarts",
+   "expect": "build",
+   "got": "build",
+   "via": "meta",
+   "reason": "arch/restructure"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "we should text riders when the driver is one minute away",
+   "expect": "build",
+   "got": "build",
+   "via": "meta",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "the arrow from pricing to dispatch is backwards, dispatch asks pricing for the fare",
+   "expect": "build",
+   "got": "build",
+   "via": "meta",
+   "reason": "drift/restructure"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "drivers can reject up to 3 offers before we deprioritize them",
+   "expect": "remember",
+   "got": "build",
+   "via": "meta",
+   "reason": "detail/extend"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "write a unit test for the surge multiplier function",
+   "expect": "skip",
+   "got": "skip",
+   "via": "meta",
+   "reason": "noise"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "how does matching latency look in the load test?",
+   "expect": "skip",
+   "got": "skip",
+   "via": "meta",
+   "reason": "noise"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "go deeper on the location service",
+   "expect": "deepen",
+   "got": "deepen",
+   "via": "local",
+   "reason": "command"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "ETAs come from a separate routing service that uses road graph data from a map provider",
+   "expect": "build",
+   "got": "build",
+   "via": "meta",
+   "reason": "arch/extend"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "can you run gofmt on the repo",
+   "expect": "skip",
+   "got": "skip",
+   "via": "meta",
+   "reason": "noise"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "surge is capped at 3x in regulated cities",
+   "expect": "remember",
+   "got": "remember",
+   "via": "meta",
+   "reason": "constraint"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "lol that was fast",
+   "expect": "skip",
+   "got": "skip",
+   "via": "meta",
+   "reason": "noise"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "dispatch can't be a single point of failure, run it active-active in two regions",
+   "expect": "remember",
+   "got": "remember",
+   "via": "meta",
+   "reason": "constraint"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "switch the offer flow so we send the request to the three closest drivers at once and take the first accept",
+   "expect": "build",
+   "got": "build",
+   "via": "meta",
+   "reason": "arch/restructure"
+  },
+  {
+   "decider": "meta",
+   "kind": "turn",
+   "text": "nah never mind, keep it as is",
+   "expect": "skip",
+   "got": "skip",
+   "via": "meta",
+   "reason": "noise"
+  },
+  {
+   "decider": "meta",
+   "kind": "edit",
+   "path": "dispatch/offer.go",
+   "expect": "diverges",
+   "got": "diverges",
+   "via": "meta",
+   "reason": "diverges"
+  },
+  {
+   "decider": "meta",
+   "kind": "edit",
+   "path": "location/index.go",
+   "expect": "conforms",
+   "got": "conforms",
+   "via": "meta",
+   "reason": "conforms"
+  },
+  {
+   "decider": "meta",
+   "kind": "edit",
+   "path": "payments/charge.go",
+   "expect": "diverges",
+   "got": "diverges",
+   "via": "meta",
+   "reason": "diverges"
+  },
+  {
+   "decider": "meta",
+   "kind": "edit",
+   "path": "pricing/surge_test.go",
+   "expect": "conforms",
+   "got": "conforms",
+   "via": "local",
+   "reason": "quiet-path"
+  },
+  {
+   "decider": "meta",
+   "kind": "edit",
+   "path": "pricing/surge.go",
+   "expect": "conforms",
+   "got": "conforms",
+   "via": "meta",
+   "reason": "conforms"
+  },
+  {
+   "decider": "meta",
+   "kind": "edit",
+   "path": "location/store.go",
+   "expect": "diverges",
+   "got": "diverges",
+   "via": "meta",
+   "reason": "diverges"
+  },
+  {
+   "decider": "meta",
+   "kind": "edit",
+   "path": "dispatch/match.go",
+   "expect": "conforms",
+   "got": "diverges",
+   "via": "meta",
+   "reason": "diverges"
+  },
+  {
+   "decider": "meta",
+   "kind": "edit",
+   "path": "create/handler.js",
+   "expect": "diverges",
+   "got": "diverges",
+   "via": "meta",
+   "reason": "diverges"
+  },
+  {
+   "decider": "meta",
+   "kind": "edit",
+   "path": "redirect/cache.js",
+   "expect": "conforms",
+   "got": "conforms",
+   "via": "meta",
+   "reason": "conforms"
+  },
+  {
+   "decider": "meta",
+   "kind": "edit",
+   "path": "redirect/handler.js",
+   "expect": "diverges",
+   "got": "diverges",
+   "via": "meta",
+   "reason": "diverges"
+  }
+ ]
+}

@@ -1,3 +1,5 @@
-sys|G short-links click-counts|N load-links-month 100M links/month|N load-redirects-month 10B redirects/month|N latency p99<50ms|D code-allocation pregen-range-service|D link-store key-value-table|D redirect-path read-through-cache|F owner click-counts
-click-aggregator|D sync-count>async-stream-aggregate
-redirect-service|N latency never-block-on-count|! intent:Redirect Service serves high-volume redirects within latency budget never blocks counting
+sys|G short-links redirects owner click-counts|N load-links-month 100M links/month|N load-redirects-month 10B redirects/month|N latency p99<50ms
+analytics-worker|D async-aggregate>sync-write|F count-clicks-for-owner
+key-range-service|F provide-unique-code-ranges
+link-service|D code-source pre-generated-key-ranges|F create-short-links
+redirect-service|N latency click-counting-must-never-slow-redirect|F redirect-clicks-to-long-URL|! intent:Redirect Service keeps click path fast isolated click-counting-must-never-slow-redirect p

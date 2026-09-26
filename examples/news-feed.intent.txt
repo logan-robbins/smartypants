@@ -1,10 +1,13 @@
-sys|G ranked-feed friends-pages-followed|N users-dau 500M dau|N users-friends 300 friends|N latency p99<200ms|N celeb-threshold 1M followers|D fanout-strategy hybrid>pure-push
-candidate-loader|F load-fanned-candidates
-celeb-merger|F pull-celeb-posts-at-read
-feed-ranker|F rank-feed
-graph-service|F friends-follow-graph
-media-store|D blob-behind-cdn>inline-post-store|F store-media-blobs
-post-service|F publish-posts
-post-service>feed-fanout|E new-post-fanout
-post-service>media-store|E upload-media
-relevance-scorer|F score-sort-merge
+sys|G ranked-feed-from-friends-follows|N users-dau 500M dau|N users-friends 300 friends|N latency p99<200ms
+feed-cache|D precomputed-fanout>on-read-only
+feed-fanout|D fanout-on-write-except-celebrity-over-1M|! intent:Feed Fanout Worker fans normal posts follower caches skips celebrity posts - fanout-on-wr
+feed-ingest|Q policy batch-dedup-writes
+feed-lists|Q storage redis-sorted-set|Q partition shard-by-userId
+feed-ranker|D celebrity-merge-on-read|F ranked-feed-read
+media-store|D blob-behind-cdn>inline-in-post-store
+post-publisher|F publish-posts
+post-store|X inline-media-bytes
+rank-filter|F privacy-dedup-filter
+rank-merge|F merge-cache-plus-celebrity
+rank-scoring|F relevance-order|Q model ml-vs-heuristic
+social-graph|F friends-follows-lookup

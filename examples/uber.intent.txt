@@ -1,11 +1,16 @@
-sys|G rider-request-to-driver-match-track-charge|N interval 4s|N users-drivers-peak 5M drivers|N latency <2s
-billing-payments|F end-of-trip-charge
-cell-search|! intent:Queries nearby H3 cells candidate drivers limit match close drivers <2s match code:Delive
-cell-search>h3-geo-index|E nearby-cells-query
-dispatch-matching|F nearby-driver-match|F sequential-offer one-at-a-time
-driver-location-cache|D sharding H3-cell
-driver-location-cache>surge-pricing|E supply
-surge-pricing|N interval 1m|F per-H3-cell-supply-demand
-surge-pricing>billing-payments|E surge-multiplier
-trip-manager|F trip-lifecycle-tracking
-trip-manager>surge-pricing|E demand
+sys|G ride-request-match-track-charge|N interval 4s|N users-drivers-peak 5M drivers|N latency <2s
+billing-service|F end-of-trip-charge
+billing-service>payments-service|E final-fare
+candidate-selector|Q ranking ETA-then-rating
+dispatch-coord|Q timeout 20s-per-offer
+geo-index|D h3-cell-sharded>in-memory-single
+location-service|F track-driver-positions
+location-service>surge-service|E supply
+matching-service|F sequential-single-offer
+matching-service>location-service|E nearby-query
+matching-service>surge-service|E demand
+payments-service|F post-trip-card-charge
+surge-service|N interval 1m|F per-cell-surge-pricing
+surge-service>billing-service|E surge-multipliers
+trip-service|F live-trip-tracking
+unmapped|! intent:ride-request-match-track-charge interval 4s users-drivers-peak 5M drivers latency <2s cod
