@@ -13,6 +13,7 @@ import { designFile, readBytes, tempProject } from "./helpers.js";
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const PACKAGES = {
+  meta: "meta-model-api",
   claude: "@anthropic-ai/claude-agent-sdk",
   codex: "@openai/agents",
   grok: "openai",
@@ -21,6 +22,7 @@ const PACKAGES = {
 };
 
 const APIS = {
+  meta: "meta.chat.completions",
   claude: "query",
   codex: "run",
   grok: "chat.completions",
@@ -240,7 +242,8 @@ test("command hooks and the Pi extension point at the shared pipeline", () => {
   const extension = fs.readFileSync(path.join(rootDir, "src/pi-extension.js"), "utf8");
   const entry = fs.readFileSync(path.join(rootDir, ".pi/extensions/smartypants/index.js"), "utf8");
   assert.equal(entry.includes('from "../../../src/pi-extension.js"'), true);
-  assert.equal(extension.includes('from "./pipeline.js"'), true);
+  assert.equal(extension.includes('from "./dispatch.js"'), true);
+  assert.equal(fs.readFileSync(path.join(rootDir, "src/dispatch.js"), "utf8").includes('from "./pipeline.js"'), true);
   assert.equal(extension.includes('pi.on("input"'), true);
   assert.equal(extension.includes('pi.on("tool_result"'), true);
   assert.equal(extension.includes("isEditTool"), true);

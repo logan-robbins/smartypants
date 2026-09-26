@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "floor": "module",
+  "updatedAt": "2026-09-26T19:16:21.851Z",
+  "level": "module",
+  "nodes": [
+    {
+      "id": "uber",
+      "name": "Uber",
+      "kind": "system",
+      "parentId": null,
+      "what": "Rider requests, driver matching, trip tracking, charging",
+      "why": "Provide on-demand rides end to end",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "api-gateway",
+      "name": "API Gateway",
+      "kind": "component",
+      "parentId": "uber",
+      "what": "Routes rider and driver API calls",
+      "why": "Single edge entry for ride APIs",
+      "shape": "gateway",
+      "flags": []
+    },
+    {
+      "id": "trip-manager",
+      "name": "Trip Manager",
+      "kind": "component",
+      "parentId": "uber",
+      "what": "Owns trip from request to completion",
+      "why": "Keeps ride state consistent",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "dispatch-matching",
+      "name": "Dispatch Matching",
+      "kind": "component",
+      "parentId": "uber",
+      "what": "Matches rider with nearby driver",
+      "why": "Finds closest available driver fast",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "driver-location-cache",
+      "name": "Driver Location Cache",
+      "kind": "component",
+      "parentId": "uber",
+      "what": "Holds live driver positions",
+      "why": "Enables fast nearby search",
+      "shape": "cache",
+      "flags": []
+    },
+    {
+      "id": "trip-store",
+      "name": "Trip Store",
+      "kind": "component",
+      "parentId": "uber",
+      "what": "Persists trips and status",
+      "why": "Durable record of rides",
+      "shape": "store",
+      "flags": []
+    },
+    {
+      "id": "billing-payments",
+      "name": "Billing Payments",
+      "kind": "component",
+      "parentId": "uber",
+      "what": "Calculates fare and charges rider",
+      "why": "Collects payment at trip end",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "h3-geo-index",
+      "name": "H3 Geo Index",
+      "kind": "module",
+      "parentId": "driver-location-cache",
+      "what": "In-memory driver positions sharded by H3 cell",
+      "why": "Fast nearby lookup at 5M driver scale",
+      "shape": "cache",
+      "flags": []
+    },
+    {
+      "id": "cell-search",
+      "name": "Nearby Cell Search",
+      "kind": "module",
+      "parentId": "dispatch-matching",
+      "what": "Queries nearby H3 cells for candidate drivers",
+      "why": "Limit match to close drivers for <2s match",
+      "shape": "service",
+      "flags": [
+        {
+          "intent": "Queries nearby H3 cells for candidate drivers to limit match to close drivers for <2s match",
+          "difference": "Delivered code SELECTs all online drivers and picks closest instead of querying nearby H3 cells, abandoning the close-drivers-only boundary needed for <2s match."
+        }
+      ]
+    },
+    {
+      "id": "surge-pricing",
+      "name": "Surge Pricing",
+      "kind": "component",
+      "parentId": "uber",
+      "what": "Computes per-H3-cell surge multiplier from supply and demand",
+      "why": "Balance supply and demand by pricing peaks per cell",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "cell-surge-calculator",
+      "name": "Cell Surge Calculator",
+      "kind": "module",
+      "parentId": "surge-pricing",
+      "what": "Aggregates supply-demand per H3 cell every minute",
+      "why": "Produce minute-fresh cell surge price",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "candidate-ranker",
+      "name": "Candidate Ranker",
+      "kind": "module",
+      "parentId": "dispatch-matching",
+      "what": "Scores candidates by ETA and rating",
+      "why": "Picks closest best driver fast",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "offer-manager",
+      "name": "Offer Manager",
+      "kind": "module",
+      "parentId": "dispatch-matching",
+      "what": "Offers rides one-at-a-time with timeout",
+      "why": "Avoids double-book and handles declines",
+      "shape": "service",
+      "flags": []
+    }
+  ],
+  "connections": [],
+  "unmappedFlags": []
+}

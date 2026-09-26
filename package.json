@@ -1,8 +1,8 @@
 {
   "name": "@logan-robbins/smartypants",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "description": "Hook and desktop canvas for a system diagram, from system to component to module, with intent-drift flags.",
+  "description": "Live Mermaid-style system diagram, compact IntentCode memory, and intent-drift flags for coding agents. Jev-style triage; Meta Muse Spark by default.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/logan-robbins/smartypants.git"
@@ -10,7 +10,8 @@
   "bin": {
     "smartypants": "./bin/smartypants.mjs",
     "smartypants-hook": "./bin/smartypants-hook.mjs",
-    "smartypants-serve": "./bin/smartypants-serve.mjs"
+    "smartypants-serve": "./bin/smartypants-serve.mjs",
+    "smartypants-worker": "./bin/smartypants-worker.mjs"
   },
   "exports": {
     ".": "./src/pipeline.js",
@@ -20,14 +21,18 @@
     "bin",
     "src",
     "web",
+    "examples",
     "smartypants.config.example.json",
     "diagram.png",
-    "README.md"
+    "README.md",
+    "docs"
   ],
   "scripts": {
     "test": "node --test",
     "hook": "node bin/smartypants-hook.mjs",
-    "serve": "node bin/smartypants-serve.mjs"
+    "serve": "node bin/smartypants-serve.mjs",
+    "eval": "node eval/run.mjs",
+    "eval:triage": "node eval/triage.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -35,5 +40,26 @@
   "dependencies": {
     "@openai/agents": "^0.18.0",
     "zod": "^4.6.5"
+  },
+  "keywords": [
+    "architecture",
+    "diagram",
+    "mermaid",
+    "system-design",
+    "intent",
+    "drift",
+    "claude-code",
+    "codex",
+    "pi-package",
+    "meta",
+    "jev"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/pi-extension.js"
+    ],
+    "skills": [
+      "./plugins/smartypants/skills"
+    ]
   }
 }

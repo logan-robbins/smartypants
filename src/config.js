@@ -1,12 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { FLAVOR_IDS } from "./flavors/ids.js";
+import { DECIDERS } from "./jev.js";
 import { FLOORS, normalizeFloor } from "./taxonomy.js";
 
 export const CONFIG_FILENAME = "smartypants.config.json";
 
-const TIMEOUT_CAP_MS = 20000;
-const REASONING_EFFORTS = ["none", "low", "medium", "high", "xhigh", "max"];
+const TIMEOUT_CAP_MS = 120000;
+const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 function readTimeout(value) {
   if (value == null || value === "") return null;
@@ -39,13 +40,19 @@ export function readConfig(root) {
   if (typeof raw.flavor !== "string" || !FLAVOR_IDS.includes(raw.flavor)) {
     return { present: true, config: null, reason: "invalid-flavor" };
   }
-  if (raw.depth != null && raw.depth !== "" && !FLOORS.includes(raw.depth)) {
+  if (raw.depth != null && raw.depth !== "" && raw.depth !== "auto" && !FLOORS.includes(raw.depth)) {
     return { present: true, config: null, reason: "invalid-depth" };
   }
   const seed = readSeed(raw.seed);
   if (seed == null) return { present: true, config: null, reason: "invalid-seed" };
   if (raw.reasoningEffort != null && !REASONING_EFFORTS.includes(raw.reasoningEffort)) {
     return { present: true, config: null, reason: "invalid-reasoning-effort" };
+  }
+  if (raw.decider != null && !DECIDERS.includes(raw.decider)) {
+    return { present: true, config: null, reason: "invalid-decider" };
+  }
+  if (raw.autoDeepen != null && raw.autoDeepen !== false && !(Number.isInteger(raw.autoDeepen) && raw.autoDeepen > 0)) {
+    return { present: true, config: null, reason: "invalid-auto-deepen" };
   }
   if (raw.envFile != null && (typeof raw.envFile !== "string" || !raw.envFile.trim())) {
     return { present: true, config: null, reason: "invalid-env-file" };
@@ -62,7 +69,13 @@ export function readConfig(root) {
     reason: null,
     config: {
       flavor: raw.flavor,
-      depth: normalizeFloor(raw.depth),
+      depth: raw.depth === "auto" ? "module" : normalizeFloor(raw.depth),
+      auto: raw.depth === "auto",
+      decider: raw.decider || "auto",
+      deciderModel: typeof raw.deciderModel === "string" && raw.deciderModel.trim() ? raw.deciderModel.trim() : null,
+      autoDeepen: raw.autoDeepen === false ? false : raw.autoDeepen || 3,
+      background: raw.background === true,
+      intentTokens: Number.isInteger(raw.intentTokens) && raw.intentTokens > 100 ? raw.intentTokens : null,
       seed,
       model: typeof raw.model === "string" && raw.model.trim() ? raw.model.trim() : null,
       reasoningEffort: raw.reasoningEffort ?? null,

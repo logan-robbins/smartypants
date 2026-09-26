@@ -26,7 +26,29 @@ function userText(payload) {
   return "";
 }
 
+/**
+ * Codex `apply_patch` sends the patch text, not a path: "*** Begin Patch /
+ * *** Add File: <path> / +line ... / *** End Patch". The first file names the
+ * edit; the whole patch is the diff; added lines are the delivered contents.
+ */
+export function parseApplyPatch(text) {
+  const value = String(text || "");
+  if (!value.includes("*** Begin Patch")) return null;
+  const files = [...value.matchAll(/^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm)].map((m) => m[1].trim());
+  if (!files.length) return null;
+  const added = value
+    .split("\n")
+    .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
+    .map((line) => line.slice(1))
+    .join("\n");
+  return { path: files[0], files, contents: added, diff: value };
+}
+
 export function extractDelivered(input, toolName = "") {
+  const patch = parseApplyPatch(typeof input === "string" ? input : input?.command ?? input?.patch ?? input?.input);
+  if (patch) {
+    return { type: "edit", path: patch.path, contents: patch.contents, diff: patch.diff, toolName: String(toolName || "") };
+  }
   const source = input && typeof input === "object" ? input : {};
   const filePath = source.file_path || source.filePath || source.path || "";
   let contents = "";

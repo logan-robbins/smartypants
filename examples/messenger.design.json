@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "floor": "module",
+  "updatedAt": "2026-09-26T19:16:27.716Z",
+  "level": "component",
+  "nodes": [
+    {
+      "id": "chat-system",
+      "name": "Chat System",
+      "kind": "system",
+      "parentId": null,
+      "what": "1:1 and group messaging backend",
+      "why": "Provide WhatsApp-like chat for all users",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "chat-clients",
+      "name": "Chat Clients",
+      "kind": "component",
+      "parentId": "chat-system",
+      "what": "Mobile and web chat apps",
+      "why": "Let users send and read chats",
+      "shape": "client",
+      "flags": []
+    },
+    {
+      "id": "api-gateway",
+      "name": "API Gateway",
+      "kind": "component",
+      "parentId": "chat-system",
+      "what": "Terminates connections and routes chat traffic",
+      "why": "Single edge for auth and fan-out",
+      "shape": "gateway",
+      "flags": []
+    },
+    {
+      "id": "messaging-service",
+      "name": "Messaging Service",
+      "kind": "component",
+      "parentId": "chat-system",
+      "what": "Sends, fans out, and delivers 1:1 and group messages",
+      "why": "Owns real-time message flow",
+      "shape": "service",
+      "flags": [
+        {
+          "intent": "Sends, fans out, and delivers 1:1 and group messages",
+          "difference": "router.ts delivers to a single msg.to via direct gateway lookup with push fallback; it performs no group fan-out, no conversation membership resolution, and no enqueue to Delivery Queue for offline buffering and retry, conflicting with at-least-once and 1:1-and-group delivery ownership."
+        },
+        {
+          "intent": "Sends, fans out, and delivers 1:1 and group messages",
+          "difference": "fire-and-forget direct gateway delivery with drop-if-offline abandons owned real-time message flow guarantees of at-least-once and in-order delivery."
+        }
+      ]
+    },
+    {
+      "id": "conversation-service",
+      "name": "Conversation Service",
+      "kind": "component",
+      "parentId": "chat-system",
+      "what": "Owns 1:1 threads and group membership",
+      "why": "Decide who receives each message",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "presence-service",
+      "name": "Presence Service",
+      "kind": "component",
+      "parentId": "chat-system",
+      "what": "Tracks online status and typing",
+      "why": "Show availability in chats",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "delivery-queue",
+      "name": "Delivery Queue",
+      "kind": "component",
+      "parentId": "chat-system",
+      "what": "Buffers messages for offline and group fan-out",
+      "why": "Survive disconnects and spikes",
+      "shape": "queue",
+      "flags": []
+    },
+    {
+      "id": "message-store",
+      "name": "Message Store",
+      "kind": "component",
+      "parentId": "chat-system",
+      "what": "Durable store for messages and history",
+      "why": "Reload chats on any device",
+      "shape": "store",
+      "notes": [
+        "key (conversation_id, seq_no) + message_id for idempotency",
+        "LSM wide-row per conversation, seq enforces in-order",
+        "partition by hash(conversation_id), RF=3 across AZs",
+        "hot p99 read <20ms via timeline cache, quorum writes",
+        "at-least-once dedup on message_id retry",
+        "100B/day ~1.2M wps avg, 5M peak, 90d hot then S3"
+      ],
+      "flags": []
+    },
+    {
+      "id": "media-store",
+      "name": "Media Store",
+      "kind": "component",
+      "parentId": "chat-system",
+      "what": "Stores images, video, files",
+      "why": "Keep chat payloads out of message path",
+      "shape": "store",
+      "flags": []
+    },
+    {
+      "id": "push-provider",
+      "name": "Push Provider",
+      "kind": "component",
+      "parentId": "chat-system",
+      "what": "Third-party offline push delivery",
+      "why": "Wake up offline recipients",
+      "shape": "external",
+      "flags": []
+    },
+    {
+      "id": "conv-log",
+      "name": "Conversation Log",
+      "kind": "module",
+      "parentId": "message-store",
+      "what": "Append-only ordered rows per conversation",
+      "why": "Keeps 1:1 and group order durable",
+      "shape": "store",
+      "flags": []
+    },
+    {
+      "id": "timeline-index",
+      "name": "Timeline Index",
+      "kind": "module",
+      "parentId": "message-store",
+      "what": "Recent pages and seq cursors per conversation",
+      "why": "Fast scrollback without scanning cold data",
+      "shape": "cache",
+      "flags": []
+    },
+    {
+      "id": "cold-archive",
+      "name": "Cold Archive",
+      "kind": "module",
+      "parentId": "message-store",
+      "what": "Aged segments in cheap object storage",
+      "why": "Keeps infinite history without hot-store cost",
+      "shape": "store",
+      "flags": []
+    }
+  ],
+  "connections": [],
+  "unmappedFlags": []
+}

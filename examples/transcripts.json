@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "note": "Meta-style system design interview transcripts. Each turn is labeled with what triage should do: skip (nothing durable), remember (constraint only, no box changes), build (diagram changes), deepen (go one level deeper). Edits are labeled conforms or diverges against the intent stated earlier.",
+  "examples": [
+    {
+      "name": "youtube-top-k",
+      "title": "YouTube Top-K",
+      "golden": [["ingest", "view", "collector"], ["kafka", "log", "stream", "queue"], ["aggregat", "count", "flink", "worker"], ["top", "rank", "leaderboard", "heap"], ["cache", "redis"], ["api", "query", "serving", "read"]],
+      "turns": [
+        { "text": "hi! ready when you are", "expect": "skip" },
+        { "text": "Design the YouTube top-K videos feature: return the 100 most viewed videos for the last hour, last day, and all time.", "expect": "build" },
+        { "text": "Scale: 1B views per day, peaks around 50k views per second. Reads are about 10k qps and the list can be up to 1 minute stale.", "expect": "remember" },
+        { "text": "Views land on a Kafka topic partitioned by video id. Flink workers keep a count-min sketch and a min-heap per window and push the top 100 to Redis; the Top-K API reads Redis.", "expect": "build" },
+        { "text": "sounds good, can you run the tests", "expect": "skip" },
+        { "text": "go deeper on the aggregation workers", "expect": "deepen" },
+        { "text": "For all-time counts, don't use the sketch. Keep exact counts in a Cassandra counter table and recompute the all-time top list hourly with a batch job.", "expect": "build" }
+      ],
+      "edits": [
+        { "path": "services/topk-api/handler.ts", "contents": "export async function topK(window) {\n  // read directly from Cassandra and sort every request\n  const rows = await cassandra.execute('SELECT video_id, views FROM counts');\n  return rows.sort((a, b) => b.views - a.views).slice(0, 100);\n}\n", "expect": "diverges" },
+        { "path": "services/topk-api/handler.test.ts", "contents": "test('returns 100', async () => { expect((await topK('hour')).length).toBe(100); });\n", "expect": "conforms" }
+      ]
+    },
+    {
+      "name": "uber",
+      "title": "Uber ride hailing",
+      "golden": [["rider", "client", "app"], ["driver"], ["location", "geo", "tracking"], ["match", "dispatch"], ["trip", "ride"], ["pricing", "fare", "surge"], ["payment"]],
+      "turns": [
+        { "text": "Let's do Uber. A rider requests a ride, we match them with a nearby driver, track the trip, and charge at the end.", "expect": "build" },
+        { "text": "Drivers send GPS every 4 seconds; 5M active drivers at peak. Matching should return a driver in under 2 seconds.", "expect": "remember" },
+        { "text": "ok", "expect": "skip" },
+        { "text": "Location service keeps driver positions in an in-memory geo index sharded by H3 cell; the dispatch service queries nearby cells and offers the ride to drivers one at a time.", "expect": "build" },
+        { "text": "Add surge pricing computed per H3 cell from supply and demand every minute, and a payments service that charges the card after the trip completes.", "expect": "build" },
+        { "text": "go deeper on dispatch", "expect": "deepen" },
+        { "text": "fix the lint errors please", "expect": "skip" }
+      ],
+      "edits": [
+        { "path": "dispatch/match.go", "contents": "func Match(req Request) Driver {\n  // scan every online driver in postgres and pick the closest\n  rows := db.Query(\"SELECT id, lat, lng FROM drivers WHERE online\")\n  return closest(rows, req)\n}\n", "expect": "diverges" },
+        { "path": "dispatch/README.md", "contents": "# Dispatch\nOffers rides to nearby drivers.\n", "expect": "conforms" }
+      ]
+    },
+    {
+      "name": "news-feed",
+      "title": "Facebook News Feed",
+      "golden": [["post", "publish", "write"], ["fanout", "fan-out"], ["feed"], ["graph", "follow", "friend"], ["cache", "redis", "memcache"], ["rank"], ["media", "blob", "cdn"]],
+      "turns": [
+        { "text": "Design the Facebook news feed: users publish posts and see a ranked feed of posts from friends and pages they follow.", "expect": "build" },
+        { "text": "500M DAU, each user has on average 300 friends; feed load p99 under 200ms.", "expect": "remember" },
+        { "text": "Use fan-out on write into per-user feed caches, but for celebrities with over 1M followers do fan-out on read and merge at request time.", "expect": "build" },
+        { "text": "thanks, looks right", "expect": "skip" },
+        { "text": "Media goes to blob storage behind a CDN; posts store only the media URL.", "expect": "build" },
+        { "text": "go deeper on ranking", "expect": "deepen" }
+      ],
+      "edits": [
+        { "path": "feed/fanout_worker.py", "contents": "def on_post(post):\n    for follower in graph.followers(post.author):\n        feed_cache.prepend(follower, post.id)\n    # celebrities included: no follower-count check\n", "expect": "diverges" },
+        { "path": "feed/fanout_worker.py", "contents": "def on_post(post):\n    if graph.follower_count(post.author) > 1_000_000:\n        return  # celebrity posts are pulled at read time\n    for follower in graph.followers(post.author):\n        feed_cache.prepend(follower, post.id)\n", "expect": "conforms" }
+      ]
+    },
+    {
+      "name": "messenger",
+      "title": "Messenger / WhatsApp",
+      "golden": [["client", "app", "device"], ["gateway", "connection", "websocket", "chat server"], ["message", "chat"], ["store", "cassandra", "hbase", "database"], ["presence", "online"], ["push", "notification"], ["group"]],
+      "turns": [
+        { "text": "Design a 1:1 and group chat system like WhatsApp or Messenger.", "expect": "build" },
+        { "text": "Clients hold a persistent websocket to a connection gateway; a chat service routes messages to the recipient's gateway, stores them, and sends a push notification when the recipient is offline.", "expect": "build" },
+        { "text": "Messages must be delivered in order per conversation and at least once; 100B messages per day.", "expect": "remember" },
+        { "text": "yep continue", "expect": "skip" },
+        { "text": "Add presence: gateways publish online/offline heartbeats to a presence service that friends subscribe to.", "expect": "build" },
+        { "text": "go deeper on message storage", "expect": "deepen" }
+      ],
+      "edits": [
+        { "path": "chat/router.ts", "contents": "export async function route(msg) {\n  await store.append(msg.conversationId, msg);\n  const gw = await registry.gatewayFor(msg.to);\n  if (gw) await gw.deliver(msg); else await push.notify(msg.to, msg.preview);\n}\n", "expect": "conforms" },
+        { "path": "chat/router.ts", "contents": "export async function route(msg) {\n  // fire and forget; drop if the recipient is offline\n  const gw = await registry.gatewayFor(msg.to);\n  gw?.deliver(msg);\n}\n", "expect": "diverges" }
+      ]
+    },
+    {
+      "name": "url-shortener",
+      "title": "Bitly URL shortener",
+      "golden": [["create", "shorten", "write"], ["redirect", "read"], ["code", "id", "key"], ["store", "table", "database"], ["cache"], ["click", "analytics", "stream"]],
+      "turns": [
+        { "text": "Design a URL shortener like Bitly: create short links and redirect clicks to the long URL, with click counts for the owner.", "expect": "build" },
+        { "text": "100M new links a month, 10B redirects a month; redirect p99 under 50ms.", "expect": "remember" },
+        { "text": "Codes come from a pre-generated key range service so creators never collide; links live in a key-value table and redirects read through a cache.", "expect": "build" },
+        { "text": "commit that", "expect": "skip" },
+        { "text": "Click counting must never slow the redirect: publish click events to a stream and aggregate them asynchronously.", "expect": "build" },
+        { "text": "go deeper on redirect", "expect": "deepen" }
+      ],
+      "edits": [
+        { "path": "redirect/handler.js", "contents": "export async function redirect(code, res) {\n  const url = await cache.get(code) ?? await links.get(code);\n  await db.query('UPDATE links SET clicks = clicks + 1 WHERE code = $1', [code]);\n  res.redirect(301, url);\n}\n", "expect": "diverges" },
+        { "path": "redirect/handler.js", "contents": "export async function redirect(code, res) {\n  const url = await cache.get(code) ?? await links.get(code);\n  clicks.publish({ code, at: Date.now() });\n  res.redirect(301, url);\n}\n", "expect": "conforms" }
+      ]
+    }
+  ]
+}

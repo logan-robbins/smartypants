@@ -1,0 +1,10 @@
+sys|G ranked-feed friends-pages-followed|N users-dau 500M dau|N users-friends 300 friends|N latency p99<200ms|N celeb-threshold 1M followers|D fanout-strategy hybrid>pure-push
+candidate-loader|F load-fanned-candidates
+celeb-merger|F pull-celeb-posts-at-read
+feed-ranker|F rank-feed
+graph-service|F friends-follow-graph
+media-store|D blob-behind-cdn>inline-post-store|F store-media-blobs
+post-service|F publish-posts
+post-service>feed-fanout|E new-post-fanout
+post-service>media-store|E upload-media
+relevance-scorer|F score-sort-merge

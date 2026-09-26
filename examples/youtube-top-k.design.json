@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "floor": "module",
+  "updatedAt": "2026-09-26T19:16:22.475Z",
+  "level": "module",
+  "nodes": [
+    {
+      "id": "youtube-topk",
+      "name": "YouTube Top-K Videos",
+      "kind": "system",
+      "parentId": null,
+      "what": "Serves 100 most viewed videos for hour day all-time",
+      "why": "Show what is trending without scanning all views",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "viewer-apps",
+      "name": "Viewer Apps",
+      "kind": "component",
+      "parentId": "youtube-topk",
+      "what": "Reports views and requests top-100 lists",
+      "why": "Outside caller that produces views and consumes rankings",
+      "shape": "client",
+      "flags": []
+    },
+    {
+      "id": "topk-gateway",
+      "name": "Top-K Gateway",
+      "kind": "component",
+      "parentId": "youtube-topk",
+      "what": "Serves top-100 queries by time window",
+      "why": "Single entry to validate reads and serve rankings fast",
+      "shape": "gateway",
+      "flags": [
+        {
+          "intent": "Top-K Gateway serves top-100 queries by time window via reads from Redis",
+          "difference": "Delivered handler queries Cassandra counts table and sorts in request path instead of lookup of ready top-100 per window in Redis, breaking fast cached reads"
+        }
+      ]
+    },
+    {
+      "id": "view-ingest",
+      "name": "View Ingest",
+      "kind": "component",
+      "parentId": "youtube-topk",
+      "what": "Accepts view events from clients",
+      "why": "Decouple view tracking from ranking computation",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "view-queue",
+      "name": "View Stream",
+      "kind": "component",
+      "parentId": "youtube-topk",
+      "what": "Kafka topic buffering view events partitioned by video id",
+      "why": "Absorb 1B views/day 50k/s peak for parallel counting",
+      "shape": "queue",
+      "flags": []
+    },
+    {
+      "id": "window-aggregator",
+      "name": "Window Aggregator",
+      "kind": "component",
+      "parentId": "youtube-topk",
+      "what": "Flink workers counting views and building top-100 per window",
+      "why": "Maintain hour day all-time rankings at 1min freshness",
+      "shape": "worker",
+      "flags": []
+    },
+    {
+      "id": "ranking-store",
+      "name": "Ranking Store",
+      "kind": "component",
+      "parentId": "youtube-topk",
+      "what": "Persists per-video counts and top-K lists",
+      "why": "Durable source for counts and recovery",
+      "shape": "store",
+      "flags": []
+    },
+    {
+      "id": "topk-cache",
+      "name": "Top-K Cache",
+      "kind": "component",
+      "parentId": "youtube-topk",
+      "what": "Redis holding ready top-100 lists per window",
+      "why": "Serve 10k qps top-100 queries",
+      "shape": "cache",
+      "flags": []
+    },
+    {
+      "id": "sketch-counter",
+      "name": "Approximate Counter",
+      "kind": "module",
+      "parentId": "window-aggregator",
+      "what": "Count-min sketch per video per window",
+      "why": "Count 50k views/s without exact per-event state",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "heap-ranker",
+      "name": "Top-K Heap",
+      "kind": "module",
+      "parentId": "window-aggregator",
+      "what": "Min-heap of top 100 per window",
+      "why": "Keep ranked top-100 ready to push to Redis",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "event-deduper",
+      "name": "Event Deduper",
+      "kind": "module",
+      "parentId": "window-aggregator",
+      "what": "Drops duplicate and late view events by event id",
+      "why": "Keeps counts exact-once at 50k views/s without double counting retries",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "rank-publisher",
+      "name": "Rank Publisher",
+      "kind": "module",
+      "parentId": "window-aggregator",
+      "what": "Writes top-100 lists to store and cache every 1min",
+      "why": "Gives gateway fresh rankings without querying Flink state",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "window-assigner",
+      "name": "Window Assigner",
+      "kind": "module",
+      "parentId": "window-aggregator",
+      "what": "Routes views into hour day all-time tumbling windows",
+      "why": "Shares one stream for all three top-100 windows at 1min updates",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "alltime-batch-ranker",
+      "name": "All-Time Batch Ranker",
+      "kind": "component",
+      "parentId": "youtube-topk",
+      "what": "Hourly batch job recomputing all-time top-100",
+      "why": "All-time needs exact counts not sketch",
+      "shape": "worker",
+      "flags": []
+    },
+    {
+      "id": "alltime-exact-counter",
+      "name": "Exact All-Time Counter",
+      "kind": "module",
+      "parentId": "ranking-store",
+      "what": "Cassandra counter table for exact all-time views",
+      "why": "Keeps exact all-time counts for batch ranking",
+      "shape": "store",
+      "flags": []
+    }
+  ],
+  "connections": [],
+  "unmappedFlags": []
+}

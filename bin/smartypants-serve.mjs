@@ -5,7 +5,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { lookupConfig } from "../src/config.js";
 import { canvasModel, loadDesign, placeNode, saveDesign } from "../src/model.js";
+import { loadIntent, renderIntent, intentTokens } from "../src/intent.js";
+import { toMermaid } from "../src/mermaid.js";
 import { handleHook } from "../src/pipeline.js";
+import { drain, enqueue } from "../src/queue.js";
+import { loadStats } from "../src/stats.js";
 import { startWatcher } from "../src/watch.js";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -50,13 +54,53 @@ function safeFile(urlPath) {
   return file;
 }
 
+/** Every write goes through the project queue, so the server and hook workers never race. */
+function submit(event) {
+  enqueue(projectRoot, event);
+  return drain(projectRoot, (next) => handleHook({ cwd: projectRoot, event: next, timeoutMs: 120000 }));
+}
+
+function currentModel() {
+  const design = loadDesign(projectRoot);
+  const config = lookupConfig(projectRoot);
+  return { ...canvasModel(design, config?.depth || design.floor), ...(design.level ? { level: design.level } : {}) };
+}
+
+const JSON_TYPE = "application/json; charset=utf-8";
+let pending = 0;
+
 const server = http.createServer((req, res) => {
   const url = req.url || "/";
   if (url.startsWith("/design.json")) {
-    const design = loadDesign(projectRoot);
-    const config = lookupConfig(projectRoot);
-    const model = canvasModel(design, config?.depth || design.floor);
-    send(res, 200, JSON.stringify(model), "application/json; charset=utf-8");
+    send(res, 200, JSON.stringify({ ...currentModel(), busy: pending > 0 }), JSON_TYPE);
+    return;
+  }
+  if (url.startsWith("/design.mmd")) {
+    send(res, 200, toMermaid(currentModel()), "text/plain; charset=utf-8");
+    return;
+  }
+  if (url.startsWith("/intent.json")) {
+    const intent = loadIntent(projectRoot);
+    send(res, 200, JSON.stringify({ text: renderIntent(intent), atoms: intent.atoms, tokens: intentTokens(intent) }), JSON_TYPE);
+    return;
+  }
+  if (url.startsWith("/stats.json")) {
+    send(res, 200, JSON.stringify(loadStats(projectRoot)), JSON_TYPE);
+    return;
+  }
+  if (req.method === "POST" && url.startsWith("/deeper")) {
+    readBody(req)
+      .then((raw) => {
+        const body = JSON.parse(raw || "{}");
+        const target = String(body.id || body.target || "").trim();
+        if (!target) throw new Error("missing target");
+        pending += 1;
+        submit({ type: "deeper", target })
+          .catch((error) => console.error(`smartypants: ${error.message}`))
+          .finally(() => { pending -= 1; });
+        send(res, 202, JSON.stringify({ ok: true, target }), JSON_TYPE);
+      })
+      .catch(() => send(res, 400, "Bad deeper request", "text/plain; charset=utf-8"));
     return;
   }
   if (req.method === "POST" && url.startsWith("/positions")) {
@@ -84,7 +128,7 @@ server.listen(port, host, () => {
   console.log(`Design root: ${projectRoot}`);
   const watch = lookupConfig(projectRoot)?.watch;
   if (watch) {
-    startWatcher(projectRoot, watch, (text) => handleHook({ cwd: projectRoot, event: { type: "user", text } }));
+    startWatcher(projectRoot, watch, (text) => submit({ type: "user", text }));
     console.log(`Watching ${watch.host} ${watch.home ? "session home" : "session"}: ${watch.home || watch.session}`);
   }
 });

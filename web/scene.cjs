@@ -5,9 +5,9 @@
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.SmartypantsScene = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
-  var WIDTH = { system: 520, component: 210, module: 200, unmapped: 220 };
-  var GAP_X = 108;
-  var GAP_Y = 26;
+  var WIDTH = { system: 520, component: 230, module: 210, unmapped: 240 };
+  var GAP_X = 96;
+  var GAP_Y = 34;
 
   function slug(name) {
     return String(name || "")
@@ -48,29 +48,27 @@
     return lines;
   }
 
+  // Mermaid-sized boxes: the label only. Details open on click.
   function sizeOf(node) {
     var kind = WIDTH[node.kind] ? node.kind : "module";
-    var w = WIDTH[kind];
+    var name = String(node.name || "");
     if (kind === "system") {
-      var titleLines = lineCount(node.name, 32);
-      var bodyLines = lineCount(node.what, 58) + lineCount(node.why, 58);
-      return { w: w, h: 18 + titleLines * 28 + bodyLines * 18 + 16 };
+      return { w: Math.max(220, Math.min(560, name.length * 11 + 96)), h: 56 };
     }
-    var per = kind === "component" ? 26 : 24;
-    var flags = Array.isArray(node.flags) ? node.flags : [];
-    var h = 16;
-    if (node.group) h += 16;
-    h += lineCount(node.name, per - 4) * 22;
-    h += 6 + lineCount(node.what, per) * 16;
-    h += 4 + lineCount(node.why, per) * 15 + 14;
-    flags.forEach(function (flag) {
-      h += 22 + lineCount(flag.intent, per) * 16 + lineCount(flag.difference, per) * 16 + 10;
-    });
-    return { w: w, h: h };
+    if (kind === "unmapped") {
+      var body = lineCount(node.what, 30) + lineCount(node.why, 30);
+      return { w: WIDTH.unmapped, h: 44 + body * 16 };
+    }
+    var per = 22;
+    var lines = lineCount(name, per);
+    var longest = Math.min(name.length, per);
+    var w = Math.max(kind === "component" ? 150 : 132, Math.min(WIDTH[kind], longest * 8.6 + 52));
+    var shapePad = node.shape === "store" || node.shape === "cache" ? 18 : node.shape === "queue" || node.shape === "gateway" || node.shape === "external" ? 12 : 0;
+    return { w: w + (node.shape === "queue" || node.shape === "external" || node.shape === "gateway" ? 24 : 0), h: 30 + lines * 19 + shapePad };
   }
 
   function labelOf(node) {
-    var parts = [node.group, node.name, node.what, node.why];
+    var parts = [node.group, node.name, node.what, node.why].concat(node.notes || []);
     var flags = node.flags || [];
     for (var i = 0; i < flags.length; i += 1) {
       parts.push(flags[i].intent);
@@ -90,6 +88,10 @@
       why: node.why || "",
       flags: node.flags || [],
       flagged: (node.flags || []).length > 0,
+      shape: node.shape || (node.kind === "system" ? "system" : "service"),
+      notes: node.notes || [],
+      collapsed: Boolean(node.collapsed),
+      hidden: node.hidden || 0,
       parentId: node.parentId || null,
       x: x,
       y: y,
@@ -105,157 +107,233 @@
     });
   }
 
-  function flowMaps(nodes, connections) {
-    var incoming = {};
-    var outgoing = {};
-    nodes.forEach(function (node) {
-      incoming[node.id] = [];
-      outgoing[node.id] = [];
+  var RANK_GAP = 118;
+  var ROW_GAP = 30;
+  var CLUSTER_PAD = 20;
+  var CLUSTER_TITLE = 30;
+
+  /**
+   * Layered (Sugiyama / dagre-style) left-to-right layout.
+   * items: [{ id, w, h }], links: [{ from, to }] -> { id: { x, y } } plus size.
+   */
+  function layered(items, links) {
+    var ids = items.map(function (item) { return item.id; });
+    var index = {};
+    items.forEach(function (item, i) { index[item.id] = i; });
+    var succ = {};
+    var pred = {};
+    ids.forEach(function (id) { succ[id] = []; pred[id] = []; });
+    // Break cycles: a DFS back edge is laid out reversed.
+    var state = {};
+    var edges = [];
+    function dfs(id) {
+      state[id] = 1;
+      links.forEach(function (link) {
+        if (link.from !== id || !(link.to in index) || link.to === id) return;
+        if (state[link.to] === 1) edges.push({ from: link.to, to: id });
+        else {
+          edges.push({ from: id, to: link.to });
+          if (!state[link.to]) dfs(link.to);
+        }
+      });
+      state[id] = 2;
+    }
+    // Roots: sources first, then the order nodes first send a message, so a
+    // request reads left to right and its reply is the reversed edge.
+    var firstSend = {};
+    links.forEach(function (link, i) { if (firstSend[link.from] == null) firstSend[link.from] = i; });
+    var indegree = {};
+    links.forEach(function (link) { if (link.from !== link.to) indegree[link.to] = (indegree[link.to] || 0) + 1; });
+    ids.slice().sort(function (a, b) {
+      var ra = indegree[a] ? 1 : 0;
+      var rb = indegree[b] ? 1 : 0;
+      if (ra !== rb) return ra - rb;
+      var fa = firstSend[a] == null ? Infinity : firstSend[a];
+      var fb = firstSend[b] == null ? Infinity : firstSend[b];
+      return fa - fb || index[a] - index[b];
+    }).forEach(function (id) { if (!state[id]) dfs(id); });
+    var seen = {};
+    edges.forEach(function (edge) {
+      var key = edge.from + ">" + edge.to;
+      if (seen[key]) return;
+      seen[key] = true;
+      succ[edge.from].push(edge.to);
+      pred[edge.to].push(edge.from);
     });
-    (connections || []).forEach(function (connection) {
-      if (!incoming[connection.toId] || !outgoing[connection.fromId]) return;
-      incoming[connection.toId].push(connection.fromId);
-      outgoing[connection.fromId].push(connection.toId);
-    });
-    return { incoming: incoming, outgoing: outgoing };
-  }
-
-  function familyKey(node) {
-    if (!node) return "";
-    if (node.kind === "component") return node.id;
-    return node.parentId || node.id;
-  }
-
-  function isBoundary(node, maps, nodes) {
-    if (!node || node.kind !== "component") return false;
-    if (inFlow(node.id, maps)) return false;
-    if ((node.flags || []).length) return false;
-    return nodes.some(function (other) {
-      return other.kind === "module" && (other.parentId === node.id || slug(other.parentId) === slug(node.id));
-    });
-  }
-
-  function inFlow(id, maps) {
-    return maps.incoming[id].length > 0 || maps.outgoing[id].length > 0;
-  }
-
-  function familyIds(node, nodes) {
-    var ids = [];
-    var parent = findNode(nodes, node.parentId);
-    if (parent && parent.kind !== "system") ids.push(parent.id);
-    nodes.forEach(function (other) {
-      if (other.id === node.id) return;
-      if (other.parentId === node.id) ids.push(other.id);
-      if (node.parentId && other.parentId === node.parentId) ids.push(other.id);
-    });
-    return ids;
-  }
-
-  function ranksFor(nodes, maps) {
-    var memo = {};
-    var stack = {};
-    function rankOf(id) {
-      if (memo[id] != null) return memo[id];
-      if (stack[id]) return 0;
-      stack[id] = true;
+    // Longest-path ranks, then pull sinks-only nodes right next to their callers.
+    var rank = {};
+    function rankOf(id, guard) {
+      if (rank[id] != null) return rank[id];
+      if (guard > items.length) return 0;
       var best = 0;
-      if (maps.incoming[id].length) {
-        maps.incoming[id].forEach(function (src) {
-          best = Math.max(best, rankOf(src) + 1);
-        });
-      } else if (!maps.outgoing[id].length) {
-        var found = null;
-        familyIds(findNode(nodes, id), nodes).forEach(function (fid) {
-          if (!inFlow(fid, maps) || stack[fid]) return;
-          var value = rankOf(fid);
-          found = found == null ? value : Math.min(found, value);
-        });
-        best = found == null ? 0 : found;
-      }
-      stack[id] = false;
-      memo[id] = best;
+      pred[id].forEach(function (p) { best = Math.max(best, rankOf(p, guard + 1) + 1); });
+      rank[id] = best;
       return best;
     }
-    nodes.forEach(function (node) {
-      rankOf(node.id);
+    ids.forEach(function (id) { rankOf(id, 0); });
+    ids.forEach(function (id) {
+      if (pred[id].length || !succ[id].length) return;
+      var min = Infinity;
+      succ[id].forEach(function (s) { min = Math.min(min, rank[s]); });
+      if (min !== Infinity && min - 1 > rank[id]) rank[id] = min - 1;
     });
-    return memo;
+    var ranks = [];
+    ids.forEach(function (id) {
+      (ranks[rank[id]] = ranks[rank[id]] || []).push(id);
+    });
+    ranks = ranks.filter(Boolean);
+    // Order within ranks: barycenter sweeps.
+    var pos = {};
+    function number() {
+      ranks.forEach(function (list) { list.forEach(function (id, i) { pos[id] = i; }); });
+    }
+    number();
+    function bary(id, neighbors) {
+      var list = neighbors[id];
+      if (!list.length) return pos[id];
+      var sum = 0;
+      list.forEach(function (n) { sum += pos[n]; });
+      return sum / list.length;
+    }
+    for (var iter = 0; iter < 6; iter += 1) {
+      var down = iter % 2 === 0;
+      var order = down ? ranks.slice(1) : ranks.slice(0, -1).reverse();
+      order.forEach(function (list) {
+        var weights = {};
+        list.forEach(function (id) { weights[id] = bary(id, down ? pred : succ); });
+        list.sort(function (a, b) { return weights[a] - weights[b] || index[a] - index[b]; });
+        list.forEach(function (id, i) { pos[id] = i; });
+      });
+    }
+    // Coordinates: columns by rank, rows stacked, then aligned to neighbours.
+    var out = {};
+    var x = 0;
+    ranks.forEach(function (list) {
+      var width = 0;
+      list.forEach(function (id) { width = Math.max(width, items[index[id]].w); });
+      var y = 0;
+      list.forEach(function (id) {
+        var item = items[index[id]];
+        out[id] = { x: x + (width - item.w) / 2, y: y, w: item.w, h: item.h };
+        y += item.h + ROW_GAP;
+      });
+      var shift = (y - ROW_GAP) / 2;
+      list.forEach(function (id) { out[id].y -= shift; });
+      x += width + RANK_GAP;
+    });
+    function center(id) { return out[id].y + out[id].h / 2; }
+    function align(list, neighbors) {
+      var want = list.map(function (id) {
+        var near = neighbors[id].filter(function (n) { return out[n]; });
+        if (!near.length) return center(id);
+        var ys = near.map(center).sort(function (a, b) { return a - b; });
+        return ys[Math.floor((ys.length - 1) / 2)] * 0.5 + ys[Math.ceil((ys.length - 1) / 2)] * 0.5;
+      });
+      var tops = list.map(function (id, i) { return want[i] - out[id].h / 2; });
+      for (var i = 1; i < list.length; i += 1) {
+        var min = tops[i - 1] + out[list[i - 1]].h + ROW_GAP;
+        if (tops[i] < min) tops[i] = min;
+      }
+      for (var j = list.length - 2; j >= 0; j -= 1) {
+        var max = tops[j + 1] - out[list[j]].h - ROW_GAP;
+        if (tops[j] > max) tops[j] = Math.max(max, want[j] - out[list[j]].h / 2 - 400);
+      }
+      for (var k = 1; k < list.length; k += 1) {
+        var floor = tops[k - 1] + out[list[k - 1]].h + ROW_GAP;
+        if (tops[k] < floor) tops[k] = floor;
+      }
+      list.forEach(function (id, i) { out[id].y = tops[i]; });
+    }
+    for (var pass = 0; pass < 4; pass += 1) {
+      ranks.slice(1).forEach(function (list) { align(list, pred); });
+      ranks.slice(0, -1).reverse().forEach(function (list) { align(list, succ); });
+    }
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    ids.forEach(function (id) {
+      minX = Math.min(minX, out[id].x); minY = Math.min(minY, out[id].y);
+      maxX = Math.max(maxX, out[id].x + out[id].w); maxY = Math.max(maxY, out[id].y + out[id].h);
+    });
+    ids.forEach(function (id) { out[id].x -= minX; out[id].y -= minY; });
+    return { at: out, w: ids.length ? maxX - minX : 0, h: ids.length ? maxY - minY : 0 };
   }
 
   function buildScene(design) {
     var sourceNodes = design && Array.isArray(design.nodes) ? design.nodes : [];
     var nodes = annotate(sourceNodes);
-    var systems = nodes.filter(function (node) {
-      return node.kind === "system";
-    });
-    var rest = nodes.filter(function (node) {
-      return node.kind !== "system";
-    });
+    var systems = nodes.filter(function (node) { return node.kind === "system"; });
+    var rest = nodes.filter(function (node) { return node.kind !== "system"; });
     var connections = design && Array.isArray(design.connections) ? design.connections : [];
-    var maps = flowMaps(rest, connections);
-    var ranks = ranksFor(rest, maps);
-    var boundaries = rest.filter(function (node) {
-      return isBoundary(node, maps, rest);
-    });
-    var boxes = rest.filter(function (node) {
-      return !isBoundary(node, maps, rest);
-    });
-    var columns = {};
-    boxes.forEach(function (node) {
-      var rank = ranks[node.id] || 0;
-      if (!columns[rank]) columns[rank] = [];
-      columns[rank].push(node);
-    });
-    var placed = [];
-    var cursorX = 0;
-    Object.keys(columns)
-      .map(Number)
-      .sort(function (a, b) { return a - b; })
-      .forEach(function (rank) {
-        var column = columns[rank].slice().sort(function (a, b) {
-          var familyA = familyKey(a);
-          var familyB = familyKey(b);
-          if (familyA !== familyB) return familyA.localeCompare(familyB);
-          var flowA = inFlow(a.id, maps) ? 0 : 1;
-          var flowB = inFlow(b.id, maps) ? 0 : 1;
-          if (flowA !== flowB) return flowA - flowB;
-          if (a.kind !== b.kind) return a.kind === "component" ? -1 : 1;
-          return String(a.name).localeCompare(String(b.name));
-        });
-        var cursorY = 0;
-        var columnWidth = 0;
-        var seenFamily = {};
-        column.forEach(function (node) {
-          var family = familyKey(node);
-          var key = family + ":" + rank;
-          if (boundaries.some(function (item) { return item.id === family; }) && !seenFamily[key]) {
-            cursorY += 40;
-            seenFamily[key] = true;
-          }
-          var card = place(node, cursorX, cursorY);
-          placed.push(card);
-          cursorY += card.h + GAP_Y;
-          columnWidth = Math.max(columnWidth, card.w);
-        });
-        cursorX += columnWidth + GAP_X;
-      });
+    var byId = {};
+    rest.forEach(function (node) { byId[node.id] = node; });
 
-    var body = boundsOf(placed);
-    var titleH = 0;
-    systems.forEach(function (node) {
-      titleH = Math.max(titleH, sizeOf(node).h);
+    // Clusters: a component with visible modules is a Mermaid subgraph.
+    var members = {};
+    rest.forEach(function (node) {
+      if (node.kind !== "module" || !byId[node.parentId] || byId[node.parentId].kind !== "component") return;
+      (members[node.parentId] = members[node.parentId] || []).push(node);
     });
-    if (systems.length) {
-      var shift = titleH + 36;
-      placed.forEach(function (card) {
-        card.y += shift;
-      });
-      systems.forEach(function (node, index) {
-        var card = place(node, 0, index * (sizeOf(node).h + 12));
-        card.x = body.w ? body.x + Math.max(0, (body.w - card.w) / 2) : 0;
-        placed.unshift(card);
-      });
+    function ownerOf(id) {
+      var node = byId[id];
+      if (!node) return null;
+      if (members[id]) return id;
+      if (node.kind === "module" && members[node.parentId]) return node.parentId;
+      return id;
     }
+
+    var inner = {};
+    Object.keys(members).forEach(function (cid) {
+      var list = [byId[cid]].concat(members[cid]);
+      var local = {};
+      list.forEach(function (node) { local[node.id] = true; });
+      var items = list.map(function (node) { var size = sizeOf(node); return { id: node.id, w: size.w, h: size.h }; });
+      var links = connections.filter(function (c) { return local[c.fromId] && local[c.toId]; }).map(function (c) { return { from: c.fromId, to: c.toId }; });
+      // Unlinked modules hang off their component so the cluster reads left to right.
+      list.slice(1).forEach(function (node) {
+        var linked = links.some(function (l) { return l.from === node.id || l.to === node.id; });
+        if (!linked) links.push({ from: cid, to: node.id });
+      });
+      inner[cid] = layered(items, links);
+    });
+
+    var topItems = [];
+    rest.forEach(function (node) {
+      if (ownerOf(node.id) !== node.id) return;
+      if (inner[node.id]) {
+        topItems.push({ id: node.id, w: inner[node.id].w + CLUSTER_PAD * 2, h: inner[node.id].h + CLUSTER_PAD * 2 + CLUSTER_TITLE });
+      } else {
+        var size = sizeOf(node);
+        topItems.push({ id: node.id, w: size.w, h: size.h });
+      }
+    });
+    var topLinks = [];
+    connections.forEach(function (c) {
+      var from = ownerOf(c.fromId);
+      var to = ownerOf(c.toId);
+      if (from && to && from !== to) topLinks.push({ from: from, to: to });
+    });
+    var top = layered(topItems, topLinks);
+
+    var placed = [];
+    var titleH = 0;
+    systems.forEach(function (node) { titleH = Math.max(titleH, sizeOf(node).h); });
+    var offsetY = systems.length ? titleH + 48 : 0;
+    topItems.forEach(function (item) {
+      var at = top.at[item.id];
+      if (inner[item.id]) {
+        var box = inner[item.id];
+        Object.keys(box.at).forEach(function (id) {
+          var spot = box.at[id];
+          placed.push(place(byId[id], at.x + CLUSTER_PAD + spot.x, offsetY + at.y + CLUSTER_PAD + CLUSTER_TITLE + spot.y));
+        });
+      } else {
+        placed.push(place(byId[item.id], at.x, offsetY + at.y));
+      }
+    });
+    systems.forEach(function (node, index) {
+      var card = place(node, 0, index * (sizeOf(node).h + 12));
+      card.x = top.w ? Math.max(0, (top.w - card.w) / 2) : 0;
+      placed.unshift(card);
+    });
 
     placed.forEach(function (card) {
       if (card.kind !== "module") return;
@@ -265,14 +343,8 @@
     applySavedPositions(placed, sourceNodes);
     var edges = flowEdges(placed, connections);
     var groups = groupsFor(placed);
-    var captions = captionsFor(placed, boundaries);
-    captions.forEach(function (caption) {
-      var under = placed.find(function (node) {
-        return Math.abs(node.x - caption.x) < 2 && Math.abs(node.y - (caption.y + 36)) < 8;
-      });
-      if (under) under.group = "";
-    });
-    var bounds = expandForFlows(boundsOf(placed.concat(groups, captions)), edges);
+    var captions = [];
+    var bounds = expandForFlows(boundsOf(placed.concat(groups)), edges);
     var unmappedSrc = design && Array.isArray(design.unmappedFlags) ? design.unmappedFlags : [];
     var unmapped = unmappedSrc.map(function (flag, index) {
       var node = {
@@ -290,14 +362,14 @@
       return place(node, x, y);
     });
     placed = placed.concat(unmapped);
-    bounds = expandForFlows(boundsOf(placed.concat(groups, captions)), edges);
+    bounds = expandForFlows(boundsOf(placed.concat(groups)), edges);
     return {
       nodes: placed,
       edges: edges,
       groups: groups,
       captions: captions,
-      boundaries: boundaries.map(function (node) {
-        return { id: node.id, name: node.name, what: node.what || "" };
+      boundaries: Object.keys(members).map(function (id) {
+        return { id: id, name: byId[id].name, what: byId[id].what || "" };
       }),
       connections: connections,
       unmapped: unmapped,
@@ -315,35 +387,18 @@
   }
 
   function groupsFor(placed) {
-    var buckets = {};
-    placed.forEach(function (node) {
-      if (node.kind === "component") {
-        if (!buckets[node.id]) buckets[node.id] = [];
-        buckets[node.id].push(node);
-      }
-      if (node.kind === "module" && node.parentId) {
-        var parent = placed.find(function (item) { return item.id === node.parentId; });
-        var key = parent && parent.kind === "component" ? parent.id : node.parentId;
-        if (!buckets[key]) buckets[key] = [];
-        buckets[key].push(node);
-      }
-    });
     var groups = [];
-    Object.keys(buckets).forEach(function (key) {
-      var members = buckets[key];
-      if (members.length < 2) return;
-      var bounds = boundsOf(members);
-      var widest = 0;
-      members.forEach(function (member) {
-        widest = Math.max(widest, member.w);
-      });
-      if (bounds.w > widest + GAP_X) return;
+    placed.forEach(function (owner) {
+      if (owner.kind !== "component") return;
+      var kids = placed.filter(function (node) { return node.kind === "module" && node.parentId === owner.id; });
+      if (!kids.length) return;
+      var box = boundsOf([owner].concat(kids));
       groups.push({
-        id: key,
-        x: bounds.x - 14,
-        y: bounds.y - 14,
-        w: bounds.w + 28,
-        h: bounds.h + 28,
+        id: owner.id,
+        x: box.x - CLUSTER_PAD,
+        y: box.y - CLUSTER_PAD,
+        w: box.w + CLUSTER_PAD * 2,
+        h: box.h + CLUSTER_PAD * 2,
       });
     });
     return groups;
@@ -460,29 +515,8 @@
     return list;
   }
 
-  function captionsFor(placed, boundaries) {
-    var captions = [];
-    (boundaries || []).forEach(function (component) {
-      var members = placed.filter(function (node) { return node.parentId === component.id; });
-      var tops = {};
-      members.forEach(function (node) {
-        var key = String(Math.round(node.x));
-        if (!tops[key] || node.y < tops[key].y) tops[key] = node;
-      });
-      Object.keys(tops).forEach(function (key) {
-        var top = tops[key];
-        captions.push({
-          id: component.id + "@" + key,
-          name: component.name,
-          what: component.what || "",
-          x: top.x,
-          y: top.y - 36,
-          w: top.w,
-          h: 32,
-        });
-      });
-    });
-    return captions;
+  function captionsFor() {
+    return [];
   }
 
   function moveNode(scene, id, x, y) {
@@ -537,5 +571,61 @@
     return { x: minX - pad, y: minY - pad, w: maxX - minX + pad * 2, h: maxY - minY + pad * 2 };
   }
 
-  return { buildScene: buildScene, moveNode: moveNode };
+  /**
+   * Hide the descendants of collapsed nodes. Their flows are redrawn from the
+   * nearest visible ancestor, and each collapsed node reports how much it hides.
+   */
+  function collapse(model, ids) {
+    var closed = {};
+    (ids || []).forEach(function (id) { closed[id] = true; });
+    var nodes = (model && model.nodes) || [];
+    var byId = {};
+    nodes.forEach(function (node) { byId[node.id] = node; });
+    function visibleAncestor(node) {
+      var chain = [];
+      var cursor = node;
+      var guard = 0;
+      while (cursor && guard < 50) {
+        chain.unshift(cursor);
+        cursor = cursor.parentId ? byId[cursor.parentId] : null;
+        guard += 1;
+      }
+      for (var i = 0; i < chain.length - 1; i += 1) {
+        if (closed[chain[i].id] && chain[i].kind !== "system") return chain[i];
+      }
+      return node;
+    }
+    var hidden = {};
+    var kept = [];
+    nodes.forEach(function (node) {
+      var owner = visibleAncestor(node);
+      if (owner !== node) {
+        hidden[owner.id] = (hidden[owner.id] || 0) + 1;
+        return;
+      }
+      kept.push(node);
+    });
+    kept = kept.map(function (node) {
+      var copy = Object.assign({}, node);
+      if (closed[node.id] && hidden[node.id]) {
+        copy.collapsed = true;
+        copy.hidden = hidden[node.id];
+      }
+      return copy;
+    });
+    var seen = {};
+    var connections = [];
+    ((model && model.connections) || []).forEach(function (flow) {
+      var from = byId[flow.fromId] ? visibleAncestor(byId[flow.fromId]).id : flow.fromId;
+      var to = byId[flow.toId] ? visibleAncestor(byId[flow.toId]).id : flow.toId;
+      if (from === to) return;
+      var key = from + ">" + to + ":" + flow.kind + ":" + flow.label;
+      if (seen[key]) return;
+      seen[key] = true;
+      connections.push(Object.assign({}, flow, { fromId: from, toId: to, id: from === flow.fromId && to === flow.toId ? flow.id : flow.id + "@" + from + ">" + to }));
+    });
+    return Object.assign({}, model, { nodes: kept, connections: connections });
+  }
+
+  return { buildScene: buildScene, moveNode: moveNode, collapse: collapse };
 });

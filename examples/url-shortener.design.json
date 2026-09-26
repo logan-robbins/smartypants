@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "floor": "module",
+  "updatedAt": "2026-09-26T19:16:22.657Z",
+  "level": "component",
+  "nodes": [
+    {
+      "id": "url-shortener",
+      "name": "URL Shortener",
+      "kind": "system",
+      "parentId": null,
+      "what": "Creates short links and redirects clicks to long URLs",
+      "why": "Provide Bitly-like short links with owner click counts",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "keygen",
+      "name": "Key Range Service",
+      "kind": "component",
+      "parentId": "url-shortener",
+      "what": "Pre-generates unique short-code ranges",
+      "why": "Lets creators assign codes without colliding",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "link-service",
+      "name": "Link Service",
+      "kind": "component",
+      "parentId": "url-shortener",
+      "what": "Creates short links from assigned ranges",
+      "why": "Handles link creation separately from redirect load",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "link-store",
+      "name": "Link Store",
+      "kind": "component",
+      "parentId": "url-shortener",
+      "what": "Key-value table of code to long URL",
+      "why": "Durable source of truth for links",
+      "shape": "store",
+      "flags": []
+    },
+    {
+      "id": "redirect-service",
+      "name": "Redirect Service",
+      "kind": "component",
+      "parentId": "url-shortener",
+      "what": "Resolves short codes to long URLs",
+      "why": "Serves high-volume redirects within latency budget",
+      "shape": "service",
+      "flags": [
+        {
+          "intent": "Redirect Service serves high-volume redirects within latency budget and never blocks on counting with fire-and-forget click event publish",
+          "difference": "Delivered handler awaits `UPDATE links SET clicks = clicks + 1` before 301, blocking the redirect path on counting instead of fire-and-forget publish; collapses cache-resolver and click-emitter responsibilities directly into the handler."
+        }
+      ]
+    },
+    {
+      "id": "redirect-cache",
+      "name": "Redirect Cache",
+      "kind": "component",
+      "parentId": "url-shortener",
+      "what": "Caches hot code to URL mappings",
+      "why": "Keeps redirect p99 under 50ms",
+      "shape": "cache",
+      "flags": []
+    },
+    {
+      "id": "click-stream",
+      "name": "Click Event Stream",
+      "kind": "component",
+      "parentId": "url-shortener",
+      "what": "Carries redirect click events",
+      "why": "Decouple counting from redirect path",
+      "shape": "queue",
+      "flags": []
+    },
+    {
+      "id": "click-aggregator",
+      "name": "Click Aggregator",
+      "kind": "component",
+      "parentId": "url-shortener",
+      "what": "Aggregates click events into counts",
+      "why": "Keep redirect fast while enabling counts",
+      "shape": "worker",
+      "flags": []
+    },
+    {
+      "id": "redirect-handler",
+      "name": "Redirect Handler",
+      "kind": "module",
+      "parentId": "redirect-service",
+      "what": "Validates code and returns 301 redirect",
+      "why": "Keeps edge path fast and isolated from lookups",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "cache-resolver",
+      "name": "Cache Resolver",
+      "kind": "module",
+      "parentId": "redirect-service",
+      "what": "Read-through resolve from cache then store",
+      "why": "Meets p99<50ms for hot codes",
+      "shape": "service",
+      "flags": []
+    },
+    {
+      "id": "click-emitter",
+      "name": "Click Emitter",
+      "kind": "module",
+      "parentId": "redirect-service",
+      "what": "Fire-and-forget click event publish",
+      "why": "Never blocks redirect on counting",
+      "shape": "service",
+      "flags": []
+    }
+  ],
+  "connections": [],
+  "unmappedFlags": []
+}

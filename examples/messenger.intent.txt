@@ -1,0 +1,7 @@
+sys|G 1:1-group-chat|N in-order required|N at-least-once required|N load-messages-day 100B messages/day
+api-gateway>presence-service|E publish-heartbeats
+conversation-service|F group-membership
+media-store|F attachments
+message-store|N write-throughput 1.2M-writes/sec-avg-100B/day|D conversation-sharded-log>global-table|F chat-history|Q engine cassandra-scylla-vs-alternative|Q cold-tier object-store-S3-GCS
+messaging-service|F 1:1-group-send-receive|! intent:Sends fans out delivers 1:1 group messages code:fire-and-forget direct gateway delivery d
+presence-service|F online-status

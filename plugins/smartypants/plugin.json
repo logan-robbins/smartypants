@@ -1,24 +1,37 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "smartypants",
-  "version": "0.1.0",
-  "description": "Keep a system, component, and module diagram while an agent codes, and flag where the code leaves the request.",
+  "version": "0.2.0",
+  "description": "Keeps a Mermaid-style system diagram and a compact memory of your architectural intent while an agent codes, goes deeper on any part on request, and flags where the code drifts from the intent.",
   "author": {
     "name": "Logan Robbins",
     "url": "https://github.com/logan-robbins"
   },
   "homepage": "https://github.com/logan-robbins/smartypants",
   "repository": "https://github.com/logan-robbins/smartypants",
-  "keywords": ["diagram", "architecture", "intent", "hooks"],
+  "keywords": [
+    "diagram",
+    "architecture",
+    "mermaid",
+    "system-design",
+    "intent",
+    "drift",
+    "hooks",
+    "meta",
+    "jev"
+  ],
   "extensions": {
     "com.openai": {
       "interface": {
         "displayName": "Smartypants",
         "shortDescription": "Diagram the system while an agent codes.",
-        "longDescription": "Smartypants watches a coding agent, draws the system at system, component, and module depth, and flags code that leaves the user's intent.",
+        "longDescription": "Smartypants watches a coding agent, draws the system at system, component, and module depth in a Mermaid-style canvas, keeps the user's intent as compact IntentCode, goes deeper on request, and flags code that leaves the intent.",
         "developerName": "Logan Robbins",
         "category": "Developer Tools",
-        "capabilities": ["Read", "Write"],
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
         "websiteURL": "https://github.com/logan-robbins/smartypants",
         "defaultPrompt": [
           "Turn on Smartypants for this project and open the system diagram."

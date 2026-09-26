@@ -27,7 +27,9 @@ test("init writes a config and host hooks that call the installed hook", () => {
   const config = JSON.parse(fs.readFileSync(path.join(root, "smartypants.config.json"), "utf8"));
   assert.equal(config.flavor, "grok");
   assert.equal(config.seed, true);
-  assert.equal(config.depth, "module");
+  assert.equal(config.depth, "auto");
+  assert.equal(config.background, true);
+  assert.equal(config.decider, "auto");
 
   const claude = JSON.parse(fs.readFileSync(path.join(root, ".claude/settings.json"), "utf8"));
   assert.equal(claude.hooks.PreToolUse[0].hooks[0].command, "echo keep-me");

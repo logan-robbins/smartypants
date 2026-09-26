@@ -2,7 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { FLAVOR_IDS } from "./flavors/ids.js";
+import { intentPath } from "./intent.js";
 import { ledgerPath } from "./ledger.js";
+import { statsPath } from "./stats.js";
 import { designPath } from "./model.js";
 
 const PACKAGE_NAME = "@logan-robbins/smartypants";
@@ -64,8 +66,10 @@ function writeJson(file, doc) {
 function starterConfig({ flavor, seed }) {
   return {
     flavor,
-    depth: "module",
+    depth: "auto",
     seed: Boolean(seed),
+    decider: "auto",
+    background: true,
     model: null,
     reasoningEffort: null,
   };
@@ -76,7 +80,7 @@ function starterConfig({ flavor, seed }) {
  * Leaves an existing config and any unrelated hooks in place.
  */
 export function installProject(root, options = {}) {
-  const flavor = options.flavor || "claude";
+  const flavor = options.flavor || "meta";
   if (!FLAVOR_IDS.includes(flavor)) {
     throw new Error(`smartypants: unknown flavor ${flavor}`);
   }
@@ -119,10 +123,10 @@ export function installProject(root, options = {}) {
   return { command, wrote, skipped };
 }
 
-/** Drop the diagram and its gist ledger. The project config stays. */
+/** Drop the diagram, its intent memory, and counters. The project config stays. */
 export function resetGraph(root) {
   const removed = [];
-  for (const file of [designPath(root), ledgerPath(root)]) {
+  for (const file of [designPath(root), ledgerPath(root), intentPath(root), statsPath(root)]) {
     if (!fs.existsSync(file)) continue;
     fs.rmSync(file);
     removed.push(file);

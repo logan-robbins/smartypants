@@ -1,7 +1,9 @@
 {
-  "flavor": "claude",
-  "depth": "module",
+  "flavor": "meta",
+  "depth": "auto",
   "seed": false,
+  "decider": "auto",
+  "background": true,
   "model": null,
   "reasoningEffort": null
 }

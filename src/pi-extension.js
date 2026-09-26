@@ -1,4 +1,4 @@
-import { handleHook } from "./pipeline.js";
+import { dispatchEvent } from "./dispatch.js";
 import { extractDelivered, isEditTool } from "./normalize.js";
 
 /**
@@ -9,10 +9,8 @@ import { extractDelivered, isEditTool } from "./normalize.js";
 export default function smartypants(pi) {
   pi.on("input", async (event, ctx) => {
     try {
-      await handleHook({
-        cwd: ctx && ctx.cwd ? ctx.cwd : process.cwd(),
-        event: { type: "user", text: event && typeof event.text === "string" ? event.text : "" },
-      });
+      const text = event && typeof event.text === "string" ? event.text : "";
+      if (text.trim()) await dispatchEvent({ cwd: ctx && ctx.cwd ? ctx.cwd : process.cwd(), event: { type: "user", text } });
     } catch (error) {
       console.error(`smartypants: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -23,7 +21,7 @@ export default function smartypants(pi) {
     const toolName = event && event.toolName ? event.toolName : "";
     if (!isEditTool(toolName)) return;
     try {
-      await handleHook({
+      await dispatchEvent({
         cwd: ctx && ctx.cwd ? ctx.cwd : process.cwd(),
         event: extractDelivered((event && event.input) || {}, toolName),
       });

@@ -11,6 +11,30 @@ import {
 
 export const DESIGN_DIR = ".smartypants";
 export const DESIGN_FILE = "design.json";
+export const SHAPES = ["service", "store", "cache", "queue", "client", "gateway", "worker", "external"];
+const NOTE_CAP = 12;
+
+function readShape(value) {
+  const shape = String(value || "").trim().toLowerCase();
+  return SHAPES.includes(shape) ? shape : null;
+}
+
+function readNotes(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const raw of value) {
+    const note = String(raw || "").replace(/\s+/g, " ").trim().slice(0, 160);
+    if (!note || seen.has(note.toLowerCase())) continue;
+    seen.add(note.toLowerCase());
+    out.push(note);
+  }
+  return out.slice(-NOTE_CAP);
+}
+
+function readLevel(value) {
+  return FLOORS.includes(value) ? value : null;
+}
 
 export function designPath(root) {
   return path.join(root, DESIGN_DIR, DESIGN_FILE);
@@ -38,6 +62,7 @@ export function loadDesign(root) {
       updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : undefined,
       ...(parsed.seeded === true ? { seeded: true } : {}),
       ...(typeof parsed.seededAt === "string" ? { seededAt: parsed.seededAt } : {}),
+      ...(readLevel(parsed.level) ? { level: parsed.level } : {}),
       nodes: parsed.nodes.map(cloneNode),
       connections: Array.isArray(parsed.connections) ? parsed.connections.map(cloneConnection) : [],
       unmappedFlags: Array.isArray(parsed.unmappedFlags) ? parsed.unmappedFlags.map(cloneFlag) : [],
@@ -71,6 +96,7 @@ function orderDesign(design) {
     ...(ordered.updatedAt ? { updatedAt: ordered.updatedAt } : {}),
     ...(design.seeded === true ? { seeded: true } : {}),
     ...(typeof design.seededAt === "string" ? { seededAt: design.seededAt } : {}),
+    ...(readLevel(design.level) ? { level: design.level } : {}),
     nodes: ordered.nodes,
     connections: ordered.connections,
     unmappedFlags: ordered.unmappedFlags,
@@ -80,6 +106,7 @@ function orderDesign(design) {
 export function carryDesignMeta(current, next) {
   if (current?.seeded === true) next.seeded = true;
   if (typeof current?.seededAt === "string") next.seededAt = current.seededAt;
+  if (readLevel(current?.level) && !readLevel(next.level)) next.level = current.level;
   return next;
 }
 
@@ -108,6 +135,8 @@ function orderNode(node) {
     parentId: node.parentId ?? null,
     what: node.what,
     why: node.why,
+    ...(readShape(node.shape) ? { shape: node.shape } : {}),
+    ...(readNotes(node.notes).length ? { notes: readNotes(node.notes) } : {}),
     ...(position || {}),
     flags: (node.flags || []).map(orderFlag),
   };
@@ -160,6 +189,8 @@ function cloneNode(node) {
     parentId: node.parentId ? String(node.parentId) : null,
     what: String(node.what || ""),
     why: String(node.why || ""),
+    ...(readShape(node.shape) ? { shape: readShape(node.shape) } : {}),
+    ...(readNotes(node.notes).length ? { notes: readNotes(node.notes) } : {}),
     ...(position || {}),
     flags: Array.isArray(node.flags) ? node.flags.map(cloneFlag) : [],
   };
@@ -230,6 +261,8 @@ function cleanNode(raw) {
     parentId: kind === "system" || raw.parentId == null || raw.parentId === "" ? null : String(raw.parentId),
     what: String(raw.what).trim(),
     why: String(raw.why).trim(),
+    ...(readShape(raw.shape) ? { shape: readShape(raw.shape) } : {}),
+    ...(readNotes(raw.notes).length ? { notes: readNotes(raw.notes) } : {}),
     flags: [],
   };
 }
@@ -237,6 +270,7 @@ function cleanNode(raw) {
 function snapshot(design) {
   return JSON.stringify({
     floor: design.floor,
+    level: design.level || null,
     nodes: (design.nodes || []).map((node) => ({
       id: node.id,
       name: node.name,
@@ -244,6 +278,8 @@ function snapshot(design) {
       parentId: node.parentId,
       what: node.what,
       why: node.why,
+      shape: node.shape || null,
+      notes: node.notes || [],
       flags: (node.flags || []).map((flag) => ({
         intent: flag.intent,
         difference: flag.difference,
@@ -297,9 +333,14 @@ export function applyDesign(design, result, floor = DEFAULT_FLOOR) {
     (node) => node.kind === "module" && linksTo(node.parentId, knownComponents),
   );
   const kept = [...systems, ...components, ...modules];
-  if (kept.length === 0) return { design: current, changed: false };
+  const removeNodes = new Set((Array.isArray(result.removeNodeIds) ? result.removeNodeIds : []).map(String));
+  const removeConnections = new Set((Array.isArray(result.removeConnectionIds) ? result.removeConnectionIds : []).map(String));
+  const hasConnections = Array.isArray(result.connections) && result.connections.length > 0;
+  if (kept.length === 0 && removeNodes.size === 0 && removeConnections.size === 0 && !hasConnections) {
+    return { design: current, changed: false };
+  }
 
-  const nodes = existing;
+  let nodes = existing;
   for (const node of kept) {
     const match = findMatch(nodes, node);
     if (match) {
@@ -308,14 +349,34 @@ export function applyDesign(design, result, floor = DEFAULT_FLOOR) {
       match.parentId = node.parentId;
       match.what = node.what;
       match.why = node.why;
+      if (node.shape) match.shape = node.shape;
+      if (node.notes?.length) match.notes = readNotes([...(match.notes || []), ...node.notes]);
       continue;
     }
     node.id = mintId(node, nodes);
     nodes.push(node);
   }
 
-  const connections = (current.connections || []).map(cloneConnection);
+  if (removeNodes.size) {
+    // A removed boundary takes everything inside it.
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const node of nodes) {
+        if (!removeNodes.has(node.id) && node.parentId && removeNodes.has(node.parentId)) {
+          removeNodes.add(node.id);
+          grew = true;
+        }
+      }
+    }
+    nodes = nodes.filter((node) => !removeNodes.has(node.id));
+  }
+
+  let connections = (current.connections || []).map(cloneConnection);
   const knownIds = new Set(nodes.map((node) => node.id));
+  connections = connections.filter(
+    (item) => !removeConnections.has(item.id) && knownIds.has(item.fromId) && knownIds.has(item.toId),
+  );
   for (const raw of Array.isArray(result.connections) ? result.connections : []) {
     const connection = cloneConnection(raw);
     if (!connection.fromId || !connection.toId || connection.fromId === connection.toId) continue;

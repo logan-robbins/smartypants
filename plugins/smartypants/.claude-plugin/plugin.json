@@ -1,12 +1,22 @@
 {
   "name": "smartypants",
-  "description": "Keep a system, component, and module diagram while an agent codes, and flag where the code leaves the request.",
-  "version": "0.1.0",
+  "description": "Keeps a Mermaid-style system diagram and a compact memory of your architectural intent while an agent codes, goes deeper on any part on request, and flags where the code drifts from the intent.",
+  "version": "0.2.0",
   "author": {
     "name": "Logan Robbins",
     "url": "https://github.com/logan-robbins"
   },
   "homepage": "https://github.com/logan-robbins/smartypants",
   "repository": "https://github.com/logan-robbins/smartypants",
-  "keywords": ["diagram", "architecture", "intent", "hooks"]
+  "keywords": [
+    "diagram",
+    "architecture",
+    "mermaid",
+    "system-design",
+    "intent",
+    "drift",
+    "hooks",
+    "meta",
+    "jev"
+  ]
 }

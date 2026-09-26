@@ -1,2 +1,8 @@
 node_modules/
 .DS_Store
+.smartypants/intent.json
+.smartypants/stats.json
+.smartypants/queue.jsonl
+.smartypants/worker.lock
+.smartypants/watch-state.json
+plugins/smartypants/evals/results/

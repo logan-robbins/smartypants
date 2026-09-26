@@ -1,39 +1,46 @@
 ---
 name: smartypants
-description: Turn on Smartypants so a coding agent keeps a system, component, and module diagram and flags code that leaves the user's intent. Use when the user says smartypants, system diagram, seed the design, intent drift, or runs /smartypants or /smartypants reset.
+description: Turn on Smartypants so a coding agent keeps a Mermaid-style system diagram (system, component, module), a compact IntentCode memory of the user's architectural intent, and drift flags where the code leaves that intent. Use when the user says smartypants, system diagram, architecture diagram, design interview, go deeper on a part, intent drift, or runs /smartypants.
 user-invocable: true
-argument-hint: reset
+argument-hint: "[reset | deeper <part> | intent | drift | mermaid | open]"
 ---
 
 # Smartypants
 
-Install and run Smartypants in the project the user is working in. Do the steps. Do not ask the user to run them.
+Smartypants watches the conversation and the edits in this project. A free local
+triage and a Jev-style selector decide what each turn is worth; only turns that
+change the design reach the builder (Meta Muse Spark 1.3 Contributor by default).
 
-1. If the user supplied a local `smartypants/` checkout, install it into the project with
-   `npm install <path-to-smartypants>`; otherwise run `npm install github:logan-robbins/smartypants`.
-   Skip installation when `@logan-robbins/smartypants` is already installed.
-2. For an agent working in this project, run `npx smartypants init --flavor <host>`. `<host>` is the agent you are running in: `claude`, `codex`, `grok`, `muse`, or `pi`. Add `--seed` only when the project already has code and `.smartypants/design.json` is not seeded. When only watching another instance, write the project config with `flavor`, `depth`, `seed`, and `watch` instead; do not install project hooks.
-3. Leave an existing `smartypants.config.json` in place. Set `depth` to `module` unless the user names `component` or `system`.
-   When the user supplies a dotenv file, set `envFile` to its path relative to the project.
-4. When the user wants to see the diagram, run `npx smartypants serve` and open http://127.0.0.1:4173.
-   If that port belongs to another project, use a free port with `SMARTPANTS_PORT` and report
-   the actual URL. Reuse an existing server for this project when one is already running.
+## Turn it on
 
-When the user wants to document a separate Claude Code or Codex instance, add `watch`
-to the working project's `smartypants.config.json`: `{"host":"claude","home":"/absolute/claude-home"}`
-or `{"host":"codex","home":"/absolute/codex-home"}`. The canvas server reads new user
-turns from that home's session transcripts. To watch one session, use an absolute
-`session` JSONL path in place of `home`. `watch.host` is the transcript format;
-`flavor` chooses the diagram builder. Restart the server after changing `watch`. The
-watched instance needs no Smartypants hook or plugin setting.
+Do the steps. Do not ask the user to run them. If you cannot run commands in this session, give the user the exact commands below, in order, instead of drawing a diagram yourself.
 
-For an hx Partner, the Claude home is `<hx-instance>/run/partner/home`. Tell the Partner
-the project's absolute path for future work. Verify both UI URLs, the Partner's `main`
-and `companion` windows, and the Smartypants server's watched-home log. Prefer the hx
-instance outside the product project; if it is nested, do not turn on `--seed` based
-on harness files. A greeting may be observed without adding diagram nodes. Never
-print dotenv values while checking the setup.
+1. Install the package in the project unless `@logan-robbins/smartypants` is already installed:
+   `npm install github:logan-robbins/smartypants` (or `npm install <path>` for a local checkout).
+2. Run `npx smartypants init --flavor meta`. Use another builder flavor only when the user asks:
+   `claude`, `codex`, `grok`, `muse`, or `pi`. Add `--seed` when the project already has code and
+   `.smartypants/design.json` is not seeded. An existing `smartypants.config.json` is kept.
+3. The `meta` flavor needs `META_API_KEY` (Meta Model API). The selector uses Jev when
+   `TYPESAFE_API_KEY` is set, otherwise Muse Spark, otherwise local rules. When the user has a
+   dotenv file, set `envFile` in the config to its path relative to the project. Never print keys.
+4. Codex only runs project hooks after the user approves them in the startup hooks review;
+   tell Codex users to approve the Smartypants hooks once.
+5. To show the diagram, run `npx smartypants serve` in the background and give the printed URL
+   (use `SMARTPANTS_PORT` when 4173 is taken; reuse a server already running for this project).
 
-## Reset the graph
+## Arguments
 
-When the user runs `/smartypants reset` or `/reset-graph`, or asks to clear the diagram, run `npx smartypants reset` in the project root. That deletes `.smartypants/design.json` and `.smartypants/ledger.json`. Leave `smartypants.config.json`. Do not ask again after the slash command. Tell them the graph is empty and the next design turn draws it again.
+- `deeper <part>`: run `npx smartypants deeper "<part>"`. Report the line it prints.
+- `intent`: run `npx smartypants intent` and show it as a code block.
+- `drift`: run `npx smartypants drift` and summarize each flag in one line.
+- `mermaid`: run `npx smartypants mermaid` and show a ```mermaid block.
+- `open`: start or reuse the canvas server and give the URL.
+- `reset`: run `npx smartypants reset`. Do not ask again. Tell the user the next design turn redraws.
+
+The user can also just say "go deeper on the cache" in chat: the hook handles it.
+
+## Watching another agent
+
+To diagram a separate Claude Code or Codex instance, add `"watch": {"host": "claude", "home": "/absolute/claude-home"}`
+(or `"host": "codex"`) to `smartypants.config.json`, or `"session": "/absolute/session.jsonl"` for one session.
+Restart the server after changing `watch`. The watched instance needs no hook.

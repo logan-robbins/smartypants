@@ -19,11 +19,21 @@ export const DESIGN_SCHEMA = {
             type: "string",
             enum: ["system", "component", "module", "file", "class", "function", "endpoint", "type"],
           },
-          parentId: { type: "string" },
+          parentId: { type: "string", description: "Containing node id. Empty for the system." },
+          shape: {
+            type: "string",
+            enum: ["service", "store", "cache", "queue", "client", "gateway", "worker", "external"],
+            description: "How the box is drawn. store/cache persist data, queue carries async messages, client is the caller outside the system.",
+          },
           what: { type: "string" },
           why: { type: "string" },
+          notes: {
+            type: "array",
+            items: { type: "string" },
+            description: "Deep-dive facts for this node only when going deeper: data model, algorithm, scaling, failure handling. Terse, no prose. Empty otherwise.",
+          },
         },
-        required: ["id", "name", "kind", "grain", "what", "why"],
+        required: ["id", "name", "kind", "grain", "parentId", "shape", "what", "why", "notes"],
       },
     },
     connections: {
@@ -42,8 +52,23 @@ export const DESIGN_SCHEMA = {
         required: ["id", "fromId", "toId", "kind", "label"],
       },
     },
+    removeNodeIds: {
+      type: "array",
+      items: { type: "string" },
+      description: "Ids of existing nodes the user removed or replaced. Empty unless the user changed the design.",
+    },
+    removeConnectionIds: {
+      type: "array",
+      items: { type: "string" },
+      description: "Ids of existing connections that no longer hold.",
+    },
+    intent: {
+      type: "array",
+      items: { type: "string" },
+      description: "IntentCode atoms learned this turn: '<K> <subject>[.<facet>] <value>' with K in G F N D X E Q. No grammar. Empty when nothing new.",
+    },
   },
-  required: ["isDesign", "nodes", "connections"],
+  required: ["isDesign", "nodes", "connections", "removeNodeIds", "removeConnectionIds", "intent"],
 };
 
 export const DRIFT_SCHEMA = {
@@ -64,9 +89,9 @@ export const DRIFT_SCHEMA = {
           intent: { type: "string" },
           difference: { type: "string" },
         },
-        required: ["intent", "difference"],
+        required: ["nodeId", "intent", "difference"],
       },
     },
   },
-  required: ["diverges", "intent", "difference"],
+  required: ["diverges", "nodeId", "intent", "difference", "flags"],
 };
