@@ -70,7 +70,7 @@ const NODE_RULES = [
   "tier places the box top to bottom: client, edge, frontend, api, service, worker, messaging, cache, database, storage; external for third parties; platform for auth, config, observability.",
   "zone names the network or trust boundary (Public internet, Edge, App cluster, Data subnet, or a concrete namespace or subnet from the evidence). Databases and storage are never in the public zone.",
   "Each node needs a short what and a short why, in simple words this project would actually use.",
-  "what says what that part does. why says why that part exists here. They are both required, and they are not the same sentence.",
+  "what says what that part does. why is the reason it exists as its own box: the requirement, constraint, or tradeoff that forces it, with the numbers or guarantees from <intent> when they apply (why a cache: 'redirect p99 under 50ms at 10k qps; the table alone is ~20ms'). Say what breaks without it. Both are required and never the same sentence.",
   "A component belongs to one system. A module belongs to exactly one component.",
   "Set grain to the same value as kind for a real node. If you notice something is only a file, class, function, endpoint, or type, set grain to that and it will be dropped.",
 ].join("\n");

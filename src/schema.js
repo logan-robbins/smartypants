@@ -41,8 +41,11 @@ export const DESIGN_SCHEMA = {
             enum: ["service", "store", "cache", "queue", "client", "gateway", "worker", "external"],
             description: "How the box is drawn. store/cache persist data, queue carries async messages, client is the caller outside the system.",
           },
-          what: { type: "string" },
-          why: { type: "string" },
+          what: { type: "string", description: "One sentence: what this part does and for whom, in the project's words." },
+          why: {
+            type: "string",
+            description: "The reason this part exists as its own box: the requirement, constraint, or tradeoff that forces it, concrete where the evidence allows (numbers, guarantees, what breaks without it). 1-2 short sentences, at most 30 words. Never a restatement of what.",
+          },
           notes: {
             type: "array",
             items: { type: "string" },
