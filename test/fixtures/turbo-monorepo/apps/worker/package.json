@@ -1,0 +1,1 @@
+{ "name": "@acme/worker", "private": true, "scripts": { "start": "node src/index.js" }, "dependencies": { "bullmq": "5.0.0", "@acme/db": "workspace:*" } }

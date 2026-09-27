@@ -1,0 +1,3 @@
+services:
+  demo-only:
+    image: demo/thing

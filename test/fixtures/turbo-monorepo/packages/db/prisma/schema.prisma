@@ -1,0 +1,6 @@
+model Order {
+  id Int @id
+}
+model Customer {
+  id Int @id
+}

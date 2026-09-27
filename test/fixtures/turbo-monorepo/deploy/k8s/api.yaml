@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: api-server, namespace: shop }
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/acme/api-server:1.0
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: order-jobs, namespace: shop }
+spec:
+  template:
+    spec:
+      containers:
+        - name: jobs
+          image: ghcr.io/acme/api-server:1.0
+          args: ["jobs"]

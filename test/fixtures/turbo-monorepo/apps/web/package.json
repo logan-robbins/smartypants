@@ -1,0 +1,1 @@
+{ "name": "@acme/web", "private": true, "scripts": { "dev": "next dev", "start": "next start" }, "dependencies": { "next": "15.0.0", "react": "19.0.0", "@acme/ui": "workspace:*", "@acme/db": "workspace:*", "@trpc/server": "11.0.0" }, "devDependencies": { "@acme/eslint-config": "workspace:*" } }

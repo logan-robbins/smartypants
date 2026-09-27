@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+        - name: orders
+          image: ghcr.io/acme/orders:2.1@sha256:abc
+          ports: [{ containerPort: 8080 }]
+          env:
+            - name: PAYMENTS_URL
+              value: http://payments:9000
+            - name: DB_PASSWORD
+              value: hunter2
+            - name: DATABASE_URL
+              value: postgres://orders:hunter2@orders-db:5432/orders

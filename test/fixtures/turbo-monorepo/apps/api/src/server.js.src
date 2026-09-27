@@ -1,0 +1,13 @@
+/*
+ * Licensed under the Apache License, Version 2.0: https://www.apache.org/licenses/LICENSE-2.0
+ * See https://stackoverflow.com/questions/1 for why.
+ */
+import express from "express";
+const app = express();
+// pick a model from { the catalog }
+app.get("/health", (req, res) => res.send("ok"));
+app.post("/orders", async (req, res) => {
+  await fetch("https://api.stripe.com/v1/charges", { method: "POST" });
+  res.json({ db: process.env.DATABASE_URL, cache: process.env.REDIS_URL });
+});
+app.listen(8080);

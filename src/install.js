@@ -5,11 +5,20 @@ import { FLAVOR_IDS } from "./flavors/ids.js";
 import { intentPath } from "./intent.js";
 import { ledgerPath } from "./ledger.js";
 import { catchupPath } from "./catchup.js";
-import { sourceCount } from "./scan.js";
+import { projectSize } from "./scan.js";
 import { statsPath } from "./stats.js";
 
-export const EXISTING_CODE_FILES = 8;
 import { designPath } from "./model.js";
+
+export const EXISTING_CODE_FILES = 8;
+/** Deploy files (compose, k8s, Helm, Terraform, Dockerfiles) that describe a running system on their own. */
+export const EXISTING_INFRA_FILES = 4;
+
+/** Is there enough here to draw from? Source files, or a repo that is mostly infrastructure. */
+export function isExistingProject(root) {
+  const size = projectSize(root);
+  return size.source >= EXISTING_CODE_FILES || size.infra >= EXISTING_INFRA_FILES;
+}
 
 const PACKAGE_NAME = "@logan-robbins/smartypants";
 
@@ -87,7 +96,7 @@ function starterConfig({ flavor, seed }) {
 export function installProject(root, options = {}) {
   const flavor = options.flavor || "meta";
   // An existing codebase is caught up from its code in the background.
-  const existing = options.seed ?? sourceCount(root) >= EXISTING_CODE_FILES;
+  const existing = options.seed ?? isExistingProject(root);
   if (!FLAVOR_IDS.includes(flavor)) {
     throw new Error(`smartypants: unknown flavor ${flavor}`);
   }
