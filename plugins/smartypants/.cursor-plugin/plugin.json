@@ -7,6 +7,7 @@
   },
   "homepage": "https://github.com/logan-robbins/smartypants",
   "repository": "https://github.com/logan-robbins/smartypants",
+  "license": "Apache-2.0",
   "keywords": [
     "diagram",
     "architecture",

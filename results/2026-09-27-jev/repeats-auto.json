@@ -1,0 +1,2123 @@
+[
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 0,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.64
+   ],
+   "impact": [
+    "annotate",
+    0.82
+   ]
+  },
+  "ms": 389
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 1,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.91
+   ],
+   "impact": [
+    "none",
+    0.91
+   ]
+  },
+  "ms": 236
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 2,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.78
+   ],
+   "impact": [
+    "none",
+    0.96
+   ]
+  },
+  "ms": 265
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 3,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.85
+   ],
+   "impact": [
+    "extend",
+    0.62
+   ]
+  },
+  "ms": 3002
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 4,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.89
+   ],
+   "impact": [
+    "restructure",
+    0.99
+   ]
+  },
+  "ms": 275
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 5,
+  "expect": "build",
+  "got": "build",
+  "answers": null,
+  "ms": 42
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 6,
+  "expect": "build",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.65
+   ],
+   "impact": [
+    "annotate",
+    0.68
+   ]
+  },
+  "ms": 11982
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 7,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.69
+   ],
+   "impact": [
+    "annotate",
+    0.87
+   ]
+  },
+  "ms": 297
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 8,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.69
+   ],
+   "impact": [
+    "none",
+    0.97
+   ]
+  },
+  "ms": 305
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 9,
+  "expect": "remember",
+  "got": "remember",
+  "answers": null,
+  "ms": 41
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 10,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.85
+   ],
+   "impact": [
+    "none",
+    0.6
+   ]
+  },
+  "ms": 2935
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 11,
+  "expect": "deepen",
+  "got": "deepen",
+  "answers": null,
+  "ms": 41
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 12,
+  "expect": "deepen",
+  "got": "deepen",
+  "answers": null,
+  "ms": 40
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 13,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.78
+   ],
+   "impact": [
+    "none",
+    0.98
+   ]
+  },
+  "ms": 340
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 14,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "detail",
+    0.9
+   ],
+   "impact": [
+    "extend",
+    0.85
+   ]
+  },
+  "ms": 2713
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 15,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.99
+   ],
+   "impact": [
+    "none",
+    0.93
+   ]
+  },
+  "ms": 2870
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 16,
+  "expect": "build",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.6
+   ],
+   "impact": [
+    "annotate",
+    0.75
+   ]
+  },
+  "ms": 7318
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 17,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.85
+   ],
+   "impact": [
+    "extend",
+    0.88
+   ]
+  },
+  "ms": 2810
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 18,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.98
+   ],
+   "impact": [
+    "none",
+    0.95
+   ]
+  },
+  "ms": 340
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 19,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.78
+   ],
+   "impact": [
+    "annotate",
+    0.94
+   ]
+  },
+  "ms": 290
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 20,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.85
+   ],
+   "impact": [
+    "restructure",
+    0.9
+   ]
+  },
+  "ms": 2962
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 21,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.85
+   ],
+   "impact": [
+    "extend",
+    0.8
+   ]
+  },
+  "ms": 6338
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 22,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.78
+   ],
+   "impact": [
+    "restructure",
+    0.96
+   ]
+  },
+  "ms": 338
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 23,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "detail",
+    0.85
+   ],
+   "impact": [
+    "annotate",
+    0.92
+   ]
+  },
+  "ms": 2772
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 24,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.95
+   ],
+   "impact": [
+    "none",
+    0.77
+   ]
+  },
+  "ms": 3225
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 25,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.95
+   ],
+   "impact": [
+    "annotate",
+    0.6
+   ]
+  },
+  "ms": 2356
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 26,
+  "expect": "deepen",
+  "got": "deepen",
+  "answers": {
+   "target": [
+    "h3-geo-index",
+    0.74
+   ]
+  },
+  "ms": 299
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 27,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.9
+   ],
+   "impact": [
+    "extend",
+    0.9
+   ]
+  },
+  "ms": 2391
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 28,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.79
+   ],
+   "impact": [
+    "none",
+    0.94
+   ]
+  },
+  "ms": 292
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 29,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.66
+   ],
+   "impact": [
+    "annotate",
+    0.95
+   ]
+  },
+  "ms": 336
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 30,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.95
+   ],
+   "impact": [
+    "none",
+    0.8
+   ]
+  },
+  "ms": 2240
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 31,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.9
+   ],
+   "impact": [
+    "annotate",
+    0.65
+   ]
+  },
+  "ms": 333
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 32,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.92
+   ],
+   "impact": [
+    "restructure",
+    0.64
+   ]
+  },
+  "ms": 333
+ },
+ {
+  "rep": 0,
+  "kind": "turn",
+  "i": 33,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.95
+   ],
+   "impact": [
+    "none",
+    0.94
+   ]
+  },
+  "ms": 329
+ },
+ {
+  "rep": 0,
+  "kind": "edit",
+  "i": 0,
+  "expect": "diverges",
+  "got": "diverges",
+  "answers": {
+   "verdict": [
+    "diverges",
+    0.99
+   ]
+  },
+  "ms": 333
+ },
+ {
+  "rep": 0,
+  "kind": "edit",
+  "i": 1,
+  "expect": "conforms",
+  "got": "conforms",
+  "answers": {
+   "verdict": [
+    "conforms",
+    0.92
+   ]
+  },
+  "ms": 3640
+ },
+ {
+  "rep": 0,
+  "kind": "edit",
+  "i": 2,
+  "expect": "diverges",
+  "got": "diverges",
+  "answers": {
+   "verdict": [
+    "diverges",
+    0.99
+   ]
+  },
+  "ms": 329
+ },
+ {
+  "rep": 0,
+  "kind": "edit",
+  "i": 3,
+  "expect": "conforms",
+  "got": "conforms",
+  "answers": null,
+  "ms": 36
+ },
+ {
+  "rep": 0,
+  "kind": "edit",
+  "i": 4,
+  "expect": "conforms",
+  "got": "conforms",
+  "answers": {
+   "verdict": [
+    "conforms",
+    0.89
+   ]
+  },
+  "ms": 329
+ },
+ {
+  "rep": 0,
+  "kind": "edit",
+  "i": 5,
+  "expect": "diverges",
+  "got": "diverges",
+  "answers": {
+   "verdict": [
+    "new-boundary",
+    0.85
+   ]
+  },
+  "ms": 4678
+ },
+ {
+  "rep": 0,
+  "kind": "edit",
+  "i": 6,
+  "expect": "conforms",
+  "got": "conforms",
+  "answers": {
+   "verdict": [
+    "conforms",
+    0.68
+   ]
+  },
+  "ms": 342
+ },
+ {
+  "rep": 0,
+  "kind": "edit",
+  "i": 7,
+  "expect": "diverges",
+  "got": "diverges",
+  "answers": {
+   "verdict": [
+    "diverges",
+    0.9
+   ]
+  },
+  "ms": 2072
+ },
+ {
+  "rep": 0,
+  "kind": "edit",
+  "i": 8,
+  "expect": "conforms",
+  "got": "conforms",
+  "answers": {
+   "verdict": [
+    "conforms",
+    0.89
+   ]
+  },
+  "ms": 325
+ },
+ {
+  "rep": 0,
+  "kind": "edit",
+  "i": 9,
+  "expect": "diverges",
+  "got": "diverges",
+  "answers": {
+   "verdict": [
+    "diverges",
+    1
+   ]
+  },
+  "ms": 315
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 0,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.63
+   ],
+   "impact": [
+    "annotate",
+    0.85
+   ]
+  },
+  "ms": 233
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 1,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.9
+   ],
+   "impact": [
+    "none",
+    0.87
+   ]
+  },
+  "ms": 162
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 2,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.85
+   ],
+   "impact": [
+    "none",
+    0.95
+   ]
+  },
+  "ms": 211
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 3,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.9
+   ],
+   "impact": [
+    "extend",
+    0.9
+   ]
+  },
+  "ms": 1760
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 4,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.91
+   ],
+   "impact": [
+    "restructure",
+    0.99
+   ]
+  },
+  "ms": 242
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 5,
+  "expect": "build",
+  "got": "build",
+  "answers": null,
+  "ms": 19
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 6,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "detail",
+    0.65
+   ],
+   "impact": [
+    "extend",
+    0.62
+   ]
+  },
+  "ms": 8962
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 7,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.69
+   ],
+   "impact": [
+    "annotate",
+    0.82
+   ]
+  },
+  "ms": 209
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 8,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.7
+   ],
+   "impact": [
+    "none",
+    0.97
+   ]
+  },
+  "ms": 209
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 9,
+  "expect": "remember",
+  "got": "remember",
+  "answers": null,
+  "ms": 19
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 10,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.85
+   ],
+   "impact": [
+    "none",
+    0.66
+   ]
+  },
+  "ms": 4139
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 11,
+  "expect": "deepen",
+  "got": "deepen",
+  "answers": null,
+  "ms": 20
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 12,
+  "expect": "deepen",
+  "got": "deepen",
+  "answers": null,
+  "ms": 19
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 13,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.8
+   ],
+   "impact": [
+    "none",
+    0.98
+   ]
+  },
+  "ms": 187
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 14,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "detail",
+    0.85
+   ],
+   "impact": [
+    "extend",
+    0.85
+   ]
+  },
+  "ms": 4087
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 15,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.95
+   ],
+   "impact": [
+    "none",
+    0.81
+   ]
+  },
+  "ms": 2379
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 16,
+  "expect": "build",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.62
+   ],
+   "impact": [
+    "annotate",
+    0.75
+   ]
+  },
+  "ms": 3986
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 17,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.85
+   ],
+   "impact": [
+    "extend",
+    0.88
+   ]
+  },
+  "ms": 3251
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 18,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.94
+   ],
+   "impact": [
+    "none",
+    0.95
+   ]
+  },
+  "ms": 213
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 19,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.76
+   ],
+   "impact": [
+    "annotate",
+    0.95
+   ]
+  },
+  "ms": 280
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 20,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.82
+   ],
+   "impact": [
+    "restructure",
+    0.85
+   ]
+  },
+  "ms": 3253
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 21,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.85
+   ],
+   "impact": [
+    "extend",
+    0.85
+   ]
+  },
+  "ms": 3793
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 22,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.85
+   ],
+   "impact": [
+    "restructure",
+    0.96
+   ]
+  },
+  "ms": 228
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 23,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "detail",
+    0.85
+   ],
+   "impact": [
+    "annotate",
+    0.92
+   ]
+  },
+  "ms": 3124
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 24,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.95
+   ],
+   "impact": [
+    "none",
+    0.74
+   ]
+  },
+  "ms": 2720
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 25,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.92
+   ],
+   "impact": [
+    "none",
+    0.95
+   ]
+  },
+  "ms": 3152
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 26,
+  "expect": "deepen",
+  "got": "deepen",
+  "answers": {
+   "target": [
+    "h3-geo-index",
+    0.79
+   ]
+  },
+  "ms": 286
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 27,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.85
+   ],
+   "impact": [
+    "extend",
+    0.85
+   ]
+  },
+  "ms": 2783
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 28,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.76
+   ],
+   "impact": [
+    "none",
+    0.95
+   ]
+  },
+  "ms": 264
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 29,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.63
+   ],
+   "impact": [
+    "annotate",
+    0.95
+   ]
+  },
+  "ms": 220
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 30,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.95
+   ],
+   "impact": [
+    "none",
+    0.77
+   ]
+  },
+  "ms": 2039
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 31,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.9
+   ],
+   "impact": [
+    "annotate",
+    0.63
+   ]
+  },
+  "ms": 230
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 32,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.88
+   ],
+   "impact": [
+    "restructure",
+    0.63
+   ]
+  },
+  "ms": 225
+ },
+ {
+  "rep": 1,
+  "kind": "turn",
+  "i": 33,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.95
+   ],
+   "impact": [
+    "none",
+    0.93
+   ]
+  },
+  "ms": 231
+ },
+ {
+  "rep": 1,
+  "kind": "edit",
+  "i": 0,
+  "expect": "diverges",
+  "got": "diverges",
+  "answers": {
+   "verdict": [
+    "diverges",
+    0.99
+   ]
+  },
+  "ms": 233
+ },
+ {
+  "rep": 1,
+  "kind": "edit",
+  "i": 1,
+  "expect": "conforms",
+  "got": "conforms",
+  "answers": {
+   "verdict": [
+    "conforms",
+    0.9
+   ]
+  },
+  "ms": 3094
+ },
+ {
+  "rep": 1,
+  "kind": "edit",
+  "i": 2,
+  "expect": "diverges",
+  "got": "diverges",
+  "answers": {
+   "verdict": [
+    "diverges",
+    0.99
+   ]
+  },
+  "ms": 243
+ },
+ {
+  "rep": 1,
+  "kind": "edit",
+  "i": 3,
+  "expect": "conforms",
+  "got": "conforms",
+  "answers": null,
+  "ms": 15
+ },
+ {
+  "rep": 1,
+  "kind": "edit",
+  "i": 4,
+  "expect": "conforms",
+  "got": "conforms",
+  "answers": {
+   "verdict": [
+    "conforms",
+    0.89
+   ]
+  },
+  "ms": 264
+ },
+ {
+  "rep": 1,
+  "kind": "edit",
+  "i": 5,
+  "expect": "diverges",
+  "got": "diverges",
+  "answers": {
+   "verdict": [
+    "new-boundary",
+    0.85
+   ]
+  },
+  "ms": 4948
+ },
+ {
+  "rep": 1,
+  "kind": "edit",
+  "i": 6,
+  "expect": "conforms",
+  "got": "conforms",
+  "answers": {
+   "verdict": [
+    "conforms",
+    0.6
+   ]
+  },
+  "ms": 249
+ },
+ {
+  "rep": 1,
+  "kind": "edit",
+  "i": 7,
+  "expect": "diverges",
+  "got": "diverges",
+  "answers": {
+   "verdict": [
+    "diverges",
+    0.9
+   ]
+  },
+  "ms": 3429
+ },
+ {
+  "rep": 1,
+  "kind": "edit",
+  "i": 8,
+  "expect": "conforms",
+  "got": "conforms",
+  "answers": {
+   "verdict": [
+    "conforms",
+    0.86
+   ]
+  },
+  "ms": 213
+ },
+ {
+  "rep": 1,
+  "kind": "edit",
+  "i": 9,
+  "expect": "diverges",
+  "got": "diverges",
+  "answers": {
+   "verdict": [
+    "diverges",
+    0.99
+   ]
+  },
+  "ms": 228
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 0,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.6
+   ],
+   "impact": [
+    "annotate",
+    0.86
+   ]
+  },
+  "ms": 253
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 1,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.91
+   ],
+   "impact": [
+    "none",
+    0.9
+   ]
+  },
+  "ms": 191
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 2,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.86
+   ],
+   "impact": [
+    "none",
+    0.94
+   ]
+  },
+  "ms": 270
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 3,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.9
+   ],
+   "impact": [
+    "extend",
+    0.64
+   ]
+  },
+  "ms": 1810
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 4,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.89
+   ],
+   "impact": [
+    "restructure",
+    0.99
+   ]
+  },
+  "ms": 246
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 5,
+  "expect": "build",
+  "got": "build",
+  "answers": null,
+  "ms": 18
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 6,
+  "expect": "build",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.85
+   ],
+   "impact": [
+    "annotate",
+    0.8
+   ]
+  },
+  "ms": 4977
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 7,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "detail",
+    0.55
+   ],
+   "impact": [
+    "annotate",
+    0.86
+   ]
+  },
+  "ms": 14230
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 8,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.68
+   ],
+   "impact": [
+    "none",
+    0.96
+   ]
+  },
+  "ms": 215
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 9,
+  "expect": "remember",
+  "got": "remember",
+  "answers": null,
+  "ms": 18
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 10,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.92
+   ],
+   "impact": [
+    "none",
+    0.62
+   ]
+  },
+  "ms": 3553
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 11,
+  "expect": "deepen",
+  "got": "deepen",
+  "answers": null,
+  "ms": 19
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 12,
+  "expect": "deepen",
+  "got": "deepen",
+  "answers": null,
+  "ms": 18
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 13,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.76
+   ],
+   "impact": [
+    "none",
+    0.97
+   ]
+  },
+  "ms": 201
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 14,
+  "expect": "build",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "detail",
+    0.85
+   ],
+   "impact": [
+    "annotate",
+    0.8
+   ]
+  },
+  "ms": 4877
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 15,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.95
+   ],
+   "impact": [
+    "none",
+    0.89
+   ]
+  },
+  "ms": 2496
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 16,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.64
+   ],
+   "impact": [
+    "extend",
+    0.75
+   ]
+  },
+  "ms": 4516
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 17,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.9
+   ],
+   "impact": [
+    "extend",
+    0.86
+   ]
+  },
+  "ms": 2356
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 18,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.92
+   ],
+   "impact": [
+    "none",
+    0.95
+   ]
+  },
+  "ms": 226
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 19,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.79
+   ],
+   "impact": [
+    "annotate",
+    0.95
+   ]
+  },
+  "ms": 230
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 20,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.81
+   ],
+   "impact": [
+    "restructure",
+    0.9
+   ]
+  },
+  "ms": 2297
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 21,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.75
+   ],
+   "impact": [
+    "extend",
+    0.72
+   ]
+  },
+  "ms": 5167
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 22,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.74
+   ],
+   "impact": [
+    "restructure",
+    0.97
+   ]
+  },
+  "ms": 271
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 23,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "detail",
+    0.9
+   ],
+   "impact": [
+    "annotate",
+    0.93
+   ]
+  },
+  "ms": 2503
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 24,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.95
+   ],
+   "impact": [
+    "none",
+    0.73
+   ]
+  },
+  "ms": 1823
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 25,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.9
+   ],
+   "impact": [
+    "none",
+    0.9
+   ]
+  },
+  "ms": 2838
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 26,
+  "expect": "deepen",
+  "got": "deepen",
+  "answers": {
+   "target": [
+    "h3-geo-index",
+    0.76
+   ]
+  },
+  "ms": 175
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 27,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.8
+   ],
+   "impact": [
+    "extend",
+    0.8
+   ]
+  },
+  "ms": 6737
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 28,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.8
+   ],
+   "impact": [
+    "none",
+    0.96
+   ]
+  },
+  "ms": 188
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 29,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.64
+   ],
+   "impact": [
+    "annotate",
+    0.94
+   ]
+  },
+  "ms": 233
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 30,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.97
+   ],
+   "impact": [
+    "none",
+    0.74
+   ]
+  },
+  "ms": 2002
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 31,
+  "expect": "remember",
+  "got": "remember",
+  "answers": {
+   "signal": [
+    "constraint",
+    0.87
+   ],
+   "impact": [
+    "annotate",
+    0.68
+   ]
+  },
+  "ms": 194
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 32,
+  "expect": "build",
+  "got": "build",
+  "answers": {
+   "signal": [
+    "arch",
+    0.91
+   ],
+   "impact": [
+    "restructure",
+    0.61
+   ]
+  },
+  "ms": 230
+ },
+ {
+  "rep": 2,
+  "kind": "turn",
+  "i": 33,
+  "expect": "skip",
+  "got": "skip",
+  "answers": {
+   "signal": [
+    "noise",
+    0.96
+   ],
+   "impact": [
+    "none",
+    0.95
+   ]
+  },
+  "ms": 230
+ },
+ {
+  "rep": 2,
+  "kind": "edit",
+  "i": 0,
+  "expect": "diverges",
+  "got": "diverges",
+  "answers": {
+   "verdict": [
+    "diverges",
+    0.99
+   ]
+  },
+  "ms": 206
+ },
+ {
+  "rep": 2,
+  "kind": "edit",
+  "i": 1,
+  "expect": "conforms",
+  "got": "conforms",
+  "answers": {
+   "verdict": [
+    "conforms",
+    0.92
+   ]
+  },
+  "ms": 2609
+ },
+ {
+  "rep": 2,
+  "kind": "edit",
+  "i": 2,
+  "expect": "diverges",
+  "got": "diverges",
+  "answers": {
+   "verdict": [
+    "diverges",
+    0.99
+   ]
+  },
+  "ms": 241
+ },
+ {
+  "rep": 2,
+  "kind": "edit",
+  "i": 3,
+  "expect": "conforms",
+  "got": "conforms",
+  "answers": null,
+  "ms": 17
+ },
+ {
+  "rep": 2,
+  "kind": "edit",
+  "i": 4,
+  "expect": "conforms",
+  "got": "conforms",
+  "answers": {
+   "verdict": [
+    "conforms",
+    0.91
+   ]
+  },
+  "ms": 253
+ },
+ {
+  "rep": 2,
+  "kind": "edit",
+  "i": 5,
+  "expect": "diverges",
+  "got": "diverges",
+  "answers": {
+   "verdict": [
+    "diverges",
+    0.85
+   ]
+  },
+  "ms": 10448
+ },
+ {
+  "rep": 2,
+  "kind": "edit",
+  "i": 6,
+  "expect": "conforms",
+  "got": "conforms",
+  "answers": {
+   "verdict": [
+    "conforms",
+    0.68
+   ]
+  },
+  "ms": 235
+ },
+ {
+  "rep": 2,
+  "kind": "edit",
+  "i": 7,
+  "expect": "diverges",
+  "got": "diverges",
+  "answers": {
+   "verdict": [
+    "diverges",
+    0.92
+   ]
+  },
+  "ms": 2936
+ },
+ {
+  "rep": 2,
+  "kind": "edit",
+  "i": 8,
+  "expect": "conforms",
+  "got": "conforms",
+  "answers": {
+   "verdict": [
+    "conforms",
+    0.89
+   ]
+  },
+  "ms": 226
+ },
+ {
+  "rep": 2,
+  "kind": "edit",
+  "i": 9,
+  "expect": "diverges",
+  "got": "diverges",
+  "answers": {
+   "verdict": [
+    "diverges",
+    1
+   ]
+  },
+  "ms": 181
+ }
+]

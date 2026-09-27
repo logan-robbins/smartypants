@@ -31,9 +31,10 @@ Plugin: `smartypants` 0.2.0, directory `plugins/smartypants`, marketplace
 
 Blocking (from the 2026 requirements in [docs/research/competitors.md](docs/research/competitors.md)):
 
-- [ ] **LICENSE.** Anthropic's directory blocks plugins without a LICENSE file or `license` field;
-      Cursor requires open source. Choose one (MIT maximizes adoption), add `LICENSE`, and set
-      `"license"` in `package.json` and every plugin manifest.
+- [x] **LICENSE.** Apache-2.0 (`LICENSE` + `NOTICE`, copied into `plugins/smartypants/`), with
+      `"license": "Apache-2.0"` in `package.json` and every plugin manifest. Apache-2.0 over MIT:
+      same adoption, plus an explicit patent grant and a NOTICE file that forks and redistributions
+      must carry (section 4(d)), so credit travels with the code.
 - [ ] **Data disclosure.** README section "What leaves your machine" names every destination
       (Meta Model API, optionally Typesafe). The default `muse-spark-1.3-contributor` tier lets
       Meta train on that traffic; decide whether launch installs default to `muse-spark-1.3`

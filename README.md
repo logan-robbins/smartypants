@@ -58,12 +58,15 @@ sources: [docs/research/competitors.md](docs/research/competitors.md).
 
 ## Proof
 
-Live runs on the Meta Model API ([results](results/2026-09-27-tiers/README.md)):
+Live runs with Typesafe Jev and Muse Spark ([Jev results](results/2026-09-27-jev/README.md) ·
+[earlier runs](results/2026-09-27-tiers/README.md)):
 
 | | result |
 |---|---|
-| "Is this turn worth remembering?" on 34 held-out turns | **34/34** with the selector (23/34 with local rules alone) |
-| Drift verdicts on 10 held-out edits | **9/10, none missed** |
+| "Is this turn worth remembering?" on 34 held-out turns × 3 | **102/102** with Jev + Muse Spark (23/34 with local rules alone) |
+| Drift verdicts on 10 held-out edits × 3 | **30/30, none missed** (Muse Spark alone 26/30, Jev alone 26/30) |
+| Turn-end review of labeled agent changes × 3 | **39/39 drift flags right, 0 false alarms**, 1.7 s per review (Muse Spark alone: 5.1 s) |
+| Per-turn decision | **~250 ms** with Jev first (~3 s with Muse Spark alone), at half the selector cost |
 | Five design interviews (32 turns, 10 edits) | triage 32/32, all 33 expected parts drawn, drift 10/10 and 9/10 across runs, **$0.015 total** |
 | Noise turns ("thanks", "run the tests") | **$0**, no model call |
 | Turn-end review of 3 changed files | 1 batched selector call; caught a frontend querying Postgres directly; added a service from a new k8s manifest; 23 s |
@@ -139,7 +142,8 @@ Plugin commands mirror these: `/smartypants`, `/smartypants:deeper`, `:catchup`,
 | `flavor` | builder: `meta` (default), `claude`, `codex`, `grok`, `muse`, `pi` |
 | `model` | builder model; `muse-spark-1.3` = no training |
 | `depth` | `auto` (start from what you said, go finer as you do) or `system` / `component` / `module` |
-| `decider` | per-turn selector: `auto` (Jev → Muse Spark → local rules), `jev`, `meta`, `heuristic` |
+| `decider` | per-turn selector: `auto` (Jev, with Muse Spark re-checking answers under `escalateBelow`; then Muse Spark alone; then local rules), `jev`, `meta`, `heuristic` |
+| `escalateBelow` | Jev confidence under which Muse Spark gets a second look (default 0.6) |
 | `review` | `turn` (once per agent turn), `edit` (every edit), `both` |
 | `background` | hooks return immediately; a project worker does the work |
 | `seed` | existing codebase: catch up from code |
@@ -158,17 +162,25 @@ Plugin commands mirror these: `/smartypants`, `/smartypants:deeper`, `:catchup`,
 
 ## How it works
 
-A free local pass drops noise; a Jev-protocol selector (Typesafe Jev, or Muse Spark at minimal
-reasoning) answers small menus — is this worth remembering, does it change the design, what
-level, which part, does this diff conform — and only then does the builder write a delta.
+A free local pass drops noise. Then Typesafe Jev answers small menus in about 200 ms — is this
+worth remembering, does it change the design, what level, which part, does this diff conform —
+and any answer it is less than 60% sure of goes to Muse Spark for a second opinion (every wrong
+Jev answer in our tests was under that line). Only then does the builder write a delta. Without
+a Typesafe key, Muse Spark answers the menus itself.
 Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/INTENTCODE.md](docs/INTENTCODE.md) ·
 [docs/PROMPTING.md](docs/PROMPTING.md) · go-to-market: [docs/GTM.md](docs/GTM.md).
 
 ## Develop
 
 ```sh
-npm test                      # 84 tests, no network
+npm test                      # 86 tests, no network
 npm run eval                  # live interview transcripts on the Meta API (cents)
 npm run eval:triage           # held-out triage benchmark
+npm run eval:turnend          # turn-end review on labeled agent changes
 node scripts/build-site.mjs   # website demo into site/demo
 ```
+
+## License
+
+[Apache-2.0](LICENSE). Use it, fork it, ship it; keep the [NOTICE](NOTICE) with any copy or
+derivative so the credit travels with it. Citing it: [CITATION.cff](CITATION.cff).

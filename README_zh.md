@@ -49,3 +49,7 @@ npx smartypants serve       # 打开输出的地址
 设置 `"model": "muse-spark-1.3"` 可退出，或改用其他构建器。
 
 更多内容见 [英文 README](README.md)。
+
+## 许可证
+
+[Apache-2.0](LICENSE)。可自由使用、修改和分发；任何副本或衍生作品须保留 [NOTICE](NOTICE)。

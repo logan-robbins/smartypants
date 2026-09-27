@@ -15,10 +15,16 @@ import { startWatcher } from "../src/watch.js";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const webRoot = path.join(packageRoot, "web");
-const projectRoot = process.env.SMARTPANTS_ROOT
-  ? path.resolve(process.env.SMARTPANTS_ROOT)
-  : process.cwd();
-const port = Number(process.env.SMARTPANTS_PORT || 4173);
+const rootEnv = process.env.SMARTYPANTS_ROOT || process.env.SMARTPANTS_ROOT;
+const projectRoot = rootEnv ? path.resolve(rootEnv) : process.cwd();
+const portFlag = process.argv.indexOf("--port");
+// SMARTPANTS_* (sic) is the original spelling; both are read.
+const askedPort = portFlag !== -1 ? process.argv[portFlag + 1] : process.env.SMARTYPANTS_PORT || process.env.SMARTPANTS_PORT;
+if (askedPort != null && !(Number(askedPort) > 0 && Number(askedPort) < 65536)) {
+  console.error(`smartypants: --port needs a number from 1 to 65535, got ${askedPort}`);
+  process.exit(2);
+}
+let port = Number(askedPort || 4173);
 const host = "127.0.0.1";
 
 const TYPES = {
@@ -146,7 +152,20 @@ const server = http.createServer((req, res) => {
   send(res, 200, fs.readFileSync(file), TYPES[ext] || "application/octet-stream");
 });
 
-server.listen(port, host, () => {
+// A chosen port must be free; the default walks to the next free one so a
+// second project's canvas does not collide with the first.
+server.on("error", (error) => {
+  if (error.code === "EADDRINUSE" && askedPort == null && port < 4173 + 20) {
+    port += 1;
+    server.listen(port, host);
+    return;
+  }
+  console.error(error.code === "EADDRINUSE" ? `smartypants: port ${port} is in use; try --port <free port>` : `smartypants: ${error.message}`);
+  process.exit(1);
+});
+
+server.listen(port, host);
+server.on("listening", () => {
   console.log(`Smartypants canvas at http://${host}:${port}`);
   console.log(`Design root: ${projectRoot}`);
   const watch = lookupConfig(projectRoot)?.watch;

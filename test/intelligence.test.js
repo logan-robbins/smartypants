@@ -4,7 +4,7 @@ import http from "node:http";
 import path from "node:path";
 import test from "node:test";
 import { emptyIntent, heuristicAtoms, intentTokens, loadIntent, parseAtom, rememberAtoms, renderIntent } from "../src/intent.js";
-import { createChooser, heuristicChooser, jevChooser, metaChooser } from "../src/jev.js";
+import { createChooser, heuristicChooser, jevChooser, jevMetaChooser, metaChooser } from "../src/jev.js";
 import { toMermaid } from "../src/mermaid.js";
 import { applyDesign, emptyDesign, loadDesign, saveDesign } from "../src/model.js";
 import { handleHook } from "../src/pipeline.js";
@@ -343,4 +343,43 @@ test("payloads captured from real Claude Code, Codex, and Pi runs normalize", as
   const piEdit = extractDelivered({ path: "src/orders/place.js", edits: [{ oldText: "return o;", newText: "return save(o);" }] }, "edit");
   assert.equal(piEdit.diff.includes("return save(o);"), true);
   assert.equal(parseDeeper("dig into the heap tracker please"), "heap tracker");
+});
+
+test("auto with both keys: Jev answers, and only its unsure answers get a Muse Spark second opinion", async () => {
+  const calls = [];
+  const fetchCall = async (url, init) => {
+    const body = JSON.parse(init.body);
+    if (String(url).includes("typesafe")) {
+      calls.push(["jev", Object.keys(body.questions)]);
+      return new Response(JSON.stringify({ model: "jev-1.13.0", answers: { signal: { choice: "c1", confidence: 0.97 }, impact: { choice: "c0", confidence: 0.41 } } }));
+    }
+    const asked = Object.keys(JSON.parse(body.messages.at(-1).content).questions);
+    calls.push(["meta", asked, body.reasoning_effort]);
+    return new Response(JSON.stringify({ model: body.model, choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ impact: { choice: "c1", confidence: 0.88 } }) } }], usage: { prompt_tokens: 80, completion_tokens: 10 } }));
+  };
+  const env = { TYPESAFE_API_KEY: "t", META_API_KEY: "m", META_BASE_URL: "http://meta.test/v1" };
+  const questions = {
+    signal: { question: "q", options: [{ value: "noise" }, { value: "arch" }] },
+    impact: { question: "q", options: [{ value: "none" }, { value: "extend" }] },
+  };
+  const chain = createChooser({ decider: "auto" }, { env, fetchCall });
+  assert.equal(chain.via, "jev+meta");
+  const { answers, via } = await chain.choose({}, questions);
+  assert.equal(via, "jev+meta");
+  assert.deepEqual(calls, [["jev", ["signal", "impact"]], ["meta", ["impact"], "minimal"]]);
+  assert.equal(answers.signal.value, "arch");
+  assert.equal(answers.impact.value, "extend");
+  assert.deepEqual(answers.impact.jev, { value: "none", confidence: 0.41 });
+
+  // A Muse Spark outage keeps Jev's answers instead of failing the turn.
+  const original = console.error;
+  console.error = () => {};
+  try {
+    const down = jevMetaChooser({ env, fetchCall: async (url, init) => (String(url).includes("typesafe") ? fetchCall(url, init) : new Response("down", { status: 503 })) });
+    const kept = await down.choose({}, questions);
+    assert.equal(kept.impact.value, "none");
+    assert.equal(down.lastVia, "jev");
+  } finally {
+    console.error = original;
+  }
 });

@@ -26,3 +26,16 @@ test("the plugin keeps API keys in sensitive user settings", () => {
   assert.equal(manifest.userConfig.meta_api_key.sensitive, true);
   assert.equal(read("plugins/smartypants/scripts/hook.mjs").includes("CLAUDE_PLUGIN_OPTION_META_API_KEY"), true);
 });
+
+test("the Apache-2.0 license and NOTICE ship with the package and the plugin", () => {
+  assert.match(read("LICENSE"), /Apache License\s+Version 2\.0, January 2004/);
+  assert.match(read("NOTICE"), /Copyright 2026 Logan Robbins/);
+  assert.equal(read("plugins/smartypants/LICENSE"), read("LICENSE"));
+  assert.equal(read("plugins/smartypants/NOTICE"), read("NOTICE"));
+  const pkg = JSON.parse(read("package.json"));
+  assert.equal(pkg.license, "Apache-2.0");
+  assert.ok(pkg.files.includes("NOTICE"));
+  for (const file of ["plugins/smartypants/.claude-plugin/plugin.json", "plugins/smartypants/.codex-plugin/plugin.json", "plugins/smartypants/.cursor-plugin/plugin.json", "plugins/smartypants/plugin.json"]) {
+    assert.equal(JSON.parse(read(file)).license, "Apache-2.0", file);
+  }
+});

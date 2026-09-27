@@ -7,6 +7,7 @@
     "type": "git",
     "url": "git+https://github.com/logan-robbins/smartypants.git"
   },
+  "license": "Apache-2.0",
   "bin": {
     "smartypants": "./bin/smartypants.mjs",
     "smartypants-hook": "./bin/smartypants-hook.mjs",
@@ -23,16 +24,19 @@
     "web",
     "examples",
     "smartypants.config.example.json",
-    "diagram.png",
     "README.md",
-    "docs"
+    "LICENSE",
+    "NOTICE",
+    "CITATION.cff",
+    "docs/*.md"
   ],
   "scripts": {
     "test": "node --test",
     "hook": "node bin/smartypants-hook.mjs",
     "serve": "node bin/smartypants-serve.mjs",
     "eval": "node eval/run.mjs",
-    "eval:triage": "node eval/triage.mjs"
+    "eval:triage": "node eval/triage.mjs",
+    "eval:turnend": "node eval/turnend.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -62,5 +66,13 @@
     "skills": [
       "./plugins/smartypants/skills"
     ]
+  },
+  "author": {
+    "name": "Logan Robbins",
+    "url": "https://github.com/logan-robbins"
+  },
+  "homepage": "https://logan-robbins.github.io/smartypants/",
+  "bugs": {
+    "url": "https://github.com/logan-robbins/smartypants/issues"
   }
 }

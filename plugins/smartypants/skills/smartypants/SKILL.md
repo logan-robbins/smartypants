@@ -17,10 +17,11 @@ commands below instead of drawing a diagram by hand.
 2. `npx smartypants init` — writes `smartypants.config.json` and hooks for Claude Code, Codex, Pi,
    Muse, and Grok without touching other hooks. On an existing codebase it also starts a background
    catch-up that draws the whole system from the code. Keep an existing config.
-3. The default builder needs `META_API_KEY`. If the user keeps keys in a dotenv file, set `envFile`
-   in the config. Never print, echo, or ask for key values in chat.
-4. `npx smartypants serve` in the background; give the user the printed URL (use `SMARTPANTS_PORT`
-   if 4173 is taken; reuse a server already running for this project).
+3. The default builder needs `META_API_KEY`; with `TYPESAFE_API_KEY` too, Jev makes the per-turn
+   calls and Muse Spark only double-checks unsure ones. If the user keeps keys in a dotenv file, set
+   `envFile` in the config. Never print, echo, or ask for key values in chat.
+4. `npx smartypants serve` in the background; give the user the URL it prints (it takes the next
+   free port if 4173 is busy; reuse a server already running for this project).
 5. Codex users must approve the Smartypants hooks once in Codex's startup hooks review.
 
 ## Arguments

@@ -8,6 +8,7 @@
  * Arms:
  *   jev-meta  Jev-protocol selector on Muse Spark (minimal effort) gates the builder.
  *   jev       real Jev selector (needs TYPESAFE_API_KEY).
+ *   auto      the default: Jev, with a Muse Spark second opinion on unsure answers.
  *   always    no model selector: every non-trivial turn goes to the builder.
  * Every arm builds with Muse Spark 1.3 Contributor. Paid calls: a few cents per run.
  */
@@ -34,7 +35,7 @@ const only = opt("only", null);
 const out = path.resolve(pkg, opt("out", `results/${new Date().toISOString().slice(0, 10)}-meta-jev`));
 const saveExamples = args.includes("--save-examples");
 
-const DECIDER = { "jev-meta": "meta", jev: "jev", always: "heuristic" };
+const DECIDER = { "jev-meta": "meta", jev: "jev", auto: "auto", always: "heuristic" };
 const { examples } = JSON.parse(fs.readFileSync(path.join(pkg, "examples/transcripts.json"), "utf8"));
 
 function predicted(result) {

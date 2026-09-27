@@ -23,8 +23,8 @@ function flag(list, name) {
   return list[index + 1];
 }
 
-function runBin(name) {
-  const child = spawn(process.execPath, [path.join(packageRoot, "bin", name)], { stdio: "inherit" });
+function runBin(name, extra = []) {
+  const child = spawn(process.execPath, [path.join(packageRoot, "bin", name), ...extra], { stdio: "inherit" });
   child.on("exit", (code) => process.exit(code ?? 0));
 }
 
@@ -130,7 +130,7 @@ const COMMANDS = {
     console.log(`loaded ${name} into .smartypants/design.json; run smartypants serve`);
     process.exit(0);
   },
-  serve: () => runBin("smartypants-serve.mjs"),
+  serve: () => runBin("smartypants-serve.mjs", args),
   hook: () => runBin("smartypants-hook.mjs"),
   worker: () => runBin("smartypants-worker.mjs"),
 };
@@ -139,7 +139,7 @@ const run = COMMANDS[command ?? "serve"];
 if (run) await run();
 else {
   console.log(`smartypants init [--flavor ${FLAVOR_IDS.join("|")}] [--seed] [--no-catchup]
-smartypants serve                 open the canvas
+smartypants serve [--port N]      open the canvas (next free port if 4173 is taken)
 smartypants catchup [--foreground] build the diagram from the existing code (background)
 smartypants review                review what changed in the working tree now
 smartypants deeper <part>         go one level deeper on a part of the diagram

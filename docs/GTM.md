@@ -65,8 +65,8 @@ Lines we use in comments: "Archify draws a great poster; we keep the map and sou
 ## 5. Launch plan
 
 ### Pre-launch (T-14 → T-1) — fix trust blockers first
-- [ ] **LICENSE** (MIT recommended for adoption; owner decision). No license = no stars from
-      companies and no marketplace approval.
+- [x] **LICENSE**: Apache-2.0 with a NOTICE file. As permissive as MIT for adopters, plus a patent
+      grant legal teams like, and the NOTICE (credit) must ship with every fork and redistribution.
 - [ ] **Privacy defaults.** The default Contributor tier lets Meta train on prompts and code.
       That is a launch-killer for coders if discovered in comments. Ship a first-run notice, a
       one-line opt-out (`"model": "muse-spark-1.3"`), and a "what leaves your machine" section.
@@ -112,10 +112,10 @@ checklist: [../SUBMISSION.md](../SUBMISSION.md).
 
 | marketplace | route | blockers for us today | what we did |
 |---|---|---|---|
-| Claude Code directory | claude.ai/directory/manage (paid plan); old Console form retired | **LICENSE**; unpinned `npm install github:` | strict validation passes; plugin eval +1.00; key moved to a sensitive `userConfig` |
-| Grok Build | PR to `xai-org/plugin-marketplace`, `url` source pinned to a 40-char SHA | LICENSE | Grok reads the Claude plugin as is; versions aligned |
+| Claude Code directory | claude.ai/directory/manage (paid plan); old Console form retired | unpinned `npm install github:` until npm publish | strict validation passes; plugin eval +1.00; key moved to a sensitive `userConfig` |
+| Grok Build | PR to `xai-org/plugin-marketplace`, `url` source pinned to a 40-char SHA | none (license done) | Grok reads the Claude plugin as is; versions aligned |
 | Codex | repo marketplace for hooks; OpenAI directory = skills-only storefront | privacy policy URL, verified identity, 5+3 test cases | `.agents/plugins/marketplace.json` works with `codex plugin marketplace add` |
-| Cursor | manual review; open source required | LICENSE | plugin dir ready |
+| Cursor | manual review; open source required | none (Apache-2.0) | plugin dir ready |
 | Pi gallery | npm package with `pi-package` keyword | not on npm yet | `pi install git:…` verified |
 | skills.sh | install telemetry, no submission | none | skill at `plugins/smartypants/skills/smartypants` |
 
