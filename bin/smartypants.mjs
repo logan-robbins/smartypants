@@ -40,6 +40,11 @@ const COMMANDS = {
     for (const file of result.wrote) console.log(`wrote ${file}`);
     for (const file of result.skipped) console.log(`kept ${file}`);
     console.log(`hook ${result.command}`);
+    if (flavor === "meta") {
+      console.log("data: design turns, changed files, and (on catch-up) key source files go to api.meta.ai.");
+      console.log("      The default model muse-spark-1.3-contributor is discounted because Meta may train on that traffic;");
+      console.log('      set "model": "muse-spark-1.3" in smartypants.config.json to opt out. Nothing is sent from projects without the config.');
+    }
     if (result.existing && !args.includes("--no-catchup") && result.wrote.includes("smartypants.config.json")) {
       enqueue(root, { type: "catchup" });
       spawnWorker(root);
