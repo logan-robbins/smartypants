@@ -167,7 +167,7 @@ Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/INTENTCODE.md](do
 ## Develop
 
 ```sh
-npm test                      # 83 tests, no network
+npm test                      # 84 tests, no network
 npm run eval                  # live interview transcripts on the Meta API (cents)
 npm run eval:triage           # held-out triage benchmark
 node scripts/build-site.mjs   # website demo into site/demo

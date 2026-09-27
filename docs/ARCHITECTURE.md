@@ -129,11 +129,19 @@ to right inside a layer, and network or trust boundaries are frames.
 | Storage | `storage` | journey |
 
 Journey order walks the flows breadth-first from the top-most callers, then each row is pulled
-toward the parts it talks to (median of neighbours) without overlaps. Components with modules
-are subgraphs laid out the same way inside. Arrows leave the bottom of a caller and enter the
-top of the callee; replies go back up on their own ports; a flow that must cross a busy row goes
-through the nearest free channel between boxes. `tier` and `zone` come from the builder; when a
-part has no tier it is inferred from its shape and name.
+toward the parts it talks to (median of neighbours) without overlaps. A row with more than six
+boxes, or one that would make the picture over twice as wide as tall, wraps into sub-rows:
+callers inside the row above the parts they call, otherwise even rows in journey order, under
+one row label. Components with modules are subgraphs: the frame carries the component's title in
+a side panel, and its modules sit inside in the same order. Once a subgraph is open, the
+component's own arrow to X is dropped when one of its modules already draws a flow to X.
+
+Arrows leave the bottom of a caller and enter the top of the callee; a request and its reply run
+as a parallel pair on adjacent ports; long runs use the gaps between rows, spread onto separate
+tracks, and gap heights are sized to the arrows they carry. Labels go where they hit no box or
+other label, else they show on hover or selection. Each boundary is one outline around its parts
+and never overlaps another. Everything sits on an 8px grid. `tier` and `zone` come from the
+builder; when a part has no tier it is inferred from its shape and name.
 
 ## Knowing the code
 

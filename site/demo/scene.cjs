@@ -1535,8 +1535,44 @@
   }
 
   function buildScene(design) {
+    design = pruneRollups(design);
     if (design && design.direction && design.direction !== "tiers") return buildFlowScene(design);
     return tieredScene(design);
+  }
+
+  /**
+   * Once a part is drawn open, its own arrow to X says nothing a child's arrow
+   * to X (or into X) doesn't already say, and drawing both doubles every flow.
+   * Drop the parent's copy; keep parent arrows no child accounts for.
+   */
+  function pruneRollups(design) {
+    var nodes = design && Array.isArray(design.nodes) ? design.nodes : [];
+    var connections = design && Array.isArray(design.connections) ? design.connections : null;
+    if (!connections || !connections.length) return design;
+    var parentOf = {};
+    var open = {};
+    nodes.forEach(function (node) { parentOf[node.id] = node.parentId || null; });
+    nodes.forEach(function (node) { if (node.parentId && parentOf[node.parentId] !== undefined) open[node.parentId] = true; });
+    function within(id, root) {
+      for (var at = id, guard = 0; at && guard < 32; at = parentOf[at], guard += 1) if (at === root) return true;
+      return false;
+    }
+    function covered(c, side) {
+      var mine = side === "from" ? c.fromId : c.toId;
+      var other = side === "from" ? c.toId : c.fromId;
+      return connections.some(function (d) {
+        if (d === c) return false;
+        var dm = side === "from" ? d.fromId : d.toId;
+        var dother = side === "from" ? d.toId : d.fromId;
+        return dm !== mine && within(dm, mine) && within(dother, other);
+      });
+    }
+    var kept = connections.filter(function (c) {
+      if (open[c.fromId] && covered(c, "from")) return false;
+      if (open[c.toId] && covered(c, "to")) return false;
+      return true;
+    });
+    return kept.length === connections.length ? design : Object.assign({}, design, { connections: kept });
   }
 
   var ROW_WRAP_GAP = 110;
