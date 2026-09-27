@@ -13,6 +13,7 @@ function canonicalEvent(name) {
     .toLowerCase();
   if (key === "userpromptsubmit" || key === "beforesubmitprompt") return "user";
   if (key === "posttooluse" || key === "afterfileedit") return "edit";
+  if (key === "stop" || key === "agentend" || key === "turnend" || key === "afteragentresponse") return "turn-end";
   return null;
 }
 
@@ -97,12 +98,16 @@ export function normalizePayload(payload) {
   if (payload.type === "user" && typeof payload.text === "string" && !payload.hook_event_name && !payload.hookEventName) {
     return { type: "user", text: payload.text };
   }
+  if ((payload.type === "turn-end" || payload.type === "catchup") && !payload.hook_event_name && !payload.hookEventName) {
+    return { type: payload.type };
+  }
   if (payload.type === "edit" && !payload.hook_event_name && !payload.hookEventName) {
     return extractDelivered(payload, payload.toolName || payload.tool_name || "");
   }
 
   const kind = canonicalEvent(payload.hook_event_name || payload.hookEventName || payload.event || payload.type);
   if (kind === "user") return { type: "user", text: userText(payload) };
+  if (kind === "turn-end") return { type: "turn-end", session: String(payload.session_id || payload.sessionId || "") };
   if (kind === "edit") {
     const toolName = payload.tool_name || payload.toolName || payload.tool || "";
     if (toolName && !isEditTool(toolName)) return null;

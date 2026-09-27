@@ -10,6 +10,7 @@ import { loadIntent, renderIntent, intentTokens } from "../src/intent.js";
 import { toMermaid } from "../src/mermaid.js";
 import { canvasModel, loadDesign, saveDesign } from "../src/model.js";
 import { handleHook } from "../src/pipeline.js";
+import { enqueue, spawnWorker } from "../src/queue.js";
 import { loadStats } from "../src/stats.js";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -35,10 +36,15 @@ const COMMANDS = {
       console.error(`smartypants: flavor must be one of ${FLAVOR_IDS.join(", ")}`);
       process.exit(1);
     }
-    const result = installProject(root, { flavor, seed });
+    const result = installProject(root, { flavor, seed: seed || undefined });
     for (const file of result.wrote) console.log(`wrote ${file}`);
     for (const file of result.skipped) console.log(`kept ${file}`);
     console.log(`hook ${result.command}`);
+    if (result.existing && !args.includes("--no-catchup") && result.wrote.includes("smartypants.config.json")) {
+      enqueue(root, { type: "catchup" });
+      spawnWorker(root);
+      console.log("existing code found: catching up from the code in the background (npx smartypants serve to watch)");
+    }
     process.exit(0);
   },
   reset() {
@@ -46,6 +52,23 @@ const COMMANDS = {
     if (result.removed.length === 0) console.log("graph already empty");
     else for (const file of result.removed) console.log(`removed ${path.relative(root, file)}`);
     console.log("config kept");
+    process.exit(0);
+  },
+  async catchup() {
+    if (args.includes("--foreground")) {
+      const result = await handleHook({ cwd: root, event: { type: "catchup" }, timeoutMs: 300000 });
+      console.log(result.inert ? "smartypants is off here (no smartypants.config.json)" : result.error ? `catch-up failed: ${result.error}` : result.catchup?.message || "caught up");
+      process.exit(0);
+    }
+    enqueue(root, { type: "catchup" });
+    spawnWorker(root);
+    console.log("catching up from the code in the background; progress shows on the canvas and in .smartypants/catchup.json");
+    process.exit(0);
+  },
+  async review() {
+    const result = await handleHook({ cwd: root, event: { type: "turn-end" }, timeoutMs: 120000 });
+    if (result.inert) console.log("nothing to review");
+    else console.log(JSON.stringify(result.review || {}, null, 2));
     process.exit(0);
   },
   async deeper() {
@@ -110,8 +133,10 @@ const COMMANDS = {
 const run = COMMANDS[command ?? "serve"];
 if (run) await run();
 else {
-  console.log(`smartypants init [--flavor ${FLAVOR_IDS.join("|")}] [--seed]
+  console.log(`smartypants init [--flavor ${FLAVOR_IDS.join("|")}] [--seed] [--no-catchup]
 smartypants serve                 open the canvas
+smartypants catchup [--foreground] build the diagram from the existing code (background)
+smartypants review                review what changed in the working tree now
 smartypants deeper <part>         go one level deeper on a part of the diagram
 smartypants mermaid               print the diagram as Mermaid
 smartypants intent                print the compact IntentCode memory

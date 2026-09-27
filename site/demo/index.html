@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect x=%224%22 y=%223%22 width=%2224%22 height=%228%22 rx=%224%22 fill=%22%239370db%22/%3E%3Crect x=%224%22 y=%2213%22 width=%2210%22 height=%227%22 rx=%222%22 fill=%22%23ececff%22 stroke=%22%239370db%22/%3E%3Crect x=%2218%22 y=%2213%22 width=%2210%22 height=%227%22 rx=%222%22 fill=%22%23ececff%22 stroke=%22%239370db%22/%3E%3Cellipse cx=%2216%22 cy=%2225%22 rx=%228%22 ry=%224%22 fill=%22%23fff8dc%22 stroke=%22%23c9a227%22/%3E%3C/svg%3E" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Smartypants demo</title>
+  <link rel="stylesheet" href="app.css" />
+  <script>
+    (function () {
+      var params = new URLSearchParams(location.search);
+      var name = (params.get("example") || "shop-monorepo").replace(/[^a-z0-9-]/g, "");
+      window.SMARTYPANTS_STATIC = {
+        design: "examples/" + name + ".json",
+        intent: "examples/" + name + ".intent.json",
+        mermaid: "examples/" + name + ".mmd",
+        notice: function (url) {
+          var toast = document.getElementById("toast");
+          if (!toast) return;
+          toast.textContent = url.indexOf("/deeper") === 0
+            ? "In your project this asks Muse Spark to expand the part. The demo is read-only."
+            : "In your project this runs in the background. The demo is read-only.";
+          toast.hidden = false;
+          setTimeout(function () { toast.hidden = true; }, 3200);
+        },
+      };
+    })();
+  </script>
+</head>
+<body>
+  <p id="boot">Opening the design canvas…</p>
+  <script src="scene.cjs"></script>
+  <script src="app.js"></script>
+</body>
+</html>

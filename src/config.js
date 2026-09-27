@@ -54,6 +54,9 @@ export function readConfig(root) {
   if (raw.autoDeepen != null && raw.autoDeepen !== false && !(Number.isInteger(raw.autoDeepen) && raw.autoDeepen > 0)) {
     return { present: true, config: null, reason: "invalid-auto-deepen" };
   }
+  if (raw.review != null && !["turn", "edit", "both"].includes(raw.review)) {
+    return { present: true, config: null, reason: "invalid-review" };
+  }
   if (raw.envFile != null && (typeof raw.envFile !== "string" || !raw.envFile.trim())) {
     return { present: true, config: null, reason: "invalid-env-file" };
   }
@@ -75,6 +78,7 @@ export function readConfig(root) {
       deciderModel: typeof raw.deciderModel === "string" && raw.deciderModel.trim() ? raw.deciderModel.trim() : null,
       autoDeepen: raw.autoDeepen === false ? false : raw.autoDeepen || 3,
       background: raw.background === true,
+      review: raw.review || "both",
       intentTokens: Number.isInteger(raw.intentTokens) && raw.intentTokens > 100 ? raw.intentTokens : null,
       seed,
       model: typeof raw.model === "string" && raw.model.trim() ? raw.model.trim() : null,

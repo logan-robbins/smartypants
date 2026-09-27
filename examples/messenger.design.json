@@ -1,7 +1,7 @@
 {
   "version": 1,
   "floor": "module",
-  "updatedAt": "2026-09-26T20:01:12.587Z",
+  "updatedAt": "2026-09-27T01:28:30.752Z",
   "level": "component",
   "nodes": [
     {
@@ -9,9 +9,25 @@
       "name": "Chat System",
       "kind": "system",
       "parentId": null,
-      "what": "1:1 and group messaging platform",
-      "why": "Provide WhatsApp-like conversation core",
+      "what": "Whole WhatsApp-like chat platform",
+      "why": "Gives users 1:1 and group messaging",
       "shape": "service",
+      "blurb": "1:1 and group messaging",
+      "tier": "service",
+      "zone": "App cluster",
+      "flags": []
+    },
+    {
+      "id": "mobile-app",
+      "name": "Chat App",
+      "kind": "component",
+      "parentId": "chat-system",
+      "what": "Mobile and web chat client",
+      "why": "Lets people send and read messages",
+      "shape": "client",
+      "blurb": "Sends and reads chats",
+      "tier": "client",
+      "zone": "Public internet",
       "flags": []
     },
     {
@@ -19,9 +35,25 @@
       "name": "API Gateway",
       "kind": "component",
       "parentId": "chat-system",
-      "what": "Edge API and realtime socket fanout",
-      "why": "Single entry and live delivery channel",
+      "what": "Authenticates and routes API calls",
+      "why": "Gives clients one secure entrypoint",
       "shape": "gateway",
+      "blurb": "Routes client API calls",
+      "tier": "edge",
+      "zone": "Edge",
+      "flags": []
+    },
+    {
+      "id": "realtime-gateway",
+      "name": "Realtime Gateway",
+      "kind": "component",
+      "parentId": "chat-system",
+      "what": "Holds sockets and streams messages",
+      "why": "Delivers chats instantly to online users",
+      "shape": "gateway",
+      "blurb": "Holds live socket connections",
+      "tier": "edge",
+      "zone": "Edge",
       "flags": []
     },
     {
@@ -29,34 +61,30 @@
       "name": "Chat Service",
       "kind": "component",
       "parentId": "chat-system",
-      "what": "1:1 and group send, receive, membership",
-      "why": "Owns conversation logic and fanout",
+      "what": "Handles sending and fetching messages",
+      "why": "Owns core 1:1 messaging logic",
       "shape": "service",
+      "blurb": "Sends 1:1 messages",
+      "tier": "service",
+      "zone": "App cluster",
       "flags": [
         {
-          "intent": "Chat Service owns conversation logic and fanout for 1:1-and-group-chat with at-least-once required, in-order required, group-messages-fanout",
-          "difference": "router.ts implements fire-and-forget gw?.deliver(msg) that drops message when recipient offline, bypassing message-store persistence, delivery-queue fanout/retry, and push-dispatcher offline reach, violating at-least-once and in-order requirements"
+          "intent": "Chat Service Handles sending and fetching messages, Owns core 1:1 messaging logic with at-least-once required",
+          "difference": "route() does fire-and-forget direct gateway delivery and drops message if recipient offline, bypassing persist to Message Store, publish to Message Bus, and Push Service offline path, violating at-least-once required delivery."
         }
       ]
     },
     {
-      "id": "message-store",
-      "name": "Message Store",
+      "id": "group-service",
+      "name": "Group Service",
       "kind": "component",
       "parentId": "chat-system",
-      "what": "Durable messages and group state",
-      "why": "Keeps history across devices",
-      "shape": "store",
-      "flags": []
-    },
-    {
-      "id": "media-store",
-      "name": "Media Store",
-      "kind": "component",
-      "parentId": "chat-system",
-      "what": "Image, video, file attachments",
-      "why": "Offloads blobs from messages",
-      "shape": "store",
+      "what": "Manages groups and membership",
+      "why": "Supports group creation and fanout",
+      "shape": "service",
+      "blurb": "Manages group membership",
+      "tier": "service",
+      "zone": "App cluster",
       "flags": []
     },
     {
@@ -64,181 +92,279 @@
       "name": "Presence Service",
       "kind": "component",
       "parentId": "chat-system",
-      "what": "Online status and typing indicators",
-      "why": "Shows availability in chats",
+      "what": "Ingests heartbeats and serves presence subscriptions",
+      "why": "Friends need live online status",
       "shape": "service",
+      "blurb": "Tracks online status for friends",
+      "tier": "service",
+      "zone": "App cluster",
       "flags": []
     },
     {
-      "id": "delivery-queue",
-      "name": "Delivery Queue",
+      "id": "media-service",
+      "name": "Media Service",
       "kind": "component",
       "parentId": "chat-system",
-      "what": "Async fanout and retry jobs",
-      "why": "Decouples send from delivery",
+      "what": "Handles image and video attachments",
+      "why": "Keeps heavy uploads off chat path",
+      "shape": "service",
+      "blurb": "Handles image video uploads",
+      "tier": "service",
+      "zone": "App cluster",
+      "flags": []
+    },
+    {
+      "id": "message-bus",
+      "name": "Message Bus (Kafka)",
+      "kind": "component",
+      "parentId": "chat-system",
+      "what": "Carries message events to deliverers",
+      "why": "Decouples send from fanout delivery",
       "shape": "queue",
+      "blurb": "Carries message events",
+      "tier": "messaging",
+      "zone": "App cluster",
       "flags": []
     },
     {
-      "id": "push-dispatcher",
-      "name": "Push Dispatcher",
+      "id": "message-store",
+      "name": "Message Store (Cassandra)",
       "kind": "component",
       "parentId": "chat-system",
-      "what": "Offline push and retries",
-      "why": "Reaches users not connected",
+      "what": "Stores messages and conversations durably",
+      "why": "Keeps chat history always available",
+      "shape": "store",
+      "blurb": "Stores chats and groups",
+      "tier": "database",
+      "zone": "Data subnet",
+      "flags": []
+    },
+    {
+      "id": "media-storage",
+      "name": "Media Storage (S3)",
+      "kind": "component",
+      "parentId": "chat-system",
+      "what": "Stores media blobs durably",
+      "why": "Serves large files cheaply",
+      "shape": "store",
+      "blurb": "Stores photos and videos",
+      "tier": "storage",
+      "zone": "Data subnet",
+      "flags": []
+    },
+    {
+      "id": "push-service",
+      "name": "Push Service",
+      "kind": "component",
+      "parentId": "chat-system",
+      "what": "Notifies offline users of messages",
+      "why": "Wakes up users missing live delivery",
       "shape": "worker",
+      "blurb": "Alerts offline users",
+      "tier": "worker",
+      "zone": "App cluster",
       "flags": []
     },
     {
-      "id": "msg-partitions",
-      "name": "Message Partitions",
-      "kind": "module",
-      "parentId": "message-store",
-      "what": "Append-only sharded log of messages by conversation",
-      "why": "Absorb 100B writes/day and keep per-conversation order",
-      "shape": "store",
+      "id": "push-provider",
+      "name": "Push Provider",
+      "kind": "component",
+      "parentId": "chat-system",
+      "what": "Third-party mobile push delivery",
+      "why": "Reaches phones when app closed",
+      "shape": "external",
+      "blurb": "Delivers mobile push alerts",
+      "tier": "external",
+      "zone": "Public internet",
       "flags": []
     },
     {
-      "id": "history-index",
-      "name": "History Index",
+      "id": "msg-history",
+      "name": "Message History Table (Cassandra)",
       "kind": "module",
       "parentId": "message-store",
-      "what": "Per-conversation time and seq index for pagination",
-      "why": "Serve history across devices without scanning log",
+      "what": "Stores one row per message keyed by message id",
+      "why": "Keeps single source of truth for message content",
       "shape": "store",
+      "blurb": "Stores every message by id",
+      "tier": "database",
+      "zone": "Data subnet",
       "flags": []
     },
     {
-      "id": "group-state",
-      "name": "Group State",
+      "id": "conv-timeline",
+      "name": "Conversation Timeline Index (Cassandra)",
       "kind": "module",
       "parentId": "message-store",
-      "what": "Group membership, roles, and per-group sequence counter",
-      "why": "Gate fanout and assign in-order seq numbers",
+      "what": "Indexes message ids by conversation ordered by time",
+      "why": "Serves in-order paged history fast",
       "shape": "store",
+      "blurb": "Ordered messages per conversation",
+      "tier": "database",
+      "zone": "Data subnet",
+      "flags": []
+    },
+    {
+      "id": "group-membership",
+      "name": "Group Membership Table (Cassandra)",
+      "kind": "module",
+      "parentId": "message-store",
+      "what": "Stores group members and roles by group id",
+      "why": "Authorizes group sends and fan-out",
+      "shape": "store",
+      "blurb": "Stores group members and roles",
+      "tier": "database",
+      "zone": "Data subnet",
       "flags": []
     }
   ],
   "connections": [
     {
-      "id": "c2",
-      "fromId": "api-gateway",
-      "toId": "chat-service",
+      "id": "c1",
+      "fromId": "mobile-app",
+      "toId": "api-gateway",
       "kind": "data",
-      "label": "routed chat requests"
+      "label": "send/receive chat over TLS"
+    },
+    {
+      "id": "c2",
+      "fromId": "mobile-app",
+      "toId": "realtime-gateway",
+      "kind": "data",
+      "label": "realtime messages over socket"
     },
     {
       "id": "c3",
-      "fromId": "chat-service",
-      "toId": "message-store",
-      "kind": "data",
-      "label": "persist 1:1 and group messages"
+      "fromId": "api-gateway",
+      "toId": "chat-service",
+      "kind": "control",
+      "label": "route authenticated requests"
     },
     {
       "id": "c4",
-      "fromId": "message-store",
-      "toId": "chat-service",
-      "kind": "data",
-      "label": "history and acks"
+      "fromId": "api-gateway",
+      "toId": "group-service",
+      "kind": "control",
+      "label": "route group operations"
     },
     {
       "id": "c5",
       "fromId": "chat-service",
-      "toId": "media-store",
+      "toId": "message-store",
       "kind": "data",
-      "label": "store attachments"
+      "label": "persist messages"
     },
     {
       "id": "c6",
-      "fromId": "chat-service",
-      "toId": "delivery-queue",
+      "fromId": "message-store",
+      "toId": "chat-service",
       "kind": "data",
-      "label": "enqueue fanout jobs"
+      "label": "message history ack"
     },
     {
       "id": "c7",
-      "fromId": "delivery-queue",
-      "toId": "push-dispatcher",
+      "fromId": "chat-service",
+      "toId": "message-bus",
       "kind": "data",
-      "label": "delivery jobs"
+      "label": "publish message events"
     },
     {
       "id": "c8",
-      "fromId": "chat-service",
-      "toId": "api-gateway",
+      "fromId": "message-bus",
+      "toId": "realtime-gateway",
       "kind": "data",
-      "label": "realtime fanout"
+      "label": "deliver message events"
+    },
+    {
+      "id": "c9",
+      "fromId": "realtime-gateway",
+      "toId": "mobile-app",
+      "kind": "data",
+      "label": "push live message"
+    },
+    {
+      "id": "c10",
+      "fromId": "group-service",
+      "toId": "message-store",
+      "kind": "data",
+      "label": "store membership"
+    },
+    {
+      "id": "c11",
+      "fromId": "chat-service",
+      "toId": "media-service",
+      "kind": "data",
+      "label": "upload media"
     },
     {
       "id": "c12",
-      "fromId": "chat-service",
-      "toId": "presence-service",
-      "kind": "control",
-      "label": "publish online, typing state"
+      "fromId": "media-service",
+      "toId": "media-storage",
+      "kind": "data",
+      "label": "store media blobs"
     },
     {
       "id": "c13",
-      "fromId": "presence-service",
-      "toId": "api-gateway",
-      "kind": "data",
-      "label": "presence updates"
+      "fromId": "chat-service",
+      "toId": "presence-service",
+      "kind": "control",
+      "label": "check presence"
     },
     {
       "id": "c14",
-      "fromId": "api-gateway",
-      "toId": "presence-service",
-      "kind": "control",
-      "label": "online/offline heartbeats"
+      "fromId": "message-bus",
+      "toId": "push-service",
+      "kind": "data",
+      "label": "offline message events"
     },
     {
       "id": "c15",
-      "fromId": "chat-service",
-      "toId": "msg-partitions",
+      "fromId": "push-service",
+      "toId": "push-provider",
       "kind": "data",
-      "label": "persist messages with seq"
+      "label": "send push alert"
     },
     {
       "id": "c16",
-      "fromId": "msg-partitions",
-      "toId": "chat-service",
+      "fromId": "realtime-gateway",
+      "toId": "presence-service",
       "kind": "data",
-      "label": "message acks and reads"
+      "label": "publish online offline heartbeats"
     },
     {
       "id": "c17",
-      "fromId": "chat-service",
-      "toId": "history-index",
+      "fromId": "presence-service",
+      "toId": "realtime-gateway",
       "kind": "data",
-      "label": "history pages query"
+      "label": "fan out presence updates to friends"
     },
     {
       "id": "c18",
-      "fromId": "history-index",
-      "toId": "chat-service",
+      "fromId": "chat-service",
+      "toId": "msg-history",
       "kind": "data",
-      "label": "history pages"
+      "label": "persist message row"
     },
     {
       "id": "c19",
       "fromId": "chat-service",
-      "toId": "group-state",
-      "kind": "control",
-      "label": "membership checks and seq alloc"
+      "toId": "conv-timeline",
+      "kind": "data",
+      "label": "append timeline entry"
     },
     {
       "id": "c20",
-      "fromId": "group-state",
+      "fromId": "conv-timeline",
       "toId": "chat-service",
-      "kind": "control",
-      "label": "membership and max seq"
+      "kind": "data",
+      "label": "paged history result"
     },
     {
       "id": "c21",
-      "fromId": "msg-partitions",
-      "toId": "history-index",
-      "kind": "dependency",
-      "label": "index new writes"
+      "fromId": "group-service",
+      "toId": "group-membership",
+      "kind": "data",
+      "label": "store membership rows"
     }
   ],
   "unmappedFlags": []

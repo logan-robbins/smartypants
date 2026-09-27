@@ -2,7 +2,7 @@
 name: smartypants
 description: Turn on Smartypants so a coding agent keeps a Mermaid-style system diagram (system, component, module), a compact IntentCode memory of the user's architectural intent, and drift flags where the code leaves that intent. Use when the user says smartypants, system diagram, architecture diagram, design interview, go deeper on a part, intent drift, or runs /smartypants.
 user-invocable: true
-argument-hint: "[reset | deeper <part> | intent | drift | mermaid | open]"
+argument-hint: "[reset | deeper <part> | catchup | review | intent | drift | mermaid | open]"
 ---
 
 # Smartypants
@@ -23,14 +23,22 @@ Do the steps. Do not ask the user to run them. If you cannot run commands in thi
 3. The `meta` flavor needs `META_API_KEY` (Meta Model API). The selector uses Jev when
    `TYPESAFE_API_KEY` is set, otherwise Muse Spark, otherwise local rules. When the user has a
    dotenv file, set `envFile` in the config to its path relative to the project. Never print keys.
-4. Codex only runs project hooks after the user approves them in the startup hooks review;
+4. On a project that already has code, `init` starts a background **catch-up**: it maps the code and the
+   infrastructure (compose, Kubernetes, Helm, Terraform) and draws the whole diagram from them. Tell the user
+   it is running; `npx smartypants catchup` starts it again.
+5. At the end of every agent turn Smartypants reviews what the turn changed (git status and new commits),
+   flags drift, and updates the diagram when services or infrastructure changed. `npx smartypants review`
+   runs the same review on demand.
+6. Codex only runs project hooks after the user approves them in the startup hooks review;
    tell Codex users to approve the Smartypants hooks once.
-5. To show the diagram, run `npx smartypants serve` in the background and give the printed URL
+7. To show the diagram, run `npx smartypants serve` in the background and give the printed URL
    (use `SMARTPANTS_PORT` when 4173 is taken; reuse a server already running for this project).
 
 ## Arguments
 
 - `deeper <part>`: run `npx smartypants deeper "<part>"`. Report the line it prints.
+- `catchup`: run `npx smartypants catchup` (background build from code).
+- `review`: run `npx smartypants review` and summarize the verdicts.
 - `intent`: run `npx smartypants intent` and show it as a code block.
 - `drift`: run `npx smartypants drift` and summarize each flag in one line.
 - `mermaid`: run `npx smartypants mermaid` and show a ```mermaid block.

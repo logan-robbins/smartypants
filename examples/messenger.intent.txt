@@ -1,9 +1,8 @@
-sys|G 1:1-and-group-chat|N in-order required|N at-least-once required|N load-messages-day 100B messages/day
-api-gateway>presence-service|E online-offline-heartbeats
-chat-client>api-gateway|E persistent-websocket
-chat-service|F group-messages-fanout|! intent:Chat Service owns conversation logic fanout 1:1-and-group-chat at-least-once required in-
-chat-service>api-gateway|E route-to-recipient-gateway
-message-store|F chat-history
-presence-service|F online-typing-status
-push-dispatcher|F offline-push
-push-dispatcher>chat-client|E offline-push
+sys|G 1:1-and-group-chat|N low-latency-realtime|N in-order required|N at-least-once required|N load-messages-day 100B messages/day
+chat-service|F send-receive-messages|! intent:Chat Service Handles sending fetching messages Owns core 1:1 messaging logic at-least-onc
+group-service|F group-membership
+presence-service|F heartbeat-subscribe
+presence-service>realtime-gateway|E presence-updates
+push-service|F offline-notifications
+realtime-gateway|F live-delivery
+realtime-gateway>presence-service|E heartbeats

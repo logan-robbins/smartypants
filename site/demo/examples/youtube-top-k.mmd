@@ -1,0 +1,62 @@
+flowchart LR
+  subgraph youtube_topk_sys["Top Video Ranking System"]
+    watch_client(["Watch Client Apps<br/><small>Watches videos, views top lists</small>"])
+    api_gateway[/"API Gateway<br/><small>Routes views and queries</small>"\]
+    view_ingest_service("View Ingest Service<br/><small>Accepts video view events</small>")
+    view_event_stream{{"View Event Stream (Kafka)<br/><small>Carries view events async</small>"}}
+    subgraph ranking_worker_group["Ranking Worker (Flink)"]
+      ranking_worker[["Ranking Worker (Flink)<br/><small>Counts views, builds top 100</small>"]]
+      count_sketch[["Count Sketch Tracker<br/><small>Approximate counts per window</small>"]]
+      top_heap[["Top Heap Builder<br/><small>Top 100 per window</small>"]]
+      window_assigner[["Window Assigner<br/><small>Assigns views to hour day windows</small>"]]
+      state_writer[["State Writer<br/><small>Writes counts and top lists</small>"]]
+    end
+    subgraph view_count_store_group["View Count Store"]
+      view_count_store[("View Count Store<br/><small>Stores views per time window</small>")]
+      alltime_counters[("All-Time Counter Table (Cassandra)<br/><small>Exact lifetime counts per video</small>")]
+    end
+    top_lists_cache[("Top Lists Cache (Redis)<br/><small>Serves precomputed top 100 fast</small>")]
+    topk_query_service("Top K Query Service<br/><small>Returns top 100 video lists</small>")
+    subgraph alltime_batch_job_group["All-Time Top Job"]
+      alltime_batch_job[["All-Time Top Job<br/><small>Rebuilds all-time top 100 hourly</small>"]]
+      hourly_rebuilder[["Hourly Top Rebuilder<br/><small>Scans counters builds top list</small>"]]
+    end
+  end
+  watch_client -->|"Watch views + top-K queries"| api_gateway
+  api_gateway -->|"View events"| view_ingest_service
+  api_gateway -->|"Get top 100: hour/day/all-time"| topk_query_service
+  view_ingest_service -->|"Publish view event"| view_event_stream
+  view_event_stream -->|"Deliver view events"| ranking_worker
+  ranking_worker -->|"Update hourly/daily/total counts"| view_count_store
+  ranking_worker -->|"Publish top-100 lists"| top_lists_cache
+  topk_query_service -->|"Read precomputed top-100"| top_lists_cache
+  top_lists_cache -->|"Top-100 lists"| topk_query_service
+  topk_query_service -->|"Top-100 videos response"| watch_client
+  view_event_stream -->|"Deliver partitioned view events"| count_sketch
+  count_sketch -->|"Estimated counts per window"| top_heap
+  top_heap -->|"Push top-100 per window"| top_lists_cache
+  view_event_stream -->|"Deliver view events"| window_assigner
+  top_heap -->|"Top-100 per window"| state_writer
+  state_writer -->|"Update hourly/daily/total counts"| view_count_store
+  state_writer -->|"Publish top-100 lists"| top_lists_cache
+  window_assigner -.->|"Hour/day window boundaries"| count_sketch
+  state_writer -->|"Increment exact all-time count"| alltime_counters
+  alltime_counters -->|"Exact counter snapshot hourly"| hourly_rebuilder
+  hourly_rebuilder -->|"Publish all-time top-100"| top_lists_cache
+  classDef drift fill:#fff0f0,stroke:#d33,stroke-width:2px
+  class topk_query_service drift
+  click watch_client callback "Plays videos and requests top lists"
+  click api_gateway callback "Routes view and top-K traffic"
+  click view_ingest_service callback "Validates and accepts view events"
+  click view_event_stream callback "Buffers video view events"
+  click ranking_worker callback "Aggregates partitioned view events into windowed counts"
+  click view_count_store callback "Stores per-video hourly daily totals"
+  click top_lists_cache callback "Holds ready top-100 hour day all-time"
+  click topk_query_service callback "Returns 100 most viewed per window"
+  click count_sketch callback "Keeps count-min sketch per hour/day/all-time window"
+  click top_heap callback "Maintains min-heap per window and emits top 100"
+  click window_assigner callback "Assigns each view to hour, day, and all-time windows"
+  click state_writer callback "Checkpoints counts and emits top-100 updates each minute"
+  click alltime_batch_job callback "Recomputes all-time top 100 hourly from exact counts"
+  click alltime_counters callback "Stores exact all-time view counts via Cassandra counters"
+  click hourly_rebuilder callback "Scans exact counters hourly and builds top-100 list"

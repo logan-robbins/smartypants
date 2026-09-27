@@ -65,6 +65,10 @@ function floorRules(floor) {
 }
 
 const NODE_RULES = [
+  "name: 2 to 5 plain words that say what the part is, Title Case, technology in parentheses when known ('Redirect Service', 'Link Table (DynamoDB)'). Never an id, bare acronym, or file name.",
+  "blurb: at most 8 words for the canvas, what it does for whom ('Turns short codes into long URLs').",
+  "tier places the box top to bottom: client, edge, frontend, api, service, worker, messaging, cache, database, storage; external for third parties; platform for auth, config, observability.",
+  "zone names the network or trust boundary (Public internet, Edge, App cluster, Data subnet, or a concrete namespace or subnet from the evidence). Databases and storage are never in the public zone.",
   "Each node needs a short what and a short why, in simple words this project would actually use.",
   "what says what that part does. why says why that part exists here. They are both required, and they are not the same sentence.",
   "A component belongs to one system. A module belongs to exactly one component.",
@@ -142,15 +146,24 @@ export function driftInstructions(floor, taxonomy = TAXONOMY) {
 }
 
 /**
- * The diagram as compact lines. Roughly a third of the tokens of the JSON.
- *   id|kind|parent|shape|name|what
+ * The diagram as compact lines. Under half the characters of the JSON.
+ *   id|kind|parent|shape/tier|zone|name|blurb
  *   from>to|kind|label#id
  */
 export function compactGraph(design, { withWhy = false, only } = {}) {
   const nodes = (design?.nodes || []).filter((node) => !only || only.has(node.id));
   if (!nodes.length) return "(empty)";
   const lines = nodes.map((node) =>
-    [node.id, node.kind, node.parentId || "", node.shape || "", node.name, node.what, ...(withWhy ? [node.why] : [])].join("|"),
+    [
+      node.id,
+      node.kind,
+      node.parentId || "",
+      [node.shape, node.tier].filter(Boolean).join("/"),
+      node.zone || "",
+      node.name,
+      withWhy ? node.what : node.blurb || node.what,
+      ...(withWhy ? [node.why] : []),
+    ].join("|"),
   );
   const ids = new Set(nodes.map((node) => node.id));
   for (const flow of design?.connections || []) {

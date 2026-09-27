@@ -32,6 +32,48 @@ function readNotes(value) {
   return out.slice(-NOTE_CAP);
 }
 
+export const TIERS = ["client", "edge", "frontend", "api", "service", "worker", "messaging", "cache", "database", "storage", "external", "platform"];
+
+function readTier(value) {
+  const tier = String(value || "").trim().toLowerCase();
+  return TIERS.includes(tier) ? tier : null;
+}
+
+function readShort(value, words, chars) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  return text.split(" ").slice(0, words).join(" ").slice(0, chars);
+}
+
+/**
+ * A name a person can read: ids and file-ish names become words.
+ * "redirect-svc" -> "Redirect Service", "topkAPI" -> "Topk API".
+ */
+export function readableName(value) {
+  let name = String(value || "").replace(/\s+/g, " ").trim();
+  if (!name) return name;
+  // Only an id-like token is rewritten; a name with spaces is the user's wording.
+  if (/\s/.test(name) || !/[-_]|[a-z][A-Z]/.test(name) || /[.()/]/.test(name)) return name.slice(0, 60);
+  name = name.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[-_]+/g, " ");
+  const EXPAND = { svc: "Service", srv: "Service", db: "DB", api: "API", ui: "UI", mq: "Queue", cfg: "Config", mgr: "Manager", k8s: "K8s" };
+  return name
+    .split(" ")
+    .map((word) => EXPAND[word.toLowerCase()] || (word === word.toLowerCase() ? word.charAt(0).toUpperCase() + word.slice(1) : word))
+    .join(" ")
+    .slice(0, 60);
+}
+
+function nodeExtras(source) {
+  const tier = readTier(source.tier);
+  const zone = readShort(source.zone, 6, 40);
+  const blurb = readShort(source.blurb, 10, 70);
+  return {
+    ...(blurb ? { blurb } : {}),
+    ...(tier ? { tier } : {}),
+    ...(zone ? { zone } : {}),
+  };
+}
+
 function readLevel(value) {
   return FLOORS.includes(value) ? value : null;
 }
@@ -63,6 +105,7 @@ export function loadDesign(root) {
       ...(parsed.seeded === true ? { seeded: true } : {}),
       ...(typeof parsed.seededAt === "string" ? { seededAt: parsed.seededAt } : {}),
       ...(readLevel(parsed.level) ? { level: parsed.level } : {}),
+      ...(Array.isArray(parsed.unmappedPositions) ? { unmappedPositions: parsed.unmappedPositions.filter((p) => Number.isFinite(p?.x) && Number.isFinite(p?.y)).map((p) => ({ id: String(p.id), x: p.x, y: p.y })) } : {}),
       nodes: parsed.nodes.map(cloneNode),
       connections: Array.isArray(parsed.connections) ? parsed.connections.map(cloneConnection) : [],
       unmappedFlags: Array.isArray(parsed.unmappedFlags) ? parsed.unmappedFlags.map(cloneFlag) : [],
@@ -97,6 +140,7 @@ function orderDesign(design) {
     ...(design.seeded === true ? { seeded: true } : {}),
     ...(typeof design.seededAt === "string" ? { seededAt: design.seededAt } : {}),
     ...(readLevel(design.level) ? { level: design.level } : {}),
+    ...(Array.isArray(design.unmappedPositions) && design.unmappedPositions.length ? { unmappedPositions: design.unmappedPositions } : {}),
     nodes: ordered.nodes,
     connections: ordered.connections,
     unmappedFlags: ordered.unmappedFlags,
@@ -107,6 +151,7 @@ export function carryDesignMeta(current, next) {
   if (current?.seeded === true) next.seeded = true;
   if (typeof current?.seededAt === "string") next.seededAt = current.seededAt;
   if (readLevel(current?.level) && !readLevel(next.level)) next.level = current.level;
+  if (Array.isArray(current?.unmappedPositions) && !next.unmappedPositions) next.unmappedPositions = current.unmappedPositions;
   return next;
 }
 
@@ -136,6 +181,7 @@ function orderNode(node) {
     what: node.what,
     why: node.why,
     ...(readShape(node.shape) ? { shape: node.shape } : {}),
+    ...nodeExtras(node),
     ...(readNotes(node.notes).length ? { notes: readNotes(node.notes) } : {}),
     ...(position || {}),
     flags: (node.flags || []).map(orderFlag),
@@ -190,6 +236,7 @@ function cloneNode(node) {
     what: String(node.what || ""),
     why: String(node.why || ""),
     ...(readShape(node.shape) ? { shape: readShape(node.shape) } : {}),
+    ...nodeExtras(node),
     ...(readNotes(node.notes).length ? { notes: readNotes(node.notes) } : {}),
     ...(position || {}),
     flags: Array.isArray(node.flags) ? node.flags.map(cloneFlag) : [],
@@ -200,6 +247,11 @@ function cloneNode(node) {
 export function placeNode(design, id, x, y) {
   const current = design && Array.isArray(design.nodes) ? design : emptyDesign();
   if (!Number.isFinite(x) || !Number.isFinite(y)) return { design: current, changed: false };
+  if (String(id).startsWith("unmapped-")) {
+    const positions = (current.unmappedPositions || []).filter((item) => item.id !== id);
+    positions.push({ id: String(id), x, y });
+    return { design: { ...current, unmappedPositions: positions }, changed: true };
+  }
   const nodes = current.nodes.map(cloneNode);
   const node = nodes.find((item) => item.id === id);
   if (!node) return { design: current, changed: false };
@@ -256,12 +308,13 @@ function cleanNode(raw) {
   const kind = String(raw.kind || "").trim().toLowerCase();
   return {
     id: typeof raw.id === "string" ? raw.id.trim() : "",
-    name: String(raw.name || "").trim(),
+    name: readableName(raw.name),
     kind,
     parentId: kind === "system" || raw.parentId == null || raw.parentId === "" ? null : String(raw.parentId),
     what: String(raw.what).trim(),
     why: String(raw.why).trim(),
     ...(readShape(raw.shape) ? { shape: readShape(raw.shape) } : {}),
+    ...nodeExtras(raw),
     ...(readNotes(raw.notes).length ? { notes: readNotes(raw.notes) } : {}),
     flags: [],
   };
@@ -279,6 +332,9 @@ function snapshot(design) {
       what: node.what,
       why: node.why,
       shape: node.shape || null,
+      blurb: node.blurb || null,
+      tier: node.tier || null,
+      zone: node.zone || null,
       notes: node.notes || [],
       flags: (node.flags || []).map((flag) => ({
         intent: flag.intent,
@@ -350,6 +406,7 @@ export function applyDesign(design, result, floor = DEFAULT_FLOOR) {
       match.what = node.what;
       match.why = node.why;
       if (node.shape) match.shape = node.shape;
+      for (const key of ["blurb", "tier", "zone"]) if (node[key]) match[key] = node[key];
       if (node.notes?.length) match.notes = readNotes([...(match.notes || []), ...node.notes]);
       continue;
     }

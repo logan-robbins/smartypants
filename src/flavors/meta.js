@@ -28,7 +28,7 @@ export async function invoke(request) {
     system: request.instructions,
     user: request.prompt,
     schema: request.schema,
-    name: request.kind === "drift" ? "smartypants_drift" : "smartypants_design",
+    name: request.kind === "drift" ? "smartypants_drift" : request.kind?.startsWith("catchup") ? "smartypants_catchup_unit" : "smartypants_design",
     model: request.model || META_MODEL,
     effort: request.reasoningEffort || EFFORT_BY_KIND[request.kind] || "low",
     maxTokens: 12000,

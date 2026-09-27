@@ -1,0 +1,67 @@
+flowchart LR
+  subgraph sys_newsfeed_sys["News Feed System"]
+    client_apps(["Feed Apps<br/><small>Publishes posts and reads feed</small>"])
+    api_gateway[/"Api Gateway<br/><small>Routes client traffic to services</small>"\]
+    post_service("Post Publishing Service<br/><small>Accepts and stores user posts</small>")
+    graph_service("Follow Graph Service<br/><small>Owns friends and follow edges</small>")
+    feed_service("Feed Delivery Service<br/><small>Builds personalized feed responses</small>")
+    subgraph ranker_service_group["Feed Ranking Service"]
+      ranker_service("Feed Ranking Service<br/><small>Scores posts for each viewer</small>")
+      ranking_features("Feature Builder<br/><small>Builds viewer post features</small>")
+      model_scorer("Model Scoring Engine<br/><small>Scores candidates for viewer</small>")
+      diversity_reranker("Diversity Reranker<br/><small>Diversifies top ranked posts</small>")
+      model_store[("Ranking Model Store<br/><small>Holds versioned ranking models</small>")]
+    end
+    fanout_worker[["Fanout Worker<br/><small>Fans posts out to followers</small>"]]
+    post_events{{"Post Event Stream<br/><small>Carries new posts to fanout</small>"}}
+    feed_cache[("Timeline Cache<br/><small>Holds prebuilt user timelines</small>")]
+    post_store[("Post Store<br/><small>Durable store for post content</small>")]
+    graph_store[("Social Graph Store<br/><small>Durable store for follow graph</small>")]
+    media_cdn[/"Media CDN<br/><small>Serves media bytes near users</small>"\]
+    media_store[("Media Blob Store<br/><small>Holds uploaded images and video</small>")]
+  end
+  client_apps -->|"Publish posts, request feed"| api_gateway
+  api_gateway -->|"Forward post publishes"| post_service
+  api_gateway -->|"Forward feed reads"| feed_service
+  post_service -->|"Persist posts"| post_store
+  post_service -->|"Publish new-post events"| post_events
+  post_events -->|"Deliver new-post events"| fanout_worker
+  fanout_worker -->|"Lookup followers"| graph_service
+  graph_service -->|"Read follow edges"| graph_store
+  fanout_worker -->|"Write fanout timelines"| feed_cache
+  feed_service -->|"Read timeline candidates"| feed_cache
+  feed_service -->|"Score candidates"| ranker_service
+  ranker_service -->|"Return ranked posts"| feed_service
+  feed_service -->|"Hydrate post details"| post_store
+  feed_service -->|"Return ranked feed"| api_gateway
+  feed_service -->|"Lookup celebrity follows"| graph_service
+  graph_service -->|"Return celebrity follows"| feed_service
+  feed_service -->|"Fetch celebrity posts on read"| post_store
+  client_apps -->|"Upload and fetch media"| media_cdn
+  media_cdn -->|"Read and write media bytes"| media_store
+  media_store -->|"Return media bytes"| media_cdn
+  media_cdn -->|"Deliver cached media"| client_apps
+  feed_service -->|"Send candidates + viewer context"| ranking_features
+  model_store ==>|"Load model weights"| model_scorer
+  ranking_features -->|"Send feature vectors"| model_scorer
+  model_scorer -->|"Send scored candidates"| diversity_reranker
+  diversity_reranker -->|"Return ranked posts"| feed_service
+  classDef drift fill:#fff0f0,stroke:#d33,stroke-width:2px
+  class sys_newsfeed drift
+  click client_apps callback "Lets users post and scroll feed"
+  click api_gateway callback "Routes and authenticates feed traffic"
+  click post_service callback "Validates and saves new posts"
+  click graph_service callback "Stores who follows whom"
+  click feed_service callback "Assembles candidate posts into feed"
+  click ranker_service callback "Ranks candidates by relevance"
+  click fanout_worker callback "Pushes new posts to timelines"
+  click post_events callback "Buffers published post events"
+  click feed_cache callback "Caches per-user candidate timelines"
+  click post_store callback "Persists posts and metadata"
+  click graph_store callback "Persists follow relationships"
+  click media_cdn callback "Caches and serves media in front of blob storage"
+  click media_store callback "Stores media bytes, posts keep only URL"
+  click ranking_features callback "Joins viewer, author, and post features"
+  click model_scorer callback "Applies ranking model to candidates"
+  click diversity_reranker callback "Demotes repeats and boosts diversity"
+  click model_store callback "Stores trained model versions"

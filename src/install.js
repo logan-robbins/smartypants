@@ -4,7 +4,11 @@ import { fileURLToPath } from "node:url";
 import { FLAVOR_IDS } from "./flavors/ids.js";
 import { intentPath } from "./intent.js";
 import { ledgerPath } from "./ledger.js";
+import { catchupPath } from "./catchup.js";
+import { sourceCount } from "./scan.js";
 import { statsPath } from "./stats.js";
+
+export const EXISTING_CODE_FILES = 8;
 import { designPath } from "./model.js";
 
 const PACKAGE_NAME = "@logan-robbins/smartypants";
@@ -22,8 +26,8 @@ function shellQuote(value) {
 }
 
 const HOSTS = [
-  { id: "claude", file: ".claude/settings.json", matcher: "Write|Edit|MultiEdit" },
-  { id: "codex", file: ".codex/hooks.json", matcher: "Write|Edit|MultiEdit|apply_patch" },
+  { id: "claude", file: ".claude/settings.json", matcher: "Write|Edit|MultiEdit", stop: true },
+  { id: "codex", file: ".codex/hooks.json", matcher: "Write|Edit|MultiEdit|apply_patch", stop: true },
   { id: "grok", file: ".grok/hooks/smartypants.json", matcher: "Write|Edit|MultiEdit|search_replace" },
   { id: "muse", file: ".muse/hooks.json", matcher: "Write|Edit|MultiEdit" },
 ];
@@ -70,6 +74,7 @@ function starterConfig({ flavor, seed }) {
     seed: Boolean(seed),
     decider: "auto",
     background: true,
+    review: "turn",
     model: null,
     reasoningEffort: null,
   };
@@ -81,6 +86,8 @@ function starterConfig({ flavor, seed }) {
  */
 export function installProject(root, options = {}) {
   const flavor = options.flavor || "meta";
+  // An existing codebase is caught up from its code in the background.
+  const existing = options.seed ?? sourceCount(root) >= EXISTING_CODE_FILES;
   if (!FLAVOR_IDS.includes(flavor)) {
     throw new Error(`smartypants: unknown flavor ${flavor}`);
   }
@@ -90,7 +97,7 @@ export function installProject(root, options = {}) {
   const configFile = path.join(root, "smartypants.config.json");
   if (fs.existsSync(configFile)) skipped.push("smartypants.config.json");
   else {
-    writeJson(configFile, starterConfig({ flavor, seed: options.seed }));
+    writeJson(configFile, starterConfig({ flavor, seed: existing }));
     wrote.push("smartypants.config.json");
   }
 
@@ -107,6 +114,7 @@ export function installProject(root, options = {}) {
     }
     addHook(current.doc, "UserPromptSubmit", command, host.matcher);
     addHook(current.doc, "PostToolUse", command, host.matcher);
+    if (host.stop) addHook(current.doc, "Stop", command, host.matcher);
     writeJson(file, current.doc);
     wrote.push(host.file);
   }
@@ -120,13 +128,13 @@ export function installProject(root, options = {}) {
     wrote.push(".pi/extensions/smartypants/index.js");
   }
 
-  return { command, wrote, skipped };
+  return { command, wrote, skipped, existing };
 }
 
 /** Drop the diagram, its intent memory, and counters. The project config stays. */
 export function resetGraph(root) {
   const removed = [];
-  for (const file of [designPath(root), ledgerPath(root), intentPath(root), statsPath(root)]) {
+  for (const file of [designPath(root), ledgerPath(root), intentPath(root), statsPath(root), catchupPath(root), path.join(root, ".smartypants", "turn-state.json")]) {
     if (!fs.existsSync(file)) continue;
     fs.rmSync(file);
     removed.push(file);

@@ -13,7 +13,23 @@ export const DESIGN_SCHEMA = {
         additionalProperties: false,
         properties: {
           id: { type: "string" },
-          name: { type: "string" },
+          name: {
+            type: "string",
+            description: "2 to 5 plain words a new engineer would understand, Title Case, what the part is, with the technology in parentheses when known: 'Redirect Service', 'Link Table (DynamoDB)', 'Click Event Stream (Kafka)'. Never an id, acronym soup, or file name.",
+          },
+          blurb: {
+            type: "string",
+            description: "At most 8 words shown under the name on the canvas: what it does and for whom. 'Turns short codes into long URLs'.",
+          },
+          tier: {
+            type: "string",
+            enum: ["client", "edge", "frontend", "api", "service", "worker", "messaging", "cache", "database", "storage", "external", "platform"],
+            description: "Architectural layer, used to place the box top to bottom: client (users, apps), edge (CDN, DNS, WAF, load balancer, ingress, API gateway), frontend (web UI, SSR), api (public API, BFF), service (domain logic), worker (async consumers, jobs), messaging (queues, streams), cache, database, storage (object, blob, files, warehouse), external (third-party systems), platform (auth, config, observability).",
+          },
+          zone: {
+            type: "string",
+            description: "Network or trust boundary the part runs in, short: 'Public internet', 'Edge', 'App cluster', 'Data subnet', or a concrete one from the evidence such as 'k8s ns checkout' or 'VPC private subnet'. Same text for parts in the same boundary.",
+          },
           kind: { type: "string", enum: ["system", "component", "module"] },
           grain: {
             type: "string",
@@ -33,7 +49,7 @@ export const DESIGN_SCHEMA = {
             description: "Deep-dive facts for this node only when going deeper: data model, algorithm, scaling, failure handling. Terse, no prose. Empty otherwise.",
           },
         },
-        required: ["id", "name", "kind", "grain", "parentId", "shape", "what", "why", "notes"],
+        required: ["id", "name", "blurb", "tier", "zone", "kind", "grain", "parentId", "shape", "what", "why", "notes"],
       },
     },
     connections: {

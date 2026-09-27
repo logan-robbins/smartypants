@@ -130,7 +130,7 @@ export function suggestLevel(features) {
   return "component";
 }
 
-const QUIET_PATH = /(?:^|\/)(?:test|tests|__tests__|spec|specs|docs?|examples?|fixtures?|\.smartypants|\.github|node_modules|dist|build|coverage)(?:\/|$)|\.(?:test|spec)\.[a-z]+$|_test\.[a-z]+$|(?:^|\/)test_[^/]+\.py$|(?:^|\/)(?:readme|changelog|license|contributing)[^/]*$|\.(?:md|txt|lock|snap|png|jpe?g|gif|svg|ico)$|(?:^|\/)(?:package-lock\.json|yarn\.lock|pnpm-lock\.yaml|\.gitignore|\.prettierrc.*|\.eslintrc.*|tsconfig.*\.json)$/i;
+const QUIET_PATH = /(?:^|\/)(?:test|tests|__tests__|spec|specs|docs?|examples?|fixtures?|\.smartypants|\.github|\.claude|\.codex|\.grok|\.muse|\.pi|\.cursor|\.agents|\.vscode|\.idea|node_modules|dist|build|coverage)(?:\/|$)|\.(?:test|spec)\.[a-z]+$|_test\.[a-z]+$|(?:^|\/)test_[^/]+\.py$|(?:^|\/)(?:readme|changelog|license|contributing)[^/]*$|\.(?:md|txt|lock|snap|png|jpe?g|gif|svg|ico)$|(?:^|\/)(?:package-lock\.json|yarn\.lock|pnpm-lock\.yaml|\.gitignore|\.prettierrc.*|\.eslintrc.*|tsconfig.*\.json)$/i;
 
 /** Features of a delivered edit. `quiet` edits cannot move architecture. */
 export function editFeatures(event, design = { nodes: [] }) {

@@ -17,6 +17,14 @@ export default function smartypants(pi) {
     return { action: "continue" };
   });
 
+  pi.on("agent_end", async (_event, ctx) => {
+    try {
+      await dispatchEvent({ cwd: ctx && ctx.cwd ? ctx.cwd : process.cwd(), event: { type: "turn-end" } });
+    } catch (error) {
+      console.error(`smartypants: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  });
+
   pi.on("tool_result", async (event, ctx) => {
     const toolName = event && event.toolName ? event.toolName : "";
     if (!isEditTool(toolName)) return;

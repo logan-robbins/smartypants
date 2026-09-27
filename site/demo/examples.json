@@ -1,0 +1,38 @@
+[
+ {
+  "name": "messenger",
+  "title": "Chat System",
+  "parts": 16,
+  "flows": 21
+ },
+ {
+  "name": "news-feed",
+  "title": "News Feed System",
+  "parts": 18,
+  "flows": 26
+ },
+ {
+  "name": "shop-monorepo",
+  "title": "Shop System",
+  "parts": 16,
+  "flows": 29
+ },
+ {
+  "name": "uber",
+  "title": "Ride Hailing System",
+  "parts": 13,
+  "flows": 16
+ },
+ {
+  "name": "url-shortener",
+  "title": "URL Shortener",
+  "parts": 11,
+  "flows": 18
+ },
+ {
+  "name": "youtube-top-k",
+  "title": "Top Video Ranking System",
+  "parts": 16,
+  "flows": 21
+ }
+]

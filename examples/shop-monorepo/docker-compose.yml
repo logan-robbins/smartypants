@@ -1,0 +1,29 @@
+services:
+  web:
+    build: ./web
+    ports: ["3000:3000"]
+    environment: { API_URL: http://api:8080 }
+    depends_on: [api]
+    networks: [public, app]
+  api:
+    build: ./services/api
+    environment: { DATABASE_URL: postgres://db/shop, REDIS_URL: redis://cache:6379, KAFKA_BROKERS: kafka:9092 }
+    depends_on: [db, cache, kafka]
+    networks: [app, data]
+  fulfillment:
+    build: ./services/fulfillment
+    depends_on: [kafka, db]
+    networks: [app, data]
+  db:
+    image: postgres:16
+    networks: [data]
+  cache:
+    image: redis:7
+    networks: [data]
+  kafka:
+    image: bitnami/kafka:3.7
+    networks: [app]
+networks:
+  public: {}
+  app: {}
+  data: { internal: true }

@@ -1,10 +1,14 @@
 {
-  "description": "Send design turns and file edits to Smartypants when the project has smartypants.config.json. No-op otherwise.",
+  "description": "Send design turns, edits, and end-of-turn reviews to Smartypants when the project has smartypants.config.json. No-op otherwise.",
   "hooks": {
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.mjs\"", "timeout": 20 }
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.mjs\"",
+            "timeout": 20
+          }
         ]
       }
     ],
@@ -12,7 +16,22 @@
       {
         "matcher": "Write|Edit|MultiEdit",
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.mjs\"", "timeout": 20 }
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.mjs\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.mjs\"",
+            "timeout": 20
+          }
         ]
       }
     ]

@@ -24,7 +24,8 @@ function text(value) {
 
 function box(node) {
   const [open, close] = SHAPES[node.shape] || SHAPES.service;
-  return `${id(node.id)}${open}"${text(node.name)}"${close}`;
+  const blurb = node.blurb ? `<br/><small>${text(node.blurb)}</small>` : "";
+  return `${id(node.id)}${open}"${text(node.name)}${blurb}"${close}`;
 }
 
 export function toMermaid(design, { direction = "LR" } = {}) {

@@ -1,15 +1,12 @@
-sys|G top-100-most-viewed per hour/day/all-time|N load-views-day 1B views/day|N load-views-s-peak 50k views/s|N load-qps 10k qps|N interval 1min
-alltime-batch-job|D hourly-batch>streaming-for-alltime
-cassandra-counters|D exact-counts>sketch-for-alltime
-heap-tracker|D min-heap-per-window
-redis-toplists|D redis>other-cache
-sketch-counter|D count-min-sketch>exact-counts|X alltime-sketch
-topk-api|F serve-topk-by-window
-topk-ranker|F compute-top-100-per-window
-topk-ranker>topk-cache>topk-api|E ranked-serving
-toplist-loader|! intent:Reads current top-100 Redis Top Lists code:Delivered topK executes SELECT video id views
-view-ingest>window-counter>count-store|E view-counting
-view-topic|D kafka-partitioned-by-video-id
-view-topic>sketch-counter>heap-tracker>redis-toplists>topk-api|E ranked-serving
-viewer-client>topk-api|E top-K-query
-window-counter|F maintain-hour-day-alltime-counts
+sys|G top-100-most-viewed hour-day-alltime|N load-views-day 1B views/day|N load-views-s-peak 50k views/s|N load-qps 10k qps|N interval 1min
+alltime|X sketch-approximate-counts
+alltime-batch-job|F recompute-alltime-top-100-hourly
+alltime-counters|D cassandra-counters>count-min-sketch
+alltime-top|D hourly-batch>streaming-update
+ranking-worker|D sketch count-min-sketch>exact-counts|D topk min-heap-per-window>full-sort|F aggregate-view-counts-by-window
+ranking-worker>top-lists-cache|E top-100-publish
+top-lists-cache|D redis-precomputed>on-demand-scan
+topk-query-service|N read-p99-low-latency|F serve-top-100-by-window|! intent:Top K Query Service returns 100 most viewed per window hour/day/all-time read-p99-low-lat
+view-event-stream|D kafka>sync-db-write|D partition video-id
+watch-client>topk-query-service|E top-K-queries
+window-assigner|Q late-event-policy 5min-allowed

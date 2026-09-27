@@ -1,7 +1,7 @@
 {
   "version": 1,
   "floor": "module",
-  "updatedAt": "2026-09-26T20:01:14.693Z",
+  "updatedAt": "2026-09-27T01:28:51.342Z",
   "level": "component",
   "nodes": [
     {
@@ -10,377 +10,279 @@
       "kind": "system",
       "parentId": null,
       "what": "Creates short links and redirects clicks",
-      "why": "Provide Bitly-like short links with click counts",
+      "why": "Shareable links with owner click counts",
       "shape": "service",
+      "blurb": "Creates short links tracks clicks",
+      "tier": "service",
+      "zone": "App cluster",
       "flags": []
     },
     {
-      "id": "owner-client",
-      "name": "Owner Client",
+      "id": "key-range",
+      "name": "Key Range Service",
       "kind": "component",
       "parentId": "url-shortener",
-      "what": "Creates links and views click counts",
-      "why": "Entry point for link owners",
-      "shape": "client",
-      "flags": []
-    },
-    {
-      "id": "visitor-client",
-      "name": "Visitor Client",
-      "kind": "component",
-      "parentId": "url-shortener",
-      "what": "Opens short links in a browser",
-      "why": "Generates redirect traffic and clicks",
-      "shape": "client",
-      "flags": []
-    },
-    {
-      "id": "edge-gateway",
-      "name": "Edge Gateway",
-      "kind": "component",
-      "parentId": "url-shortener",
-      "what": "Routes create, redirect, and stats calls",
-      "why": "Single edge for routing and offload",
-      "shape": "gateway",
-      "flags": []
-    },
-    {
-      "id": "link-service",
-      "name": "Link Service",
-      "kind": "component",
-      "parentId": "url-shortener",
-      "what": "Mints short codes and serves stats",
-      "why": "Owns link lifecycle and ownership",
+      "what": "Pre-generates and hands out unique short-code ranges",
+      "why": "Lets creators assign codes without colliding",
       "shape": "service",
+      "blurb": "Hands out collision-free code ranges",
+      "tier": "service",
+      "zone": "App cluster",
       "flags": []
     },
     {
-      "id": "redirect-service",
+      "id": "link-creator",
+      "name": "Link Creation Service",
+      "kind": "component",
+      "parentId": "url-shortener",
+      "what": "Takes long URLs and stores short-code mappings",
+      "why": "Provides collision-free link creation path",
+      "shape": "service",
+      "blurb": "Creates short links for owners",
+      "tier": "service",
+      "zone": "App cluster",
+      "flags": []
+    },
+    {
+      "id": "redirector",
       "name": "Redirect Service",
       "kind": "component",
       "parentId": "url-shortener",
-      "what": "Resolves codes to long URLs",
-      "why": "Keeps click path fast and isolated",
+      "what": "Resolves short codes to long URLs",
+      "why": "Serves high-volume redirects with low latency",
       "shape": "service",
+      "blurb": "Resolves short codes to targets",
+      "tier": "service",
+      "zone": "App cluster",
       "flags": [
         {
-          "intent": "Redirect Service keeps click path fast and isolated; click-counting-must-never-slow-redirect with p99<50ms",
-          "difference": "handler awaits db UPDATE links SET clicks before res.redirect, putting counting synchronously on redirect hot path instead of async after redirect"
+          "intent": "Redirect Service serves high-volume redirects with low latency with no-blocking-on-click-count via read-through-cache",
+          "difference": "Handler does await db.query UPDATE clicks before redirect, blocking the hot path on a synchronous DB write instead of fire-and-forget async counting, breaking p99<50ms at 10B/month; also does not fill cache after store miss."
+        },
+        {
+          "intent": "Redirect Service serves high-volume redirects with low latency via read-through-cache",
+          "difference": "handler does cache.get then store get on miss but never fills Redirect Cache, so misses never become hits and 10B/month reads stay on the database, breaking read-through-cache low-latency design"
         }
       ]
     },
     {
-      "id": "link-store",
-      "name": "Link Store",
+      "id": "link-table",
+      "name": "Link Table (Key-Value)",
       "kind": "component",
       "parentId": "url-shortener",
-      "what": "Persists code to URL plus counts",
-      "why": "Durable source of truth for links",
+      "what": "Stores short-code to long-URL mappings",
+      "why": "Durable lookup by key at large scale",
       "shape": "store",
+      "blurb": "Durable mapping of codes to URLs",
+      "tier": "database",
+      "zone": "Data subnet",
       "flags": []
     },
     {
-      "id": "click-cache",
-      "name": "Click Cache",
+      "id": "redirect-cache",
+      "name": "Redirect Cache",
       "kind": "component",
       "parentId": "url-shortener",
       "what": "Caches hot code to URL mappings",
-      "why": "Serves redirects without hitting store",
+      "why": "Keeps redirect reads off database",
       "shape": "cache",
+      "blurb": "Fast path for hot redirects",
+      "tier": "cache",
+      "zone": "Data subnet",
       "flags": []
     },
     {
       "id": "click-stream",
-      "name": "Click Stream",
+      "name": "Click Event Stream",
       "kind": "component",
       "parentId": "url-shortener",
-      "what": "Buffers click events",
-      "why": "Decouples redirects from counting",
+      "what": "Buffers redirect click events durably",
+      "why": "Decouples counting from fast redirects",
       "shape": "queue",
+      "blurb": "Buffers click events for async counting",
+      "tier": "messaging",
+      "zone": "App cluster",
       "flags": []
     },
     {
-      "id": "analytics-worker",
-      "name": "Analytics Worker",
+      "id": "click-aggregator",
+      "name": "Click Aggregation Worker",
       "kind": "component",
       "parentId": "url-shortener",
-      "what": "Aggregates clicks per short link",
-      "why": "Provides owner click counts async",
+      "what": "Consumes events and aggregates click counts",
+      "why": "Provides owner analytics without slowing redirects",
       "shape": "worker",
+      "blurb": "Counts clicks for link owners",
+      "tier": "worker",
+      "zone": "App cluster",
       "flags": []
     },
     {
-      "id": "key-range-service",
-      "name": "Key Range Service",
-      "kind": "component",
-      "parentId": "url-shortener",
-      "what": "Pre-generates unique short-code ranges",
-      "why": "Lets creators mint codes without colliding",
-      "shape": "service",
-      "flags": []
-    },
-    {
-      "id": "redirect-api",
-      "name": "Redirect API",
+      "id": "redirect-handler",
+      "name": "Redirect Request Handler",
       "kind": "module",
-      "parentId": "redirect-service",
-      "what": "Validates code and returns HTTP redirect",
-      "why": "Keeps edge protocol separate from lookup logic",
+      "parentId": "redirector",
+      "what": "Validates short code and returns 302 redirect",
+      "why": "Owns low-latency hot path under 10B/month load",
       "shape": "service",
+      "blurb": "Parses codes returns redirects",
+      "tier": "service",
+      "zone": "App cluster",
       "flags": []
     },
     {
-      "id": "mapping-lookup",
-      "name": "Mapping Lookup",
+      "id": "readthrough-fetcher",
+      "name": "Read Through Fetcher",
       "kind": "module",
-      "parentId": "redirect-service",
-      "what": "Checks cache then store for long URL",
-      "why": "Hits p99<50ms via cache-first read",
+      "parentId": "redirector",
+      "what": "Loads missing mappings from store into cache",
+      "why": "Keeps redirect fast while staying consistent",
       "shape": "service",
+      "blurb": "Fetches misses fills cache",
+      "tier": "service",
+      "zone": "App cluster",
       "flags": []
     },
     {
-      "id": "click-emitter",
-      "name": "Click Emitter",
+      "id": "click-publisher",
+      "name": "Click Event Publisher",
       "kind": "module",
-      "parentId": "redirect-service",
-      "what": "Fires async click event after redirect",
-      "why": "Keeps counting off the redirect hot path",
+      "parentId": "redirector",
+      "what": "Fire-and-forget click events to stream",
+      "why": "Preserves p99 latency by moving counts async",
       "shape": "service",
+      "blurb": "Emits clicks without blocking",
+      "tier": "service",
+      "zone": "App cluster",
       "flags": []
     }
   ],
   "connections": [
     {
-      "id": "c1",
-      "fromId": "owner-client",
-      "toId": "edge-gateway",
+      "id": "c-reserve-range",
+      "fromId": "link-creator",
+      "toId": "key-range",
       "kind": "data",
-      "label": "create-link request"
+      "label": "Reserve code range"
     },
     {
-      "id": "c2",
-      "fromId": "edge-gateway",
-      "toId": "link-service",
+      "id": "c-range-reply",
+      "fromId": "key-range",
+      "toId": "link-creator",
       "kind": "data",
-      "label": "forwarded create request"
+      "label": "Code range"
     },
     {
-      "id": "c3",
-      "fromId": "edge-gateway",
-      "toId": "owner-client",
+      "id": "c-store-link",
+      "fromId": "link-creator",
+      "toId": "link-table",
       "kind": "data",
-      "label": "short link result"
+      "label": "Store link mapping"
     },
     {
-      "id": "c4",
-      "fromId": "link-service",
-      "toId": "link-store",
+      "id": "c-cache-lookup",
+      "fromId": "redirector",
+      "toId": "redirect-cache",
       "kind": "data",
-      "label": "persist mapping"
+      "label": "Lookup long URL"
     },
     {
-      "id": "c5",
-      "fromId": "link-store",
-      "toId": "link-service",
+      "id": "c-cache-hit",
+      "fromId": "redirect-cache",
+      "toId": "redirector",
       "kind": "data",
-      "label": "persist ack"
+      "label": "Cached long URL"
     },
     {
-      "id": "c6",
-      "fromId": "link-service",
-      "toId": "edge-gateway",
+      "id": "c-fetch-miss",
+      "fromId": "redirector",
+      "toId": "link-table",
       "kind": "data",
-      "label": "short link result"
+      "label": "Fetch mapping on miss"
     },
     {
-      "id": "c7",
-      "fromId": "visitor-client",
-      "toId": "edge-gateway",
+      "id": "c-mapping-reply",
+      "fromId": "link-table",
+      "toId": "redirector",
       "kind": "data",
-      "label": "open short link"
+      "label": "Link mapping"
     },
     {
-      "id": "c8",
-      "fromId": "edge-gateway",
-      "toId": "redirect-service",
-      "kind": "data",
-      "label": "resolve request"
-    },
-    {
-      "id": "c9",
-      "fromId": "redirect-service",
-      "toId": "click-cache",
-      "kind": "data",
-      "label": "lookup code"
-    },
-    {
-      "id": "c10",
-      "fromId": "click-cache",
-      "toId": "redirect-service",
-      "kind": "data",
-      "label": "cached long URL"
-    },
-    {
-      "id": "c11",
-      "fromId": "redirect-service",
-      "toId": "link-store",
-      "kind": "data",
-      "label": "lookup code on miss"
-    },
-    {
-      "id": "c12",
-      "fromId": "link-store",
-      "toId": "redirect-service",
-      "kind": "data",
-      "label": "long URL"
-    },
-    {
-      "id": "c13",
-      "fromId": "redirect-service",
-      "toId": "edge-gateway",
-      "kind": "data",
-      "label": "HTTP redirect"
-    },
-    {
-      "id": "c14",
-      "fromId": "edge-gateway",
-      "toId": "visitor-client",
-      "kind": "data",
-      "label": "HTTP redirect"
-    },
-    {
-      "id": "c15",
-      "fromId": "redirect-service",
+      "id": "c-click-publish",
+      "fromId": "redirector",
       "toId": "click-stream",
       "kind": "data",
-      "label": "publish click event"
+      "label": "Publish click event"
     },
     {
-      "id": "c16",
+      "id": "c-click-consume",
       "fromId": "click-stream",
-      "toId": "analytics-worker",
+      "toId": "click-aggregator",
       "kind": "data",
-      "label": "click event"
+      "label": "Deliver click events"
     },
     {
-      "id": "c17",
-      "fromId": "analytics-worker",
-      "toId": "link-store",
+      "id": "c-counts-write",
+      "fromId": "click-aggregator",
+      "toId": "link-table",
       "kind": "data",
-      "label": "increment click count"
+      "label": "Update click counts"
     },
     {
-      "id": "c18",
-      "fromId": "edge-gateway",
-      "toId": "link-service",
+      "id": "c-handler-cache-lookup",
+      "fromId": "redirect-handler",
+      "toId": "redirect-cache",
       "kind": "data",
-      "label": "get click counts"
+      "label": "Lookup long URL"
     },
     {
-      "id": "c19",
-      "fromId": "link-service",
-      "toId": "link-store",
+      "id": "c-cache-hit-handler",
+      "fromId": "redirect-cache",
+      "toId": "redirect-handler",
       "kind": "data",
-      "label": "read counts"
+      "label": "Cached long URL"
     },
     {
-      "id": "c20",
-      "fromId": "link-store",
-      "toId": "link-service",
-      "kind": "data",
-      "label": "click counts"
+      "id": "c-handler-miss-fetch",
+      "fromId": "redirect-handler",
+      "toId": "readthrough-fetcher",
+      "kind": "control",
+      "label": "Fetch on cache miss"
     },
     {
-      "id": "c21",
-      "fromId": "link-service",
-      "toId": "edge-gateway",
+      "id": "c-fetcher-miss-fetch",
+      "fromId": "readthrough-fetcher",
+      "toId": "link-table",
       "kind": "data",
-      "label": "click counts"
+      "label": "Fetch mapping on miss"
     },
     {
-      "id": "c22",
-      "fromId": "link-service",
-      "toId": "key-range-service",
+      "id": "c-mapping-fetcher-reply",
+      "fromId": "link-table",
+      "toId": "readthrough-fetcher",
       "kind": "data",
-      "label": "request code range"
+      "label": "Link mapping"
     },
     {
-      "id": "c23",
-      "fromId": "key-range-service",
-      "toId": "link-service",
+      "id": "c-fetcher-cache-fill",
+      "fromId": "readthrough-fetcher",
+      "toId": "redirect-cache",
       "kind": "data",
-      "label": "assign code range"
+      "label": "Fill cache entry"
     },
     {
-      "id": "r1",
-      "fromId": "edge-gateway",
-      "toId": "redirect-api",
+      "id": "c-handler-click-forward",
+      "fromId": "redirect-handler",
+      "toId": "click-publisher",
       "kind": "data",
-      "label": "resolve request"
+      "label": "Forward click for counting"
     },
     {
-      "id": "r2",
-      "fromId": "redirect-api",
-      "toId": "mapping-lookup",
-      "kind": "data",
-      "label": "lookup code"
-    },
-    {
-      "id": "r3",
-      "fromId": "mapping-lookup",
-      "toId": "click-cache",
-      "kind": "data",
-      "label": "lookup code"
-    },
-    {
-      "id": "r4",
-      "fromId": "click-cache",
-      "toId": "mapping-lookup",
-      "kind": "data",
-      "label": "cached long URL"
-    },
-    {
-      "id": "r5",
-      "fromId": "mapping-lookup",
-      "toId": "link-store",
-      "kind": "data",
-      "label": "lookup code on miss"
-    },
-    {
-      "id": "r6",
-      "fromId": "link-store",
-      "toId": "mapping-lookup",
-      "kind": "data",
-      "label": "long URL"
-    },
-    {
-      "id": "r7",
-      "fromId": "mapping-lookup",
-      "toId": "redirect-api",
-      "kind": "data",
-      "label": "long URL"
-    },
-    {
-      "id": "r8",
-      "fromId": "redirect-api",
-      "toId": "click-emitter",
-      "kind": "data",
-      "label": "validated click"
-    },
-    {
-      "id": "r9",
-      "fromId": "click-emitter",
+      "id": "c-publisher-click-publish",
+      "fromId": "click-publisher",
       "toId": "click-stream",
       "kind": "data",
-      "label": "publish click event"
-    },
-    {
-      "id": "r10",
-      "fromId": "redirect-api",
-      "toId": "edge-gateway",
-      "kind": "data",
-      "label": "HTTP redirect"
+      "label": "Publish click event"
     }
   ],
   "unmappedFlags": []

@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { lookupConfig } from "../src/config.js";
 import { canvasModel, loadDesign, placeNode, saveDesign } from "../src/model.js";
+import { loadCatchup } from "../src/catchup.js";
 import { loadIntent, renderIntent, intentTokens } from "../src/intent.js";
 import { toMermaid } from "../src/mermaid.js";
 import { handleHook } from "../src/pipeline.js";
@@ -63,7 +64,11 @@ function submit(event) {
 function currentModel() {
   const design = loadDesign(projectRoot);
   const config = lookupConfig(projectRoot);
-  return { ...canvasModel(design, config?.depth || design.floor), ...(design.level ? { level: design.level } : {}) };
+  return {
+    ...canvasModel(design, config?.depth || design.floor),
+    ...(design.level ? { level: design.level } : {}),
+    ...(design.unmappedPositions ? { unmappedPositions: design.unmappedPositions } : {}),
+  };
 }
 
 const JSON_TYPE = "application/json; charset=utf-8";
@@ -72,7 +77,8 @@ let pending = 0;
 const server = http.createServer((req, res) => {
   const url = req.url || "/";
   if (url.startsWith("/design.json")) {
-    send(res, 200, JSON.stringify({ ...currentModel(), busy: pending > 0 }), JSON_TYPE);
+    const catchup = loadCatchup(projectRoot);
+    send(res, 200, JSON.stringify({ ...currentModel(), busy: pending > 0 || catchup?.state === "running", ...(catchup ? { catchup } : {}) }), JSON_TYPE);
     return;
   }
   if (url.startsWith("/design.mmd")) {
@@ -86,6 +92,12 @@ const server = http.createServer((req, res) => {
   }
   if (url.startsWith("/stats.json")) {
     send(res, 200, JSON.stringify(loadStats(projectRoot)), JSON_TYPE);
+    return;
+  }
+  if (req.method === "POST" && url.startsWith("/catchup")) {
+    pending += 1;
+    submit({ type: "catchup" }).catch((error) => console.error(`smartypants: ${error.message}`)).finally(() => { pending -= 1; });
+    send(res, 202, JSON.stringify({ ok: true }), JSON_TYPE);
     return;
   }
   if (req.method === "POST" && url.startsWith("/deeper")) {
@@ -107,9 +119,20 @@ const server = http.createServer((req, res) => {
     readBody(req)
       .then((raw) => {
         const body = JSON.parse(raw || "{}");
-        const moved = placeNode(loadDesign(projectRoot), body.id, Number(body.x), Number(body.y));
-        if (moved.changed) saveDesign(projectRoot, moved.design);
-        send(res, 200, JSON.stringify({ ok: true, changed: moved.changed }), "application/json; charset=utf-8");
+        const moves = body.reset ? [] : Array.isArray(body.moves) ? body.moves : [body];
+        let design = loadDesign(projectRoot);
+        let changed = false;
+        if (body.reset) {
+          design = { ...design, nodes: design.nodes.map(({ x, y, ...node }) => node), unmappedPositions: [] };
+          changed = true;
+        }
+        for (const move of moves) {
+          const moved = placeNode(design, move.id, Number(move.x), Number(move.y));
+          design = moved.design;
+          changed = changed || moved.changed;
+        }
+        if (changed) saveDesign(projectRoot, design);
+        send(res, 200, JSON.stringify({ ok: true, changed }), "application/json; charset=utf-8");
       })
       .catch(() => send(res, 400, "Bad position", "text/plain; charset=utf-8"));
     return;

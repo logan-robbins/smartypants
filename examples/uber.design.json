@@ -1,337 +1,314 @@
 {
   "version": 1,
   "floor": "module",
-  "updatedAt": "2026-09-26T20:01:40.805Z",
+  "updatedAt": "2026-09-27T01:28:56.494Z",
   "level": "module",
   "nodes": [
     {
-      "id": "uber",
-      "name": "Uber",
+      "id": "ride-system",
+      "name": "Ride Hailing System",
       "kind": "system",
       "parentId": null,
-      "what": "ride hailing platform",
-      "why": "connect riders with drivers and charge trips",
+      "what": "Lets riders request rides and drivers fulfill them",
+      "why": "Owns request to match to trip to charge",
       "shape": "service",
+      "blurb": "Requests, tracks and pays for rides",
+      "tier": "service",
+      "zone": "App cluster",
       "flags": []
     },
     {
       "id": "rider-app",
       "name": "Rider App",
       "kind": "component",
-      "parentId": "uber",
-      "what": "requests rides and pays",
-      "why": "entry point for riders",
+      "parentId": "ride-system",
+      "what": "Sends ride requests and shows trip progress",
+      "why": "Entry point for rider demand",
       "shape": "client",
+      "blurb": "Requests rides for riders",
+      "tier": "client",
+      "zone": "Public internet",
       "flags": []
     },
     {
       "id": "driver-app",
       "name": "Driver App",
       "kind": "component",
-      "parentId": "uber",
-      "what": "accepts rides and sends location",
-      "why": "entry point for drivers",
+      "parentId": "ride-system",
+      "what": "Shares location and accepts trip offers",
+      "why": "Entry point for driver supply",
       "shape": "client",
+      "blurb": "Accepts rides for drivers",
+      "tier": "client",
+      "zone": "Public internet",
       "flags": []
     },
     {
-      "id": "edge-gateway",
-      "name": "Edge Gateway",
+      "id": "api-gateway",
+      "name": "Api Gateway",
       "kind": "component",
-      "parentId": "uber",
-      "what": "routes rider driver traffic",
-      "why": "single entry to backend",
+      "parentId": "ride-system",
+      "what": "Routes rider and driver calls to services",
+      "why": "Single secure entry to backend",
       "shape": "gateway",
+      "blurb": "Routes client calls to services",
+      "tier": "edge",
+      "zone": "Edge",
       "flags": []
     },
     {
       "id": "matching-service",
       "name": "Matching Service",
       "kind": "component",
-      "parentId": "uber",
-      "what": "matches rider to nearby driver",
-      "why": "finds best driver fast",
+      "parentId": "ride-system",
+      "what": "Picks nearby driver for each ride request",
+      "why": "Core marketplace matchmaking",
       "shape": "service",
+      "blurb": "Matches riders to nearby drivers",
+      "tier": "service",
+      "zone": "App cluster",
+      "flags": [
+        {
+          "intent": "Picks nearby driver for each ride request for core marketplace matchmaking",
+          "difference": "Code does not perform nearby-driver match via Driver Location Cache lookup"
+        }
+      ]
+    },
+    {
+      "id": "driver-locations",
+      "name": "Driver Location Cache (Redis)",
+      "kind": "component",
+      "parentId": "ride-system",
+      "what": "Stores current driver positions for lookup",
+      "why": "Fast nearby search for matching",
+      "shape": "cache",
+      "blurb": "Holds live driver positions",
+      "tier": "cache",
+      "zone": "Data subnet",
       "flags": []
     },
     {
       "id": "trip-service",
       "name": "Trip Service",
       "kind": "component",
-      "parentId": "uber",
-      "what": "tracks active trip state",
-      "why": "owns trip lifecycle",
+      "parentId": "ride-system",
+      "what": "Tracks trip from assignment to dropoff",
+      "why": "Owns trip lifecycle and state",
       "shape": "service",
+      "blurb": "Tracks active trips end to end",
+      "tier": "service",
+      "zone": "App cluster",
       "flags": []
     },
     {
       "id": "trip-store",
-      "name": "Trip Store",
+      "name": "Trip Store (Postgres)",
       "kind": "component",
-      "parentId": "uber",
-      "what": "persists trips and locations",
-      "why": "durable trip record",
+      "parentId": "ride-system",
+      "what": "Saves trip history and status",
+      "why": "Durable source of trip truth",
       "shape": "store",
+      "blurb": "Persists trip records durably",
+      "tier": "database",
+      "zone": "Data subnet",
       "flags": []
     },
     {
-      "id": "billing-service",
-      "name": "Billing Service",
+      "id": "payment-service",
+      "name": "Payment Service",
       "kind": "component",
-      "parentId": "uber",
-      "what": "charges rider at trip end",
-      "why": "collects fare",
+      "parentId": "ride-system",
+      "what": "Calculates fare and charges rider",
+      "why": "Collects money at trip end",
       "shape": "service",
+      "blurb": "Charges riders after trips",
+      "tier": "service",
+      "zone": "App cluster",
       "flags": []
     },
     {
-      "id": "location-service",
-      "name": "Location Service",
-      "kind": "component",
-      "parentId": "uber",
-      "what": "tracks current driver positions",
-      "why": "to find nearby drivers fast",
-      "shape": "service",
-      "flags": []
-    },
-    {
-      "id": "geo-index",
-      "name": "Geo Index",
+      "id": "h3-geo-index",
+      "name": "H3 Geo Index",
       "kind": "module",
-      "parentId": "location-service",
-      "what": "in-memory geo index sharded by H3 cell",
-      "why": "to lookup drivers by cell quickly",
+      "parentId": "driver-locations",
+      "what": "Indexes live driver positions by H3 cell",
+      "why": "Enables fast nearby driver lookup",
       "shape": "cache",
-      "flags": []
+      "blurb": "Holds driver positions by cell",
+      "tier": "cache",
+      "zone": "Data subnet",
+      "flags": [
+        {
+          "intent": "Indexes live driver positions by H3 cell to enable fast nearby driver lookup",
+          "difference": "Code bypasses Redis lookup and scans Postgres drivers table for closest driver instead of using H3 cell index"
+        }
+      ]
     },
     {
       "id": "sequential-offer",
-      "name": "Sequential Offer",
+      "name": "Sequential Offer Engine",
       "kind": "module",
       "parentId": "matching-service",
-      "what": "queries nearby cells and offers one driver at a time",
-      "why": "to assign ride without spamming drivers",
+      "what": "Queries nearby cells and offers rides sequentially",
+      "why": "Improves acceptance without spamming drivers",
       "shape": "service",
-      "flags": []
+      "blurb": "Offers rides one driver at time",
+      "tier": "service",
+      "zone": "App cluster",
+      "notes": [
+        "Ranked queue by ETA then H3 ring expansion k=1..5",
+        "Single inflight offer per rideId with 10s TTL timeout",
+        "State machine: offered->accepted|declined|expired->next driver",
+        "Retry max 8 drivers then requeue rider with backoff",
+        "Skip stale drivers via Redis heartbeat age >12s check"
+      ],
+      "flags": [
+        {
+          "intent": "Queries nearby cells and offers rides sequentially to improve acceptance without spamming drivers",
+          "difference": "Code picks closest driver by full table scan instead of querying nearby cells and offering one-at-a-time"
+        }
+      ]
     },
     {
-      "id": "surge-service",
+      "id": "surge-pricing",
       "name": "Surge Pricing Service",
       "kind": "component",
-      "parentId": "uber",
-      "what": "computes surge multiplier per H3 cell",
-      "why": "balance supply and demand with price",
+      "parentId": "ride-system",
+      "what": "Aggregates supply and demand per H3 cell each minute",
+      "why": "Price trips to balance driver supply",
       "shape": "service",
+      "blurb": "Sets per-cell multipliers from supply demand",
+      "tier": "service",
+      "zone": "App cluster",
       "flags": []
     },
     {
-      "id": "payments-service",
-      "name": "Payments Service",
-      "kind": "component",
-      "parentId": "uber",
-      "what": "charges card after trip completes",
-      "why": "collect fare for completed trip",
-      "shape": "service",
-      "flags": []
-    },
-    {
-      "id": "surge-calculator",
-      "name": "Surge Calculator",
+      "id": "cell-surge-calculator",
+      "name": "Cell Surge Calculator",
       "kind": "module",
-      "parentId": "surge-service",
-      "what": "aggregates supply and demand every minute",
-      "why": "refresh per-cell multipliers",
+      "parentId": "surge-pricing",
+      "what": "Divides demand by supply per cell into multiplier",
+      "why": "Keep per-cell pricing consistent every minute",
       "shape": "service",
-      "flags": []
-    },
-    {
-      "id": "dispatch-coord",
-      "name": "Dispatch Coordinator",
-      "kind": "module",
-      "parentId": "matching-service",
-      "what": "owns dispatch lifecycle and per-offer timeout",
-      "why": "guarantees one active offer with fast retry",
-      "shape": "service",
-      "flags": []
-    },
-    {
-      "id": "candidate-selector",
-      "name": "Candidate Selector",
-      "kind": "module",
-      "parentId": "matching-service",
-      "what": "expands H3 rings and ranks nearby drivers",
-      "why": "finds closest suitable driver fast",
-      "shape": "service",
+      "blurb": "Computes multiplier per H3 cell",
+      "tier": "service",
+      "zone": "App cluster",
       "flags": []
     }
   ],
   "connections": [
     {
-      "id": "c1",
+      "id": "c-rider-gw",
       "fromId": "rider-app",
-      "toId": "edge-gateway",
-      "kind": "data",
-      "label": "ride request"
+      "toId": "api-gateway",
+      "kind": "control",
+      "label": "Request ride"
     },
     {
-      "id": "c2",
-      "fromId": "edge-gateway",
-      "toId": "matching-service",
-      "kind": "data",
-      "label": "ride request"
-    },
-    {
-      "id": "c3",
-      "fromId": "matching-service",
-      "toId": "driver-app",
-      "kind": "data",
-      "label": "match offer"
-    },
-    {
-      "id": "c4",
+      "id": "c-driver-gw",
       "fromId": "driver-app",
-      "toId": "matching-service",
+      "toId": "api-gateway",
       "kind": "data",
-      "label": "accept"
+      "label": "Location heartbeat, Accept ride"
     },
     {
-      "id": "c5",
+      "id": "c-gw-match",
+      "fromId": "api-gateway",
+      "toId": "matching-service",
+      "kind": "control",
+      "label": "Forward ride request"
+    },
+    {
+      "id": "c-gw-loc-write",
+      "fromId": "api-gateway",
+      "toId": "driver-locations",
+      "kind": "data",
+      "label": "Update driver location"
+    },
+    {
+      "id": "c-match-lookup",
+      "fromId": "matching-service",
+      "toId": "driver-locations",
+      "kind": "data",
+      "label": "Lookup nearby drivers"
+    },
+    {
+      "id": "c-loc-match",
+      "fromId": "driver-locations",
+      "toId": "matching-service",
+      "kind": "data",
+      "label": "Nearby drivers"
+    },
+    {
+      "id": "c-match-trip",
       "fromId": "matching-service",
       "toId": "trip-service",
-      "kind": "data",
-      "label": "create trip"
+      "kind": "control",
+      "label": "Create trip assignment"
     },
     {
-      "id": "c6",
+      "id": "c-trip-store",
       "fromId": "trip-service",
       "toId": "trip-store",
       "kind": "data",
-      "label": "persist trip"
+      "label": "Persist trip state"
     },
     {
-      "id": "c7",
+      "id": "c-store-trip-ack",
       "fromId": "trip-store",
       "toId": "trip-service",
       "kind": "data",
-      "label": "trip ack"
+      "label": "Trip saved"
     },
     {
-      "id": "c8",
-      "fromId": "driver-app",
+      "id": "c-trip-pay",
+      "fromId": "trip-service",
+      "toId": "payment-service",
+      "kind": "control",
+      "label": "Charge at trip end"
+    },
+    {
+      "id": "c-gw-trip",
+      "fromId": "api-gateway",
+      "toId": "trip-service",
+      "kind": "control",
+      "label": "Trip start and updates"
+    },
+    {
+      "id": "c-trip-status",
+      "fromId": "trip-service",
+      "toId": "api-gateway",
+      "kind": "data",
+      "label": "Trip status"
+    },
+    {
+      "id": "c-supply-surge",
+      "fromId": "driver-locations",
+      "toId": "surge-pricing",
+      "kind": "data",
+      "label": "Driver supply per cell"
+    },
+    {
+      "id": "c-demand-surge",
+      "fromId": "matching-service",
+      "toId": "surge-pricing",
+      "kind": "data",
+      "label": "Ride demand per cell"
+    },
+    {
+      "id": "c-trip-surge-fetch",
+      "fromId": "trip-service",
+      "toId": "surge-pricing",
+      "kind": "control",
+      "label": "Fetch surge multiplier"
+    },
+    {
+      "id": "c-surge-trip-price",
+      "fromId": "surge-pricing",
       "toId": "trip-service",
       "kind": "data",
-      "label": "location updates"
-    },
-    {
-      "id": "c9",
-      "fromId": "trip-service",
-      "toId": "billing-service",
-      "kind": "data",
-      "label": "trip complete"
-    },
-    {
-      "id": "driver-app>location-service",
-      "fromId": "driver-app",
-      "toId": "location-service",
-      "kind": "data",
-      "label": "location updates"
-    },
-    {
-      "id": "matching-service>location-service",
-      "fromId": "matching-service",
-      "toId": "location-service",
-      "kind": "data",
-      "label": "query nearby cells"
-    },
-    {
-      "id": "location-service>matching-service",
-      "fromId": "location-service",
-      "toId": "matching-service",
-      "kind": "data",
-      "label": "nearby drivers"
-    },
-    {
-      "id": "s1",
-      "fromId": "location-service",
-      "toId": "surge-service",
-      "kind": "data",
-      "label": "driver supply"
-    },
-    {
-      "id": "s2",
-      "fromId": "matching-service",
-      "toId": "surge-service",
-      "kind": "data",
-      "label": "ride demand"
-    },
-    {
-      "id": "s3",
-      "fromId": "surge-service",
-      "toId": "billing-service",
-      "kind": "data",
-      "label": "surge multipliers"
-    },
-    {
-      "id": "s4",
-      "fromId": "billing-service",
-      "toId": "payments-service",
-      "kind": "data",
-      "label": "final fare"
-    },
-    {
-      "id": "s5",
-      "fromId": "payments-service",
-      "toId": "rider-app",
-      "kind": "data",
-      "label": "receipt charge"
-    },
-    {
-      "id": "edge-gateway-dispatch-coord",
-      "fromId": "edge-gateway",
-      "toId": "dispatch-coord",
-      "kind": "data",
-      "label": "ride request"
-    },
-    {
-      "id": "dispatch-coord-candidate-selector",
-      "fromId": "dispatch-coord",
-      "toId": "candidate-selector",
-      "kind": "data",
-      "label": "need candidates"
-    },
-    {
-      "id": "candidate-selector-location-service",
-      "fromId": "candidate-selector",
-      "toId": "location-service",
-      "kind": "data",
-      "label": "query nearby cells"
-    },
-    {
-      "id": "location-service-candidate-selector",
-      "fromId": "location-service",
-      "toId": "candidate-selector",
-      "kind": "data",
-      "label": "nearby drivers"
-    },
-    {
-      "id": "candidate-selector-sequential-offer",
-      "fromId": "candidate-selector",
-      "toId": "sequential-offer",
-      "kind": "data",
-      "label": "ranked candidates"
-    },
-    {
-      "id": "dispatch-coord-sequential-offer",
-      "fromId": "dispatch-coord",
-      "toId": "sequential-offer",
-      "kind": "control",
-      "label": "start / timeout offer"
+      "label": "Surge multiplier"
     }
   ],
-  "unmappedFlags": [
-    {
-      "intent": "ride-request-match-track-charge with interval 4s, users-drivers-peak 5M drivers, latency <2s",
-      "difference": "full postgres scan of all online drivers conflicts with 5M drivers peak, 4s interval and <2s latency"
-    }
-  ]
+  "unmappedFlags": []
 }

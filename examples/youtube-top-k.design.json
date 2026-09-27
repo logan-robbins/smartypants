@@ -1,368 +1,370 @@
 {
   "version": 1,
   "floor": "module",
-  "updatedAt": "2026-09-26T20:01:36.673Z",
+  "updatedAt": "2026-09-27T01:28:30.909Z",
   "level": "module",
   "nodes": [
     {
-      "id": "yt-topk",
-      "name": "YouTube Top-K",
+      "id": "youtube-topk",
+      "name": "Top Video Ranking System",
       "kind": "system",
       "parentId": null,
-      "what": "Serves 100 most viewed videos per window",
-      "why": "Product needs hourly daily all-time charts",
+      "what": "Ranks most-viewed videos by hour, day, all time",
+      "why": "Serve YouTube top-K videos feature",
       "shape": "service",
+      "blurb": "Top 100 videos by time window",
+      "tier": "service",
+      "zone": "App cluster",
       "flags": []
     },
     {
-      "id": "viewer-client",
-      "name": "Viewer Client",
+      "id": "watch-client",
+      "name": "Watch Client Apps",
       "kind": "component",
-      "parentId": "yt-topk",
-      "what": "Sends views and requests top lists",
-      "why": "Outside caller driving reads and writes",
+      "parentId": "youtube-topk",
+      "what": "Plays videos and requests top lists",
+      "why": "Source of views and top-K reads",
       "shape": "client",
+      "blurb": "Watches videos, views top lists",
+      "tier": "client",
+      "zone": "Public internet",
       "flags": []
     },
     {
-      "id": "view-ingest",
-      "name": "View Ingest",
+      "id": "api-gateway",
+      "name": "API Gateway",
       "kind": "component",
-      "parentId": "yt-topk",
-      "what": "Accepts view events",
-      "why": "Entry point for count pipeline",
-      "shape": "service",
-      "flags": []
-    },
-    {
-      "id": "window-counter",
-      "name": "Window Counter",
-      "kind": "component",
-      "parentId": "yt-topk",
-      "what": "Counts views per video for hour day all-time",
-      "why": "Maintains windowed view totals",
-      "shape": "service",
-      "flags": []
-    },
-    {
-      "id": "count-store",
-      "name": "Count Store",
-      "kind": "component",
-      "parentId": "yt-topk",
-      "what": "Persists per-video window counts",
-      "why": "Durable source for ranking",
-      "shape": "store",
-      "flags": []
-    },
-    {
-      "id": "topk-ranker",
-      "name": "Top-K Ranker",
-      "kind": "component",
-      "parentId": "yt-topk",
-      "what": "Computes top 100 per window",
-      "why": "Avoids scanning all videos on read",
-      "shape": "worker",
-      "flags": []
-    },
-    {
-      "id": "topk-cache",
-      "name": "Top-K Cache",
-      "kind": "component",
-      "parentId": "yt-topk",
-      "what": "Holds current top-100 hour day all-time",
-      "why": "Serves hot charts fast",
-      "shape": "cache",
-      "flags": []
-    },
-    {
-      "id": "topk-api",
-      "name": "Top-K API",
-      "kind": "component",
-      "parentId": "yt-topk",
-      "what": "Returns top 100 for requested window",
-      "why": "Read edge for charts feature",
+      "parentId": "youtube-topk",
+      "what": "Routes view and top-K traffic",
+      "why": "Single entry point for clients",
       "shape": "gateway",
+      "blurb": "Routes views and queries",
+      "tier": "edge",
+      "zone": "Edge",
       "flags": []
     },
     {
-      "id": "view-topic",
-      "name": "View Topic",
-      "kind": "module",
-      "parentId": "view-ingest",
-      "what": "Holds view events partitioned by video id",
-      "why": "Buffer 50k/s views and keep per-video order",
+      "id": "view-ingest-service",
+      "name": "View Ingest Service",
+      "kind": "component",
+      "parentId": "youtube-topk",
+      "what": "Validates and accepts view events",
+      "why": "Decouple view writes from counting",
+      "shape": "service",
+      "blurb": "Accepts video view events",
+      "tier": "service",
+      "zone": "App cluster",
+      "flags": []
+    },
+    {
+      "id": "view-event-stream",
+      "name": "View Event Stream (Kafka)",
+      "kind": "component",
+      "parentId": "youtube-topk",
+      "what": "Buffers video view events",
+      "why": "Absorb view spikes reliably",
       "shape": "queue",
+      "blurb": "Carries view events async",
+      "tier": "messaging",
+      "zone": "App cluster",
       "flags": []
     },
     {
-      "id": "sketch-counter",
-      "name": "Sketch Counter",
-      "kind": "module",
-      "parentId": "window-counter",
-      "what": "Estimates per-video counts with sketch for hour/day only",
-      "why": "Fast approximate counts for sliding windows",
-      "shape": "service",
-      "notes": [
-        "CMS per window: hour/day/alltime, 5 rows x 200k counters, 4B counters",
-        "key videoId hashed d=5x, increment O(d) in-memory",
-        "sharded by kafka videoId partition, periodic merge to Count Store",
-        "flush deltas every 1min, hot-path <2ms at 50k views/s peak",
-        "overcount-only error eps~0.001, safe for top-100 threshold",
-        "failure: lossy sketch rebuilt from Count Store + topic replay"
-      ],
-      "flags": []
-    },
-    {
-      "id": "heap-tracker",
-      "name": "Heap Tracker",
-      "kind": "module",
-      "parentId": "topk-ranker",
-      "what": "Keeps min-heap of top 100 per hour/day/all-time",
-      "why": "Maintain rolling top-100 on 1min interval",
+      "id": "ranking-worker",
+      "name": "Ranking Worker (Flink)",
+      "kind": "component",
+      "parentId": "youtube-topk",
+      "what": "Aggregates partitioned view events into windowed counts",
+      "why": "Handles 50k views/s and builds top-100 continuously",
       "shape": "worker",
+      "blurb": "Counts views, builds top 100",
+      "tier": "worker",
+      "zone": "App cluster",
       "flags": []
     },
     {
-      "id": "redis-toplists",
-      "name": "Redis Top Lists",
-      "kind": "module",
-      "parentId": "topk-cache",
-      "what": "Stores current top-100 hour day all-time",
-      "why": "Serve 10k qps lookups",
+      "id": "view-count-store",
+      "name": "View Count Store",
+      "kind": "component",
+      "parentId": "youtube-topk",
+      "what": "Stores per-video hourly daily totals",
+      "why": "Durable source for rankings",
+      "shape": "store",
+      "blurb": "Stores views per time window",
+      "tier": "database",
+      "zone": "Data subnet",
+      "flags": []
+    },
+    {
+      "id": "top-lists-cache",
+      "name": "Top Lists Cache (Redis)",
+      "kind": "component",
+      "parentId": "youtube-topk",
+      "what": "Holds ready top-100 hour day all-time",
+      "why": "Serve top-K with low latency",
       "shape": "cache",
+      "blurb": "Serves precomputed top 100 fast",
+      "tier": "cache",
+      "zone": "Data subnet",
       "flags": []
     },
     {
-      "id": "api-router",
-      "name": "Window Router",
-      "kind": "module",
-      "parentId": "topk-api",
-      "what": "Validates window param and builds toplist response",
-      "why": "Keeps API contract stable across hour/day/all-time",
+      "id": "topk-query-service",
+      "name": "Top K Query Service",
+      "kind": "component",
+      "parentId": "youtube-topk",
+      "what": "Returns 100 most viewed per window",
+      "why": "Serve last-hour day all-time reads",
       "shape": "service",
-      "flags": []
-    },
-    {
-      "id": "toplist-loader",
-      "name": "Toplist Loader",
-      "kind": "module",
-      "parentId": "topk-api",
-      "what": "Reads current top-100 from Redis Top Lists",
-      "why": "Serves 10k qps reads without touching counters",
-      "shape": "service",
+      "blurb": "Returns top 100 video lists",
+      "tier": "api",
+      "zone": "App cluster",
       "flags": [
         {
-          "intent": "Reads current top-100 from Redis Top Lists",
-          "difference": "Delivered topK executes SELECT video_id, views FROM counts on Cassandra and sorts in-request instead of reading current top-100 from Redis Top Lists, touching counters on the 10k qps read path."
+          "intent": "Top K Query Service returns 100 most viewed per window (hour/day/all-time) with read-p99-low-latency",
+          "difference": "handler scans full counts table from Cassandra and sorts in request path on every call, establishing a lasting read path that cannot meet read-p99-low-latency at 10k qps and 1min freshness for top-100-by-window hour/day/all-time"
         }
       ]
     },
     {
-      "id": "query-guard",
-      "name": "Query Guard",
+      "id": "count-sketch",
+      "name": "Count Sketch Tracker",
       "kind": "module",
-      "parentId": "topk-api",
-      "what": "Rate-limits and authenticates top-K queries",
-      "why": "Protects cache and ranker from query spikes",
-      "shape": "service",
+      "parentId": "ranking-worker",
+      "what": "Keeps count-min sketch per hour/day/all-time window",
+      "why": "Counts 1B views/day in bounded memory",
+      "shape": "worker",
+      "blurb": "Approximate counts per window",
+      "tier": "worker",
+      "zone": "App cluster",
       "flags": []
     },
     {
-      "id": "cassandra-counters",
-      "name": "Cassandra Counters",
+      "id": "top-heap",
+      "name": "Top Heap Builder",
       "kind": "module",
-      "parentId": "count-store",
-      "what": "Exact counter table for all-time per-video views",
-      "why": "Keep precise all-time totals without sketch error",
-      "shape": "store",
+      "parentId": "ranking-worker",
+      "what": "Maintains min-heap per window and emits top 100",
+      "why": "Produces rankable top lists without full sort",
+      "shape": "worker",
+      "blurb": "Top 100 per window",
+      "tier": "worker",
+      "zone": "App cluster",
+      "flags": []
+    },
+    {
+      "id": "window-assigner",
+      "name": "Window Assigner",
+      "kind": "module",
+      "parentId": "ranking-worker",
+      "what": "Assigns each view to hour, day, and all-time windows",
+      "why": "Counts must reset per window for top-100 queries",
+      "shape": "worker",
+      "blurb": "Assigns views to hour day windows",
+      "tier": "worker",
+      "zone": "App cluster",
+      "flags": []
+    },
+    {
+      "id": "state-writer",
+      "name": "State Writer",
+      "kind": "module",
+      "parentId": "ranking-worker",
+      "what": "Checkpoints counts and emits top-100 updates each minute",
+      "why": "Keeps store and cache durable and fresh",
+      "shape": "worker",
+      "blurb": "Writes counts and top lists",
+      "tier": "worker",
+      "zone": "App cluster",
       "flags": []
     },
     {
       "id": "alltime-batch-job",
-      "name": "All-Time Batch Job",
-      "kind": "module",
-      "parentId": "topk-ranker",
-      "what": "Hourly scan to rebuild all-time top-100",
-      "why": "Recompute accurate all-time list once per hour",
+      "name": "All-Time Top Job",
+      "kind": "component",
+      "parentId": "youtube-topk",
+      "what": "Recomputes all-time top 100 hourly from exact counts",
+      "why": "All-time list needs exactness not real-time freshness",
       "shape": "worker",
+      "blurb": "Rebuilds all-time top 100 hourly",
+      "tier": "worker",
+      "zone": "App cluster",
+      "flags": []
+    },
+    {
+      "id": "alltime-counters",
+      "name": "All-Time Counter Table (Cassandra)",
+      "kind": "module",
+      "parentId": "view-count-store",
+      "what": "Stores exact all-time view counts via Cassandra counters",
+      "why": "Avoids sketch error for unbounded all-time totals",
+      "shape": "store",
+      "blurb": "Exact lifetime counts per video",
+      "tier": "database",
+      "zone": "Data subnet",
+      "flags": []
+    },
+    {
+      "id": "hourly-rebuilder",
+      "name": "Hourly Top Rebuilder",
+      "kind": "module",
+      "parentId": "alltime-batch-job",
+      "what": "Scans exact counters hourly and builds top-100 list",
+      "why": "Batch scan avoids streaming sort for all-time",
+      "shape": "worker",
+      "blurb": "Scans counters builds top list",
+      "tier": "worker",
+      "zone": "App cluster",
       "flags": []
     }
   ],
   "connections": [
     {
-      "id": "c1",
-      "fromId": "viewer-client",
-      "toId": "view-ingest",
+      "id": "c1-client-gateway",
+      "fromId": "watch-client",
+      "toId": "api-gateway",
       "kind": "data",
-      "label": "view event"
+      "label": "Watch views + top-K queries"
     },
     {
-      "id": "c2",
-      "fromId": "viewer-client",
-      "toId": "topk-api",
+      "id": "c2-gateway-ingest",
+      "fromId": "api-gateway",
+      "toId": "view-ingest-service",
       "kind": "data",
-      "label": "top-K query hour/day/all-time"
+      "label": "View events"
     },
     {
-      "id": "c3",
-      "fromId": "topk-api",
-      "toId": "viewer-client",
+      "id": "c3-gateway-query",
+      "fromId": "api-gateway",
+      "toId": "topk-query-service",
       "kind": "data",
-      "label": "top-100 result"
+      "label": "Get top 100: hour/day/all-time"
     },
     {
-      "id": "c4",
-      "fromId": "view-ingest",
-      "toId": "window-counter",
+      "id": "c4-ingest-stream",
+      "fromId": "view-ingest-service",
+      "toId": "view-event-stream",
       "kind": "data",
-      "label": "view event stream"
+      "label": "Publish view event"
     },
     {
-      "id": "c5",
-      "fromId": "window-counter",
-      "toId": "count-store",
+      "id": "c5-stream-worker",
+      "fromId": "view-event-stream",
+      "toId": "ranking-worker",
       "kind": "data",
-      "label": "increment per-video counts"
+      "label": "Deliver view events"
     },
     {
-      "id": "c6",
-      "fromId": "count-store",
-      "toId": "topk-ranker",
+      "id": "c6-worker-store",
+      "fromId": "ranking-worker",
+      "toId": "view-count-store",
       "kind": "data",
-      "label": "window counts"
+      "label": "Update hourly/daily/total counts"
     },
     {
-      "id": "c7",
-      "fromId": "topk-ranker",
-      "toId": "topk-cache",
+      "id": "c7-worker-cache",
+      "fromId": "ranking-worker",
+      "toId": "top-lists-cache",
       "kind": "data",
-      "label": "write top-100 lists"
+      "label": "Publish top-100 lists"
     },
     {
-      "id": "c8",
-      "fromId": "topk-api",
-      "toId": "topk-cache",
+      "id": "c8-query-cache",
+      "fromId": "topk-query-service",
+      "toId": "top-lists-cache",
       "kind": "data",
-      "label": "lookup ranked list"
+      "label": "Read precomputed top-100"
     },
     {
-      "id": "c9",
-      "fromId": "topk-cache",
-      "toId": "topk-api",
+      "id": "c9-cache-query",
+      "fromId": "top-lists-cache",
+      "toId": "topk-query-service",
       "kind": "data",
-      "label": "ranked top-100"
+      "label": "Top-100 lists"
     },
     {
-      "id": "c10",
-      "fromId": "view-ingest",
-      "toId": "view-topic",
+      "id": "c10-query-client",
+      "fromId": "topk-query-service",
+      "toId": "watch-client",
       "kind": "data",
-      "label": "publish partitioned views"
+      "label": "Top-100 videos response"
     },
     {
-      "id": "c11",
-      "fromId": "view-topic",
-      "toId": "window-counter",
+      "id": "c11-stream-sketch",
+      "fromId": "view-event-stream",
+      "toId": "count-sketch",
       "kind": "data",
-      "label": "consume video-partitioned views"
+      "label": "Deliver partitioned view events"
     },
     {
-      "id": "c12",
-      "fromId": "sketch-counter",
-      "toId": "heap-tracker",
+      "id": "c12-sketch-heap",
+      "fromId": "count-sketch",
+      "toId": "top-heap",
       "kind": "data",
-      "label": "sketch counts per window"
+      "label": "Estimated counts per window"
     },
     {
-      "id": "c13",
-      "fromId": "heap-tracker",
-      "toId": "redis-toplists",
+      "id": "c13-heap-cache",
+      "fromId": "top-heap",
+      "toId": "top-lists-cache",
       "kind": "data",
-      "label": "push top-100 per window"
+      "label": "Push top-100 per window"
     },
     {
-      "id": "c14",
-      "fromId": "topk-api",
-      "toId": "redis-toplists",
+      "id": "c14-stream-assigner",
+      "fromId": "view-event-stream",
+      "toId": "window-assigner",
       "kind": "data",
-      "label": "lookup ranked list"
+      "label": "Deliver view events"
     },
     {
-      "id": "c15",
-      "fromId": "redis-toplists",
-      "toId": "topk-api",
+      "id": "c15-heap-writer",
+      "fromId": "top-heap",
+      "toId": "state-writer",
       "kind": "data",
-      "label": "ranked top-100"
+      "label": "Top-100 per window"
     },
     {
-      "id": "c16",
-      "fromId": "viewer-client",
-      "toId": "query-guard",
+      "id": "c16-writer-store",
+      "fromId": "state-writer",
+      "toId": "view-count-store",
       "kind": "data",
-      "label": "top-K query hour/day/all-time"
+      "label": "Update hourly/daily/total counts"
     },
     {
-      "id": "c17",
-      "fromId": "query-guard",
-      "toId": "api-router",
+      "id": "c17-writer-cache",
+      "fromId": "state-writer",
+      "toId": "top-lists-cache",
+      "kind": "data",
+      "label": "Publish top-100 lists"
+    },
+    {
+      "id": "c18-assigner-sketch",
+      "fromId": "window-assigner",
+      "toId": "count-sketch",
       "kind": "control",
-      "label": "admitted query"
+      "label": "Hour/day window boundaries"
     },
     {
-      "id": "c18",
-      "fromId": "api-router",
-      "toId": "toplist-loader",
+      "id": "c19-writer-counters",
+      "fromId": "state-writer",
+      "toId": "alltime-counters",
       "kind": "data",
-      "label": "validated window request"
+      "label": "Increment exact all-time count"
     },
     {
-      "id": "c19",
-      "fromId": "redis-toplists",
-      "toId": "toplist-loader",
+      "id": "c20-counters-rebuilder",
+      "fromId": "alltime-counters",
+      "toId": "hourly-rebuilder",
       "kind": "data",
-      "label": "ranked top-100"
+      "label": "Exact counter snapshot hourly"
     },
     {
-      "id": "c20",
-      "fromId": "toplist-loader",
-      "toId": "redis-toplists",
+      "id": "c21-rebuilder-cache",
+      "fromId": "hourly-rebuilder",
+      "toId": "top-lists-cache",
       "kind": "data",
-      "label": "lookup ranked list"
-    },
-    {
-      "id": "c21",
-      "fromId": "toplist-loader",
-      "toId": "api-router",
-      "kind": "data",
-      "label": "ranked list"
-    },
-    {
-      "id": "c22",
-      "fromId": "api-router",
-      "toId": "viewer-client",
-      "kind": "data",
-      "label": "top-100 result"
-    },
-    {
-      "id": "c23",
-      "fromId": "window-counter",
-      "toId": "cassandra-counters",
-      "kind": "data",
-      "label": "increment exact all-time"
-    },
-    {
-      "id": "c24",
-      "fromId": "cassandra-counters",
-      "toId": "alltime-batch-job",
-      "kind": "data",
-      "label": "exact all-time counts"
-    },
-    {
-      "id": "c25",
-      "fromId": "alltime-batch-job",
-      "toId": "redis-toplists",
-      "kind": "data",
-      "label": "write all-time top-100 hourly"
+      "label": "Publish all-time top-100"
     }
   ],
   "unmappedFlags": []

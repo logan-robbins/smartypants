@@ -1,0 +1,6 @@
+replicaCount: 2
+image: { repository: ghcr.io/acme/shop-web, tag: 2.1.0 }
+service: { type: ClusterIP, port: 80 }
+ingress: { enabled: true, hosts: [{ host: shop.example.com }] }
+networkPolicy: { enabled: true }
+fulfillment: { enabled: true, service: { type: ClusterIP } }

@@ -1,5 +1,5 @@
-sys|G short-links redirects owner click-counts|N load-links-month 100M links/month|N load-redirects-month 10B redirects/month|N latency p99<50ms
-analytics-worker|D async-aggregate>sync-write|F count-clicks-for-owner
-key-range-service|F provide-unique-code-ranges
-link-service|D code-source pre-generated-key-ranges|F create-short-links
-redirect-service|N latency click-counting-must-never-slow-redirect|F redirect-clicks-to-long-URL|! intent:Redirect Service keeps click path fast isolated click-counting-must-never-slow-redirect p
+sys|G bitly-like-shortener|N load-links-month 100M links/month|N load-redirects-month 10B redirects/month|N latency p99<50ms|D id-allocation pre-generated-key-ranges|F owner-click-counts
+click-stream|D async-stream-aggregation>sync-write-on-redirect
+link-table|D backend key-value-store
+redirector|N latency no-blocking-on-click-count|D caching read-through-cache|! intent:Redirect Service serves high-volume redirects low latency via read-through-cache code:han
+redirector>click-stream|E click-events

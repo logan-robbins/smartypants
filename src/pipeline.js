@@ -1,6 +1,7 @@
 import path from "node:path";
 import { readConfig } from "./config.js";
 import { autoDeepenTarget, deeperFloor, nextLevel } from "./deeper.js";
+import { catchupOwnsSeed, runCatchup, saveCatchup } from "./catchup.js";
 import { applyDrift } from "./drift.js";
 import { loadEnvFile } from "./env.js";
 import { adapterFor } from "./flavors/index.js";
@@ -13,6 +14,7 @@ import { matchNode } from "./salience.js";
 import { recordTurn } from "./stats.js";
 import { TAXONOMY, floorRank } from "./taxonomy.js";
 import { triageEdit, triageTurn } from "./triage.js";
+import { driftEvidence, recordReviewed, reviewTurn, syncEvidence } from "./turnend.js";
 
 const DEFAULT_TIMEOUT_MS = 12000;
 
@@ -125,9 +127,15 @@ export async function handleHook(options = {}) {
   const timeoutMs = options.timeoutMs ?? config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const selectorUsage = [];
   const chooser = options.chooser || createChooser(config, { record: (usage) => selectorUsage.push(usage) });
+
+  if (event.type === "catchup") return runCatchupEvent({ cwd, config, adapter, started, timeoutMs });
+  if (event.type === "turn-end") return runTurnEnd({ cwd, config, adapter, chooser, selectorUsage, started, timeoutMs, options });
+  // With turn-end review, single edits wait for the end of the turn.
+  if (event.type === "edit" && config.review === "turn") return inert();
+
   const design = loadDesign(cwd);
   const intent = loadIntent(cwd);
-  const seeding = seedPending(design, config);
+  const seeding = seedPending(design, config) && !catchupOwnsSeed(cwd);
   const kindOf = seeding ? "seed" : event.type === "edit" ? "drift" : event.type === "deeper" ? "deepen" : "design";
 
   let decision;
@@ -266,4 +274,120 @@ export async function handleHook(options = {}) {
     console.error(`smartypants: ${message}`);
     return finish({ adapterInvoked: true, request, error: message, designChanged: false });
   }
+}
+
+async function runCatchupEvent({ cwd, config, adapter, started, timeoutMs }) {
+  console.error(`smartypants flavor=${config.flavor} kind=catchup`);
+  try {
+    const result = await runCatchup({ root: cwd, config, adapter, withGuard: withBuilderGuard, timeoutMs: Math.max(timeoutMs, 120000) });
+    recordTurn(cwd, { kind: "catchup", action: "catchup", reason: "code", via: "local", selector: [], builder: { cost: result.state.cost || 0 }, ms: Date.now() - started });
+    return { exitCode: 0, inert: false, adapterInvoked: true, request: null, error: null, designChanged: true, catchup: result.state };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    saveCatchup(cwd, { state: "failed", error: message, message: `Catch-up failed: ${message}` });
+    console.error(`smartypants: catch-up failed (${message})`);
+    return { exitCode: 0, inert: false, adapterInvoked: true, request: null, error: message, designChanged: false };
+  }
+}
+
+/**
+ * End of an agent turn: review what the turn changed in the working tree.
+ * One batched verdict call, then at most one drift check and one design sync.
+ */
+async function runTurnEnd({ cwd, config, adapter, chooser, selectorUsage, started, timeoutMs }) {
+  const design = loadDesign(cwd);
+  const intent = loadIntent(cwd);
+  let review;
+  try {
+    review = await reviewTurn({ root: cwd, design, intent, chooser });
+  } catch (error) {
+    console.error(`smartypants: turn review failed (${error instanceof Error ? error.message : String(error)})`);
+    return inert();
+  }
+  const changed = review.changes.files.length;
+  console.error(`smartypants flavor=${config.flavor} kind=turn-end files=${changed} reviewed=${review.reviewed.length} drift=${review.drift.length} infra=${review.infra.length} sync=${review.sync}`);
+  const builderUsage = [];
+  let designChanged = false;
+  const errors = [];
+  const budget = config.intentTokens || INTENT_TOKEN_BUDGET;
+
+  if (review.drift.length && design.nodes.length) {
+    const owners = [...new Set(review.drift.flatMap((change) => change.owners || []))];
+    const request = adapter.buildRequest({
+      config,
+      event: { type: "edit", path: review.drift.map((c) => c.path).join(", "), contents: "", diff: driftEvidence(review) },
+      design: canvasModel(design, config.depth),
+      floor: config.depth,
+      taxonomy: TAXONOMY,
+      cwd,
+      intent: renderIntent(intent, owners.length ? { subjects: [...owners, "sys"] } : {}),
+      owners,
+    });
+    try {
+      const parsed = await runBuilder(adapter, request, timeoutMs);
+      if (request.usage) builderUsage.push(request.usage);
+      const applied = applyDrift(loadDesign(cwd), parsed);
+      if (applied.changed) {
+        saveDesign(cwd, applied.design);
+        designChanged = true;
+      }
+      const lines = [];
+      for (const flag of parsed?.flags?.length ? parsed.flags : parsed?.diverges ? [parsed] : []) {
+        if (flag.intent && flag.difference) lines.push(`! ${flag.nodeId || "unmapped"} intent:${flag.intent} code:${flag.difference}`);
+      }
+      if (lines.length) saveIntent(cwd, rememberAtoms(loadIntent(cwd), lines, { source: "code", budget }).intent);
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  if (review.sync) {
+    const evidence = syncEvidence(cwd, review);
+    const floor = config.auto ? loadDesign(cwd).level || "component" : config.depth;
+    const request = adapter.buildRequest({
+      config,
+      event: { type: "user", text: evidence.text },
+      design: canvasModel(loadDesign(cwd), config.depth),
+      floor,
+      taxonomy: TAXONOMY,
+      cwd,
+      intent: renderIntent(loadIntent(cwd)),
+    });
+    try {
+      const parsed = await runBuilder(adapter, request, timeoutMs);
+      if (request.usage) builderUsage.push(request.usage);
+      const applied = applyDesign(loadDesign(cwd), parsed, floor);
+      if (applied.changed) {
+        saveDesign(cwd, applied.design);
+        designChanged = true;
+      }
+      if (Array.isArray(parsed?.intent) && parsed.intent.length) {
+        saveIntent(cwd, rememberAtoms(loadIntent(cwd), parsed.intent, { source: "code", budget }).intent);
+      }
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  if (!errors.length) recordReviewed(cwd, review.changes);
+  const cost = builderUsage.reduce((sum, u) => sum + (u.cost || 0), 0);
+  recordTurn(cwd, {
+    kind: "turn-end",
+    action: review.drift.length || review.sync ? "review" : "skip",
+    reason: changed ? `${review.reviewed.length} reviewed, ${review.drift.length} drift, ${review.infra.length} infra` : "no changes",
+    via: selectorUsage.length ? "selector" : "local",
+    selector: selectorUsage,
+    builder: builderUsage.length ? { cost, inputTokens: builderUsage.reduce((s, u) => s + (u.inputTokens || 0), 0), outputTokens: builderUsage.reduce((s, u) => s + (u.outputTokens || 0), 0) } : null,
+    ms: Date.now() - started,
+  });
+  if (errors.length) console.error(`smartypants: ${errors.join("; ")}`);
+  return {
+    exitCode: 0,
+    inert: false,
+    adapterInvoked: builderUsage.length > 0,
+    request: null,
+    error: errors[0] || null,
+    designChanged,
+    review: { files: changed, reviewed: review.reviewed.map((c) => c.path), drift: review.drift.map((c) => c.path), infra: review.infra.map((c) => c.path), verdicts: review.verdicts, sync: review.sync },
+  };
 }

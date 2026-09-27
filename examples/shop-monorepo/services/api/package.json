@@ -1,0 +1,1 @@
+{ "name": "orders-api", "private": true, "dependencies": { "express": "4.19.0", "pg": "8.12.0", "ioredis": "5.4.0", "kafkajs": "2.2.4", "stripe": "16.0.0", "jsonwebtoken": "9.0.2" } }

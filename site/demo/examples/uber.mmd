@@ -1,0 +1,51 @@
+flowchart LR
+  subgraph ride_system_sys["Ride Hailing System"]
+    rider_app(["Rider App<br/><small>Requests rides for riders</small>"])
+    driver_app(["Driver App<br/><small>Accepts rides for drivers</small>"])
+    api_gateway[/"Api Gateway<br/><small>Routes client calls to services</small>"\]
+    subgraph matching_service_group["Matching Service"]
+      matching_service("Matching Service<br/><small>Matches riders to nearby drivers</small>")
+      sequential_offer("Sequential Offer Engine<br/><small>Offers rides one driver at time</small>")
+    end
+    subgraph driver_locations_group["Driver Location Cache (Redis)"]
+      driver_locations[("Driver Location Cache (Redis)<br/><small>Holds live driver positions</small>")]
+      h3_geo_index[("H3 Geo Index<br/><small>Holds driver positions by cell</small>")]
+    end
+    trip_service("Trip Service<br/><small>Tracks active trips end to end</small>")
+    trip_store[("Trip Store (Postgres)<br/><small>Persists trip records durably</small>")]
+    payment_service("Payment Service<br/><small>Charges riders after trips</small>")
+    subgraph surge_pricing_group["Surge Pricing Service"]
+      surge_pricing("Surge Pricing Service<br/><small>Sets per-cell multipliers from supply demand</small>")
+      cell_surge_calculator("Cell Surge Calculator<br/><small>Computes multiplier per H3 cell</small>")
+    end
+  end
+  rider_app -.->|"Request ride"| api_gateway
+  driver_app -->|"Location heartbeat, Accept ride"| api_gateway
+  api_gateway -.->|"Forward ride request"| matching_service
+  api_gateway -->|"Update driver location"| driver_locations
+  matching_service -->|"Lookup nearby drivers"| driver_locations
+  driver_locations -->|"Nearby drivers"| matching_service
+  matching_service -.->|"Create trip assignment"| trip_service
+  trip_service -->|"Persist trip state"| trip_store
+  trip_store -->|"Trip saved"| trip_service
+  trip_service -.->|"Charge at trip end"| payment_service
+  api_gateway -.->|"Trip start and updates"| trip_service
+  trip_service -->|"Trip status"| api_gateway
+  driver_locations -->|"Driver supply per cell"| surge_pricing
+  matching_service -->|"Ride demand per cell"| surge_pricing
+  trip_service -.->|"Fetch surge multiplier"| surge_pricing
+  surge_pricing -->|"Surge multiplier"| trip_service
+  classDef drift fill:#fff0f0,stroke:#d33,stroke-width:2px
+  class matching_service,h3_geo_index,sequential_offer drift
+  click rider_app callback "Sends ride requests and shows trip progress"
+  click driver_app callback "Shares location and accepts trip offers"
+  click api_gateway callback "Routes rider and driver calls to services"
+  click matching_service callback "Picks nearby driver for each ride request"
+  click driver_locations callback "Stores current driver positions for lookup"
+  click trip_service callback "Tracks trip from assignment to dropoff"
+  click trip_store callback "Saves trip history and status"
+  click payment_service callback "Calculates fare and charges rider"
+  click h3_geo_index callback "Indexes live driver positions by H3 cell"
+  click sequential_offer callback "Queries nearby cells and offers rides sequentially"
+  click surge_pricing callback "Aggregates supply and demand per H3 cell each minute"
+  click cell_surge_calculator callback "Divides demand by supply per cell into multiplier"

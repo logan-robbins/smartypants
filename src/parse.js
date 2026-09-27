@@ -17,6 +17,8 @@ export function parseModelPayload(value) {
       if (typeof value.content === "string") return parseModelPayload(value.content);
       if (Array.isArray(value.content)) return parseModelPayload(value.content.map((item) => collectText(item)).join(""));
       if (typeof value.text === "string") return parseModelPayload(value.text);
+      // Any other plain object is already the structured answer (catch-up readers, custom schemas).
+      if (Object.getPrototypeOf(value) === Object.prototype && Object.keys(value).length) return value;
     }
   }
   if (typeof value === "string") {

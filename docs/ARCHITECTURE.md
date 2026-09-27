@@ -111,6 +111,48 @@ A system expands into components, a component into modules, and a module into te
 deep-dive `notes` (data model, algorithm, partitioning, failure handling, capacity math) that
 the canvas shows under "read more".
 
+## Layout convention
+
+The canvas uses one layered convention, drawn from 2026 cloud and C4-style reference diagrams:
+who calls sits at the top, where data rests sits at the bottom, the request journey runs left
+to right inside a layer, and network or trust boundaries are frames.
+
+| row | tiers | order inside the row |
+|---|---|---|
+| Users and clients | `client` | journey |
+| Edge | `edge` | journey |
+| Frontend | `frontend` | journey |
+| API | `api` | journey |
+| Services | `service`, `platform`, `external` | journey; third parties pushed to the right edge |
+| Async | `messaging`, `worker` | streams first, then their consumers |
+| Data | `cache`, `database` | caches first, beside the databases they front |
+| Storage | `storage` | journey |
+
+Journey order walks the flows breadth-first from the top-most callers, then each row is pulled
+toward the parts it talks to (median of neighbours) without overlaps. Components with modules
+are subgraphs laid out the same way inside. Arrows leave the bottom of a caller and enter the
+top of the callee; replies go back up on their own ports; a flow that must cross a busy row goes
+through the nearest free channel between boxes. `tier` and `zone` come from the builder; when a
+part has no tier it is inferred from its shape and name.
+
+## Knowing the code
+
+`src/scan.js` maps a repository without a model: units from manifests, notable dependencies,
+routes, tables, topics, endpoint environment variables, and third-party hosts; then compose,
+Kubernetes (including Ingress, NetworkPolicy, Gateway, namespaces), Helm (Chart, values,
+template kinds, subcharts), and Terraform. `boundaries()` turns those into lines such as
+`public entry: Ingress shop hosts shop.example.com routes /api->orders-api`.
+
+- **Catch-up** (`src/catchup.js`, event `catchup`): scan → one reader call per code unit (key
+  files first: manifest, entry points, routers, schema) → one synthesis call at `medium` effort.
+  Progress goes to `.smartypants/catchup.json`; a running or finished catch-up replaces the quick
+  path-sketch seed.
+- **Turn-end review** (`src/turnend.js`, event `turn-end` from `Stop` / `agent_end`): changed files
+  come from `git status`, commits since the last review, and a content-hash ledger, so each change
+  is reviewed once. Quiet paths cost nothing; the rest share one selector call with a question per
+  file; diverging files share one drift check; infrastructure changes and new boundaries share one
+  design sync with a fresh scan. With `review: "turn"`, single edits are not checked on their own.
+
 ## Background mode
 
 Muse Spark builder calls take 10–40 s. With `"background": true` (the default from `init`)

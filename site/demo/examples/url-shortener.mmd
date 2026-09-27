@@ -1,0 +1,45 @@
+flowchart LR
+  subgraph url_shortener_sys["URL Shortener"]
+    key_range("Key Range Service<br/><small>Hands out collision-free code ranges</small>")
+    link_creator("Link Creation Service<br/><small>Creates short links for owners</small>")
+    subgraph redirector_group["Redirect Service"]
+      redirector("Redirect Service<br/><small>Resolves short codes to targets</small>")
+      redirect_handler("Redirect Request Handler<br/><small>Parses codes returns redirects</small>")
+      readthrough_fetcher("Read Through Fetcher<br/><small>Fetches misses fills cache</small>")
+      click_publisher("Click Event Publisher<br/><small>Emits clicks without blocking</small>")
+    end
+    link_table[("Link Table (Key-Value)<br/><small>Durable mapping of codes to URLs</small>")]
+    redirect_cache[("Redirect Cache<br/><small>Fast path for hot redirects</small>")]
+    click_stream{{"Click Event Stream<br/><small>Buffers click events for async counting</small>"}}
+    click_aggregator[["Click Aggregation Worker<br/><small>Counts clicks for link owners</small>"]]
+  end
+  link_creator -->|"Reserve code range"| key_range
+  key_range -->|"Code range"| link_creator
+  link_creator -->|"Store link mapping"| link_table
+  redirector -->|"Lookup long URL"| redirect_cache
+  redirect_cache -->|"Cached long URL"| redirector
+  redirector -->|"Fetch mapping on miss"| link_table
+  link_table -->|"Link mapping"| redirector
+  redirector -->|"Publish click event"| click_stream
+  click_stream -->|"Deliver click events"| click_aggregator
+  click_aggregator -->|"Update click counts"| link_table
+  redirect_handler -->|"Lookup long URL"| redirect_cache
+  redirect_cache -->|"Cached long URL"| redirect_handler
+  redirect_handler -.->|"Fetch on cache miss"| readthrough_fetcher
+  readthrough_fetcher -->|"Fetch mapping on miss"| link_table
+  link_table -->|"Link mapping"| readthrough_fetcher
+  readthrough_fetcher -->|"Fill cache entry"| redirect_cache
+  redirect_handler -->|"Forward click for counting"| click_publisher
+  click_publisher -->|"Publish click event"| click_stream
+  classDef drift fill:#fff0f0,stroke:#d33,stroke-width:2px
+  class redirector drift
+  click key_range callback "Pre-generates and hands out unique short-code ranges"
+  click link_creator callback "Takes long URLs and stores short-code mappings"
+  click redirector callback "Resolves short codes to long URLs"
+  click link_table callback "Stores short-code to long-URL mappings"
+  click redirect_cache callback "Caches hot code to URL mappings"
+  click click_stream callback "Buffers redirect click events durably"
+  click click_aggregator callback "Consumes events and aggregates click counts"
+  click redirect_handler callback "Validates short code and returns 302 redirect"
+  click readthrough_fetcher callback "Loads missing mappings from store into cache"
+  click click_publisher callback "Fire-and-forget click events to stream"

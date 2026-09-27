@@ -1,0 +1,10 @@
+resource "aws_vpc" "shop" { cidr_block = "10.0.0.0/16" }
+resource "aws_subnet" "public" { vpc_id = aws_vpc.shop.id }
+resource "aws_subnet" "private" { vpc_id = aws_vpc.shop.id }
+resource "aws_lb" "shop" { internal = false }
+resource "aws_security_group" "db" { vpc_id = aws_vpc.shop.id }
+resource "aws_db_instance" "shop" { engine = "postgres" }
+resource "aws_elasticache_cluster" "cache" { engine = "redis" }
+resource "aws_msk_cluster" "events" { cluster_name = "shop-events" }
+resource "aws_s3_bucket" "invoices" { bucket = "shop-invoices" }
+resource "aws_cloudfront_distribution" "web" { enabled = true }
