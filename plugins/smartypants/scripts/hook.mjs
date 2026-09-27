@@ -36,7 +36,12 @@ function installedHook() {
 const hook = fs.existsSync(path.join(root, "smartypants.config.json")) && !projectWiresHook() ? installedHook() : null;
 if (hook) {
   await new Promise((resolve) => {
-    const child = spawn(process.execPath, [hook], { cwd: root, env: { ...process.env, SMARTPANTS_ROOT: root }, stdio: ["pipe", "ignore", "inherit"] });
+    // Keys entered in the plugin's settings (stored in the OS credential store) reach the hook
+    // as CLAUDE_PLUGIN_OPTION_*; an explicit environment variable still wins.
+    const env = { ...process.env, SMARTPANTS_ROOT: root };
+    if (!env.META_API_KEY && env.CLAUDE_PLUGIN_OPTION_META_API_KEY) env.META_API_KEY = env.CLAUDE_PLUGIN_OPTION_META_API_KEY;
+    if (!env.TYPESAFE_API_KEY && env.CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY) env.TYPESAFE_API_KEY = env.CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY;
+    const child = spawn(process.execPath, [hook], { cwd: root, env, stdio: ["pipe", "ignore", "inherit"] });
     child.on("error", resolve);
     child.on("exit", resolve);
     child.stdin.end(input);

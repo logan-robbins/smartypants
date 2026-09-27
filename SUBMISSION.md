@@ -29,22 +29,35 @@ Plugin: `smartypants` 0.2.0, directory `plugins/smartypants`, marketplace
 
 ## Needs the owner
 
-- [ ] **License.** The repository has no LICENSE file. Choose one before submitting; catalog
-      reviewers and `npm` both expect it. Add `"license"` to `package.json` and the plugin
-      manifests to match.
-- [ ] **Data disclosure** for the listing. With the default `meta` flavor, design turns, file
-      paths, and edited file contents are sent to the Meta Model API. The default model,
-      `muse-spark-1.3-contributor`, is Meta's Contributor tier, which is discounted in exchange
-      for Meta's right to train on that traffic. Projects that cannot share code should set
-      `"model": "muse-spark-1.3"` or another flavor. With `TYPESAFE_API_KEY`, turn text and part
-      names also go to Typesafe (Jev). Nothing is sent without `smartypants.config.json`.
-- [ ] **npm publish** (optional). The plugin tells users to `npm install
-      github:logan-robbins/smartypants`. Publishing `@logan-robbins/smartypants` would let
-      users install from the registry and let Pi use `pi install npm:@logan-robbins/smartypants`.
-- [ ] **Submit** at https://platform.claude.com/plugins/submit (Anthropic community catalog)
-      and https://platform.openai.com/plugins (OpenAI directory for Codex). Both need a
-      signed-in owner.
+Blocking (from the 2026 requirements in [docs/research/competitors.md](docs/research/competitors.md)):
 
+- [ ] **LICENSE.** Anthropic's directory blocks plugins without a LICENSE file or `license` field;
+      Cursor requires open source. Choose one (MIT maximizes adoption), add `LICENSE`, and set
+      `"license"` in `package.json` and every plugin manifest.
+- [ ] **Data disclosure.** README section "What leaves your machine" names every destination
+      (Meta Model API, optionally Typesafe). The default `muse-spark-1.3-contributor` tier lets
+      Meta train on that traffic; decide whether launch installs default to `muse-spark-1.3`
+      (no training). Security scans flag undisclosed destinations.
+- [ ] **Pin installs.** Tag a release (`v0.2.0`) and change `npm install github:logan-robbins/smartypants`
+      to `…#v0.2.0` (or publish to npm and pin the version) — unpinned launchers are blocking.
+
+Routes:
+
+- [ ] **Claude Code** — submit from **claude.ai/directory/manage** (paid plan). The older
+      `platform.claude.com/plugins/submit` form is no longer supported. Expect a human review
+      because the hook runs a Node script from a repo subfolder and calls an outside API; the
+      key is declared as a sensitive `userConfig` (stored in the OS credential store).
+- [ ] **Grok Build** — PR to `xai-org/plugin-marketplace`: an entry in
+      `.grok-plugin/marketplace.json` with a `url` source pinned to a full 40-character commit
+      SHA; run `scripts/validate-catalog.py`. Grok reads the Claude plugin as is.
+- [ ] **Codex** — the hook-driven plugin ships through this repo's marketplace
+      (`codex plugin marketplace add logan-robbins/smartypants`). The OpenAI directory accepts
+      skills-only or remote-MCP listings: verified identity, privacy policy URL, 5 positive and
+      3 negative test cases; list the skill as the storefront.
+- [ ] **Cursor** — open-source requirement plus manual review of name, description, logo, README.
+- [ ] **Pi** — `npm publish`; the `pi-package` keyword lists it in the Pi gallery automatically.
+- [ ] **skills.sh** — `npx skills add logan-robbins/smartypants` installs the skill; the
+      leaderboard ranks by installs, no submission.
 
 ## Host notes for the listing
 
