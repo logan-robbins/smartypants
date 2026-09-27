@@ -11,6 +11,8 @@
 
   var SVG_NS = "http://www.w3.org/2000/svg";
   var KIND_LABEL = { system: "System", component: "Component", module: "Module", unmapped: "Unmapped drift" };
+  var ARROW = 9; // arrowhead length in world units
+  var LABEL_ZOOM = 0.75; // arrow labels show from this zoom up (and always on focus)
 
   /**
    * Server calls, or their static stand-ins on the website demo
@@ -57,38 +59,18 @@
     return value;
   }
 
-  // ---- Mermaid shapes -------------------------------------------------------
-
-  function wrap(text, per) {
-    var words = String(text || "").split(/\s+/).filter(Boolean);
-    var lines = [];
-    var line = "";
-    words.forEach(function (word) {
-      var next = line ? line + " " + word : word;
-      if (line && next.length > per) {
-        lines.push(line);
-        line = word;
-      } else line = next;
-    });
-    if (line) lines.push(line);
-    return lines.length ? lines : [""];
+  function n1(v) {
+    return Math.round(v * 10) / 10;
   }
 
-  function wrapMax(text, per, max) {
-    var lines = wrap(text, per).filter(Boolean);
-    if (lines.length > max) {
-      lines = lines.slice(0, max);
-      lines[max - 1] = lines[max - 1].replace(/\s*\S*$/, "") + "…";
-    }
-    return lines;
-  }
+  // ---- Shapes ----------------------------------------------------------------
 
   function shapePath(shape, w, h) {
     var r;
     switch (shape) {
       case "store":
       case "cache":
-        r = 9;
+        r = 8;
         return "M0," + r + " a" + w / 2 + "," + r + " 0 0,0 " + w + ",0 a" + w / 2 + "," + r + " 0 0,0 " + -w + ",0" +
           " l0," + (h - 2 * r) + " a" + w / 2 + "," + r + " 0 0,0 " + w + ",0 l0," + -(h - 2 * r);
       case "queue":
@@ -103,91 +85,159 @@
     }
   }
 
-  function nodeSvg(node, selected, fresh) {
-    var classes = "node shape-" + esc(node.shape) + " kind-" + esc(node.kind) +
-      (node.flagged ? " is-drift" : "") + (selected ? " is-selected" : "") + (fresh ? " is-fresh" : "");
+  function textRows(lines, x, top, cls, step, anchor) {
+    return lines.map(function (line, i) {
+      return '<text class="' + cls + '" x="' + n1(x) + '" y="' + n1(top + i * step) + '"' + (anchor ? ' text-anchor="' + anchor + '"' : "") + ">" + esc(line) + "</text>";
+    }).join("");
+  }
+
+  function lineSet(node) {
+    var lines = node.lines || {};
+    var name = lines.name && lines.name.length ? lines.name : [node.name || ""];
+    var blurb = lines.blurb || (node.blurb ? [node.blurb] : []);
+    return { name: name, blurb: blurb };
+  }
+
+  function nodeSvg(node, state) {
+    var classes = "node shape-" + esc(node.shape) + " kind-" + esc(node.kind) + " tier-" + esc(node.tier || "service") +
+      (node.header ? " is-header" : "") + (node.flagged ? " is-drift" : "") + (state.selected ? " is-selected" : "") + (state.fresh ? " is-fresh" : "");
     var w = node.w;
     var h = node.h;
-    var body;
-    var path = shapePath(node.shape, w, h);
-    if (node.kind === "system") body = '<rect class="box" width="' + w + '" height="' + h + '" rx="' + h / 2 + '"/>';
-    else if (node.kind === "unmapped") body = '<rect class="box" width="' + w + '" height="' + h + '" rx="4"/>';
-    else if (path) body = '<path class="box" d="' + path + '"/>';
-    else if (node.shape === "client") body = '<rect class="box" width="' + w + '" height="' + h + '" rx="' + h / 2 + '"/>';
-    else if (node.shape === "worker") {
-      body = '<rect class="box" width="' + w + '" height="' + h + '"/>' +
-        '<line class="rule" x1="8" y1="0" x2="8" y2="' + h + '"/><line class="rule" x1="' + (w - 8) + '" y1="0" x2="' + (w - 8) + '" y2="' + h + '"/>';
-    } else body = '<rect class="box" width="' + w + '" height="' + h + '" rx="' + (node.kind === "component" ? 6 : 4) + '"/>';
-
-    var cap = node.shape === "store" || node.shape === "cache" ? 9 : 0;
-    var nameLines = node.kind === "unmapped" ? ["Unmapped drift"] : wrapMax(node.name, node.kind === "system" ? 48 : 24, 3);
-    var blurbLines = node.kind === "system" || node.kind === "unmapped" ? [] : wrapMax(node.blurb, 30, 2);
-    var nameH = node.kind === "system" ? 22 : 19;
-    var textH = nameLines.length * nameH + blurbLines.length * 15;
-    var top = cap + (h - cap - textH) / 2 + nameH / 2 + 1;
-    if (node.kind === "unmapped") top = 22;
-    var label = nameLines.map(function (line, i) {
-      return '<text class="label" x="' + w / 2 + '" y="' + (top + i * nameH) + '">' + esc(line) + "</text>";
-    }).join("") + blurbLines.map(function (line, i) {
-      return '<text class="blurb" x="' + w / 2 + '" y="' + (top + nameLines.length * nameH + i * 15 - 2) + '">' + esc(line) + "</text>";
-    }).join("");
-    if (node.kind === "unmapped") {
-      label += wrap(node.what, 30).concat(wrap(node.why, 30)).map(function (line, i) {
-        return '<text class="small" x="12" y="' + (44 + i * 16) + '">' + esc(line) + "</text>";
-      }).join("");
-    }
+    var lines = lineSet(node);
+    var body = "";
+    var label = "";
     var badges = "";
-    if (node.flagged) badges += '<g class="badge drift-badge" transform="translate(' + (w - 6) + ',-6)"><circle r="9"/><text y="4">!</text></g>';
-    if (node.collapsed) badges += '<g class="badge more-badge" transform="translate(' + (w / 2) + ',' + h + ')"><rect x="-16" y="-8" width="32" height="16" rx="8"/><text y="4">+' + node.hidden + "</text></g>";
-    else if (node.notes && node.notes.length) badges += '<g class="badge notes-badge" transform="translate(6,-6)"><circle r="8"/><text y="4">i</text></g>';
+    if (node.kind === "system") {
+      body = '<rect class="box" width="' + w + '" height="' + h + '" rx="12"/>';
+      label = '<text class="title" x="16" y="27">' + esc(lines.name[0]) + "</text>" +
+        (lines.blurb[0] ? '<text class="subtitle" x="16" y="48">' + esc(lines.blurb[0]) + "</text>" : "");
+    } else if (node.header) {
+      // A subgraph's title panel: the frame is drawn with the frames.
+      body = '<rect class="box" width="' + w + '" height="' + h + '" rx="12"/>';
+      var textH = lines.name.length * 20 + 6 + lines.blurb.length * 17 + 10 + 14;
+      var top = h <= 160 ? Math.max(18, (h - textH) / 2) + 10 : 30;
+      label = textRows(lines.name, 18, top, "head-name", 20) +
+        textRows(lines.blurb, 18, top + lines.name.length * 20 + 6, "head-blurb", 17) +
+        '<text class="head-meta" x="18" y="' + n1(top + lines.name.length * 20 + 6 + lines.blurb.length * 17 + 12) + '">' +
+        esc(node.parts + (node.parts === 1 ? " PART" : " PARTS")) + "</text>";
+    } else if (node.kind === "unmapped") {
+      body = '<rect class="box" width="' + w + '" height="' + h + '" rx="10"/>';
+      var code = (node.lines && node.lines.code) || [];
+      label = '<text class="card-title" x="16" y="26">Unmapped drift</text>' + textRows(lines.blurb, 16, 50, "card-line", 17) +
+        textRows(code, 16, 58 + lines.blurb.length * 17, "card-code", 17);
+    } else {
+      var path = shapePath(node.shape, w, h);
+      if (path) body = '<path class="box" d="' + path + '"/>';
+      else if (node.shape === "client") body = '<rect class="box" width="' + w + '" height="' + h + '" rx="' + Math.min(h / 2, 28) + '"/>';
+      else if (node.shape === "worker") {
+        body = '<rect class="box" width="' + w + '" height="' + h + '" rx="3"/>' +
+          '<line class="rule" x1="7" y1="0" x2="7" y2="' + h + '"/><line class="rule" x1="' + (w - 7) + '" y1="0" x2="' + (w - 7) + '" y2="' + h + '"/>';
+      } else body = '<rect class="box" width="' + w + '" height="' + h + '" rx="8"/>';
+      var cap = node.shape === "store" || node.shape === "cache" ? 16 : 0;
+      var blockH = lines.name.length * 20 + (lines.blurb.length ? 4 + lines.blurb.length * 17 : 0);
+      var start = cap + (h - cap - blockH) / 2;
+      label = textRows(lines.name, w / 2, start + 10, "label", 20, "middle") +
+        textRows(lines.blurb, w / 2, start + lines.name.length * 20 + 4 + 8.5, "blurb", 17, "middle");
+    }
+    if (node.flagged && node.kind !== "unmapped") badges += '<g class="badge drift-badge" transform="translate(' + (w - 4) + ',4)"><circle r="9"/><text y="0.5">!</text></g>';
+    if (node.collapsed) badges += '<g class="badge more-badge" transform="translate(' + w / 2 + "," + h + ')"><rect x="-18" y="-9" width="36" height="18" rx="9"/><text y="0.5">+' + node.hidden + "</text></g>";
+    else if (node.notes && node.notes.length && !node.header && node.kind !== "system") badges += '<g class="badge notes-badge" transform="translate(4,4)"><circle r="7"/><text y="0.5">i</text></g>';
     return '<g class="' + classes + '" data-node-id="' + esc(node.id) + '" transform="translate(' + node.x + "," + node.y + ')">' + body + label + badges + "</g>";
   }
 
-  function roundedPath(points, radius) {
+  function roundedPath(points, radius, closed) {
     if (!points.length) return "";
-    var d = "M" + points[0].x + "," + points[0].y;
-    for (var i = 1; i < points.length - 1; i += 1) {
-      var prev = points[i - 1];
-      var at = points[i];
-      var next = points[i + 1];
+    var list = points;
+    var n = list.length;
+    function corner(prev, at, next) {
       var inLen = Math.hypot(at.x - prev.x, at.y - prev.y);
       var outLen = Math.hypot(next.x - at.x, next.y - at.y);
       var r = Math.min(radius, inLen / 2, outLen / 2);
-      if (!r) {
-        d += " L" + at.x + "," + at.y;
-        continue;
-      }
-      var ax = at.x - ((at.x - prev.x) / inLen) * r;
-      var ay = at.y - ((at.y - prev.y) / inLen) * r;
-      var bx = at.x + ((next.x - at.x) / outLen) * r;
-      var by = at.y + ((next.y - at.y) / outLen) * r;
-      d += " L" + ax + "," + ay + " Q" + at.x + "," + at.y + " " + bx + "," + by;
+      if (!r) return { a: at, b: at, at: at, flat: true };
+      return {
+        a: { x: at.x - ((at.x - prev.x) / inLen) * r, y: at.y - ((at.y - prev.y) / inLen) * r },
+        b: { x: at.x + ((next.x - at.x) / outLen) * r, y: at.y + ((next.y - at.y) / outLen) * r },
+        at: at,
+      };
     }
-    var last = points[points.length - 1];
-    return d + " L" + last.x + "," + last.y;
+    var d;
+    if (closed) {
+      var first = corner(list[n - 1], list[0], list[1]);
+      d = "M" + n1(first.b.x) + "," + n1(first.b.y);
+      for (var i = 1; i <= n; i += 1) {
+        var c = corner(list[i - 1], list[i % n], list[(i + 1) % n]);
+        d += " L" + n1(c.a.x) + "," + n1(c.a.y) + (c.flat ? "" : " Q" + n1(c.at.x) + "," + n1(c.at.y) + " " + n1(c.b.x) + "," + n1(c.b.y));
+      }
+      return d + " Z";
+    }
+    d = "M" + n1(list[0].x) + "," + n1(list[0].y);
+    for (var k = 1; k < n - 1; k += 1) {
+      var cc = corner(list[k - 1], list[k], list[k + 1]);
+      d += " L" + n1(cc.a.x) + "," + n1(cc.a.y) + (cc.flat ? "" : " Q" + n1(cc.at.x) + "," + n1(cc.at.y) + " " + n1(cc.b.x) + "," + n1(cc.b.y));
+    }
+    return d + " L" + n1(list[n - 1].x) + "," + n1(list[n - 1].y);
   }
 
-  function edgeSvg(edge, highlight) {
-    var points = edge.points && edge.points.length ? edge.points : [{ x: edge.x1, y: edge.y1 }, { x: edge.x2, y: edge.y2 }];
-    var cls = "edge flow-" + esc(edge.kind) + (highlight ? " is-related" : "");
-    var d = roundedPath(points, 10);
-    var out = '<g class="' + cls + '" data-edge-index="' + edge.index + '"><path class="hit" d="' + d + '"/><path class="line" d="' + d + '" marker-end="url(#arrow-' + esc(edge.kind === "control" ? "control" : "data") + ')"/>';
-    if (edge.label) {
-      var text = edge.label.length > 34 ? edge.label.slice(0, 33) + "…" : edge.label;
-      var w = text.length * 6.6 + 14;
-      out += '<g class="edge-label" transform="translate(' + edge.cx + "," + edge.cy + ')"><rect x="' + -w / 2 + '" y="-10" width="' + w + '" height="20" rx="2"/><text y="4">' + esc(text) + "</text></g>";
-    }
+  /** The line stops at the base of the arrowhead; the head is a crisp triangle. */
+  function edgeGeometry(edge) {
+    var points = (edge.points && edge.points.length ? edge.points : [{ x: edge.x1, y: edge.y1 }, { x: edge.x2, y: edge.y2 }])
+      .filter(function (p, i, all) { return i === 0 || Math.abs(p.x - all[i - 1].x) + Math.abs(p.y - all[i - 1].y) > 0.1; });
+    if (points.length < 2) points = [{ x: edge.x1, y: edge.y1 }, { x: edge.x2, y: edge.y2 }];
+    var tip = points[points.length - 1];
+    var prev = points[points.length - 2];
+    var len = Math.hypot(tip.x - prev.x, tip.y - prev.y) || 1;
+    var ux = (tip.x - prev.x) / len;
+    var uy = (tip.y - prev.y) / len;
+    var cut = Math.min(ARROW - 1, len - 0.5);
+    var line = points.slice(0, -1).concat([{ x: tip.x - ux * cut, y: tip.y - uy * cut }]);
+    var bx = tip.x - ux * ARROW;
+    var by = tip.y - uy * ARROW;
+    var head = "M" + n1(tip.x) + "," + n1(tip.y) + " L" + n1(bx - uy * 4.5) + "," + n1(by + ux * 4.5) + " L" + n1(bx + uy * 4.5) + "," + n1(by - ux * 4.5) + " Z";
+    return { d: roundedPath(line, 8), full: roundedPath(points, 8), head: head };
+  }
+
+  function edgeAttrs(edge) {
+    return ' data-edge-index="' + edge.index + '" data-from="' + esc(edge.from) + '" data-to="' + esc(edge.to) + '"';
+  }
+
+  function edgeSvg(edge, related) {
+    var g = edgeGeometry(edge);
+    var cls = "edge flow-" + esc(edge.kind === "control" ? "control" : edge.kind === "dependency" ? "dependency" : "data") + (related ? " is-related" : "");
+    return '<g class="' + cls + '"' + edgeAttrs(edge) + '><path class="hit" d="' + g.full + '"/><path class="line" d="' + g.d + '"/><path class="head" d="' + g.head + '"/></g>';
+  }
+
+  function edgeLabelSvg(edge, related) {
+    if (!edge.label) return "";
+    var text = edge.text || edge.label;
+    var w = edge.lw || text.length * 6.3 + 18;
+    var h = edge.lh || 20;
+    var cls = "edge-label flow-" + esc(edge.kind === "control" ? "control" : "data") + (edge.crowded ? " is-crowded" : "") + (related ? " is-related" : "");
+    return '<g class="' + cls + '"' + edgeAttrs(edge) + ' transform="translate(' + n1(edge.cx) + "," + n1(edge.cy) + ')"><title>' + esc(edge.label) + "</title>" +
+      '<rect x="' + n1(-w / 2) + '" y="' + n1(-h / 2) + '" width="' + n1(w) + '" height="' + h + '" rx="' + h / 2 + '"/><text y="0.5">' + esc(text) + "</text></g>";
+  }
+
+  function clusterSvg(group, title, selected, flow) {
+    var cls = "cluster" + (group.header ? " is-header" : "") + (selected ? " is-selected" : "");
+    var top = flow && title ? group.y - 26 : group.y;
+    var height = flow && title ? group.h + 26 : group.h;
+    var out = '<g class="' + cls + '" data-group="' + esc(group.id) + '"><rect x="' + group.x + '" y="' + top + '" width="' + group.w + '" height="' + height + '" rx="14"/>';
+    if (group.header && group.divider) out += '<line class="divider" x1="' + group.divider + '" y1="' + (group.y + 14) + '" x2="' + group.divider + '" y2="' + (group.y + group.h - 14) + '"/>';
+    if (flow && title) out += '<text x="' + (group.x + 16) + '" y="' + (group.y - 8) + '">' + esc(title) + "</text>";
     return out + "</g>";
   }
 
-  function clusterSvg(group, title) {
-    return '<g class="cluster" data-group="' + esc(group.id) + '"><rect x="' + group.x + '" y="' + (group.y - 22) + '" width="' + group.w + '" height="' + (group.h + 22) + '" rx="3"/>' +
-      (title ? '<text x="' + (group.x + group.w / 2) + '" y="' + (group.y - 6) + '">' + esc(title) + "</text>" : "") + "</g>";
+  function zoneSvg(zone) {
+    var d = (zone.outline || []).map(function (poly) { return roundedPath(poly, 12, true); }).join(" ");
+    if (!d) d = roundedPath([{ x: zone.x, y: zone.y }, { x: zone.x + zone.w, y: zone.y }, { x: zone.x + zone.w, y: zone.y + zone.h }, { x: zone.x, y: zone.y + zone.h }], 12, true);
+    return '<g class="zone" data-zone="' + esc(zone.id) + '"><path class="zone-fill" d="' + d + '"/><path class="zone-line" d="' + d + '"/><path class="zone-hit" d="' + d + '"/></g>';
   }
 
-  function zoneSvg(zone) {
-    return '<g class="zone" data-zone="' + esc(zone.id) + '"><rect x="' + zone.x + '" y="' + zone.y + '" width="' + zone.w + '" height="' + zone.h + '" rx="10"/>' +
-      '<text x="' + (zone.x + 12) + '" y="' + (zone.y + 16) + '">' + esc(zone.name) + "</text></g>";
+  function zoneLabelSvg(zone) {
+    var labels = zone.labels && zone.labels.length ? zone.labels : [{ x: zone.x + 10, y: zone.y + 8, w: zone.name.length * 6.9 + 18, h: 22 }];
+    return labels.map(function (label) {
+      return '<g class="zone-label" data-zone="' + esc(zone.id) + '" transform="translate(' + n1(label.x) + "," + n1(label.y) + ')"><rect width="' + n1(label.w) + '" height="' + label.h + '" rx="6"/>' +
+        '<text x="9" y="' + label.h / 2 + '">' + esc(zone.name) + "</text></g>";
+    }).join("");
   }
 
   var TIER_NAMES = { client: "Users and clients", edge: "Edge", frontend: "Frontend", api: "API", service: "Services", platform: "Services", external: "Services", worker: "Async", messaging: "Async", cache: "Data", database: "Data", storage: "Storage" };
@@ -228,47 +278,60 @@
   }
 
   function laneSvg(lane, left) {
-    return '<g class="lane" data-lane="' + esc(lane.name) + '"><text x="' + (left - 36) + '" y="' + ((lane.y + lane.bottom) / 2 + 4) + '">' + esc(lane.name.toUpperCase()) + "</text></g>";
+    var y = (lane.y + lane.bottom) / 2;
+    var text = lane.name.toUpperCase();
+    var w = text.length * 7.6 * 1.8 + 16;
+    return '<g class="lane" data-lane="' + esc(lane.name) + '"><rect class="lane-hit" x="' + n1(left - w) + '" y="' + n1(y - 18) + '" width="' + n1(w + 12) + '" height="36" rx="6"/>' +
+      '<text x="' + n1(left - 8) + '" y="' + n1(y) + '">' + esc(text) + '</text><line x1="' + n1(left) + '" y1="' + n1(y) + '" x2="' + n1(left + 10) + '" y2="' + n1(y) + '"/></g>';
   }
 
-  function systemFrame(scene) {
+  /** The sheet the whole system sits on. */
+  function systemBox(scene) {
     var system = scene.nodes.filter(function (node) { return node.kind === "system"; })[0];
-    var rest = scene.nodes.filter(function (node) { return node.kind !== "system" && node.kind !== "unmapped"; });
-    if (!system || !rest.length) return "";
+    var rest = scene.nodes.filter(function (node) { return node.kind !== "unmapped"; });
+    if (!system || rest.length < 2) return null;
     var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    rest.forEach(function (node) {
-      minX = Math.min(minX, node.x); minY = Math.min(minY, node.y);
-      maxX = Math.max(maxX, node.x + node.w); maxY = Math.max(maxY, node.y + node.h);
+    rest.concat(scene.zones || [], scene.groups || []).forEach(function (item) {
+      minX = Math.min(minX, item.x); minY = Math.min(minY, item.y);
+      maxX = Math.max(maxX, item.x + item.w); maxY = Math.max(maxY, item.y + item.h);
     });
     (scene.edges || []).forEach(function (edge) {
-      (edge.points || []).forEach(function (p) { minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); });
+      (edge.points || []).forEach(function (p) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); });
     });
-    var pad = 36;
-    return '<rect class="system-frame" data-system="' + esc(system.id) + '" x="' + (minX - pad) + '" y="' + (minY - pad - 12) + '" width="' + (maxX - minX + pad * 2) + '" height="' + (maxY - minY + pad * 2 + 12) + '" rx="6"/>';
+    var pad = 32;
+    return { id: system.id, x: minX - pad, y: minY - pad, w: maxX - minX + pad * 2, h: maxY - minY + pad * 2 };
+  }
+
+  function systemFrameSvg(box) {
+    if (!box) return "";
+    var attrs = ' x="' + n1(box.x) + '" y="' + n1(box.y) + '" width="' + n1(box.w) + '" height="' + n1(box.h) + '" rx="20"';
+    return '<rect class="system-sheet"' + attrs + "/>" + '<rect class="system-frame"' + attrs + "/>" +
+      '<rect class="system-hit" data-system="' + esc(box.id) + '"' + attrs + "/>";
   }
 
   // ---- App -------------------------------------------------------------------
 
+  var ICON_SEARCH = '<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>';
+
   function shell() {
     return (
       '<div id="viewport">' +
-      '<svg id="surface" xmlns="' + SVG_NS + '"><defs>' +
-      '<marker id="arrow-data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker>' +
-      '<marker id="arrow-control" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker>' +
-      '</defs><g id="world"><g id="layer-frames"></g><g id="layer-edges"></g><g id="layer-nodes"></g></g></svg>' +
+      '<svg id="surface" xmlns="' + SVG_NS + '">' +
+      '<g id="world"><g id="layer-frames"></g><g id="layer-edges"></g><g id="layer-labels"></g><g id="layer-nodes"></g></g></svg>' +
       "</div>" +
       '<header id="hud">' +
-      '<div class="pill brand"><strong>Smartypants</strong><span id="level-label"></span><span id="busy" hidden>thinking…</span></div>' +
-      '<input id="search" class="pill search" placeholder="Find a part  ( / )" autocomplete="off" />' +
+      '<div class="pill brand"><span class="mark" aria-hidden="true"></span><strong>Smartypants</strong><span id="level-label"></span><span id="busy" hidden>thinking…</span></div>' +
+      '<label class="pill search-wrap">' + ICON_SEARCH + '<input id="search" class="search" placeholder="Find a part" autocomplete="off" aria-label="Find a part" /><kbd>/</kbd></label>' +
       '<div class="pill tools">' +
-      '<button id="zoom-out" title="Zoom out (-)">−</button><span id="zoom-label">100%</span><button id="zoom-in" title="Zoom in (+)">+</button>' +
-      '<button id="fit" title="Fit (F)">Fit</button><button id="tidy" title="Forget dragged positions and lay everything out again (T)">Tidy</button><button id="expand-all" title="Expand everything">Expand</button>' +
+      '<span class="zoom"><button id="zoom-out" title="Zoom out (−)" aria-label="Zoom out">−</button><span id="zoom-label">100%</span><button id="zoom-in" title="Zoom in (+)" aria-label="Zoom in">+</button></span>' +
+      '<span class="sep"></span><button id="fit" title="Fit (F)">Fit</button><button id="tidy" title="Forget dragged positions and lay everything out again (T)">Tidy</button><button id="expand-all" title="Expand everything">Expand</button>' +
       '<button id="toggle-layout" title="Switch between tiered layers and a left-to-right flow (L)">Layout: Tiers</button>' +
-      '<button id="show-intent" title="Intent memory (I)">Intent</button><button id="copy-mermaid" title="Copy Mermaid source">Mermaid</button>' +
+      '<span class="sep"></span><button id="show-intent" title="Intent memory (I)">Intent</button><button id="copy-mermaid" title="Copy Mermaid source">Mermaid</button>' +
       "</div></header>" +
-      '<div class="legend pill"><span><i class="swatch flow-data"></i>data</span><span><i class="swatch flow-control"></i>control</span><span><i class="swatch drift"></i>drift</span>' +
-      '<span class="hint">click anything to read · double-click to go deeper · drag boxes, frames, and layers · scroll to zoom</span></div>' +
-      '<aside id="panel" hidden><button id="panel-close" title="Close (Esc)">×</button><div id="panel-body"></div></aside>' +
+      '<div class="legend pill"><span><i class="swatch flow-data"></i>data</span><span><i class="swatch flow-control"></i>control</span><span><i class="swatch zone"></i>boundary</span><span><i class="swatch frame"></i>subgraph</span><span><i class="swatch drift"></i>drift</span>' +
+      '<span class="hint">Click to read · drag to move · scroll to zoom · <kbd>F</kbd> fit</span></div>' +
+      '<aside id="panel" hidden aria-live="polite"><div class="grip" aria-hidden="true"></div><button id="panel-close" title="Close (Esc)" aria-label="Close">×</button><div id="panel-body"></div></aside>' +
+      '<div id="tip" hidden></div>' +
       '<svg id="minimap" xmlns="' + SVG_NS + '"></svg>' +
       '<div id="toast" hidden></div>' +
       '<div id="empty" class="empty" hidden><div><h2>No system on the canvas yet</h2>' +
@@ -293,6 +356,7 @@
     var world = document.getElementById("world");
     var layerFrames = document.getElementById("layer-frames");
     var layerEdges = document.getElementById("layer-edges");
+    var layerLabels = document.getElementById("layer-labels");
     var layerNodes = document.getElementById("layer-nodes");
     var empty = document.getElementById("empty");
     var panel = document.getElementById("panel");
@@ -303,6 +367,7 @@
     var zoomLabel = document.getElementById("zoom-label");
     var search = document.getElementById("search");
     var toast = document.getElementById("toast");
+    var tip = document.getElementById("tip");
 
     var camera = { x: 0, y: 0, scale: 1 };
     var model = { nodes: [], connections: [] };
@@ -318,15 +383,29 @@
     var knownIds = null;
     var fresh = {};
     var intentCache = null;
+    var hotKey = "";
+    var tipTimer = null;
+    var laneLeft = 0;
 
     root.__smartypants = {
       get camera() { return { x: camera.x, y: camera.y, scale: camera.scale }; },
       get scene() { return scene; },
       get selected() { return selected; },
+      /** Point the camera at a world position (used by screenshot scripts). */
+      look: function (x, y, scale) {
+        if (scale) camera.scale = scale;
+        camera.x = x;
+        camera.y = y;
+        applyCamera();
+      },
     };
 
     function viewSize() {
       return { w: viewport.clientWidth, h: viewport.clientHeight };
+    }
+
+    function narrow() {
+      return viewSize().w < 720;
     }
 
     function applyCamera() {
@@ -335,24 +414,104 @@
       var oy = size.h / 2 - camera.y * camera.scale;
       world.setAttribute("transform", "translate(" + ox + "," + oy + ") scale(" + camera.scale + ")");
       var grid = 24 * camera.scale;
+      while (grid < 12) grid *= 2;
       viewport.style.backgroundSize = grid + "px " + grid + "px";
       viewport.style.backgroundPosition = ox + "px " + oy + "px";
+      // Layer names stay readable when zoomed out: they grow as the picture shrinks.
+      viewport.style.setProperty("--lane-scale", String(laneScale(camera.scale)));
+      viewport.classList.toggle("lod-far", camera.scale < LABEL_ZOOM);
+      viewport.classList.toggle("lod-tiny", camera.scale < 0.42);
       zoomLabel.textContent = Math.round(camera.scale * 100) + "%";
       drawMinimap();
     }
 
-    function fit() {
+    function laneScale(scale) {
+      return Math.min(1.8, Math.max(1, 0.9 / scale));
+    }
+
+    /** Everything drawn, including the layer labels in the left gutter. */
+    function worldBounds(atScale) {
       var b = scene.bounds;
-      // Leave room for the layer labels on the left.
-      if (b && b.w && scene.mode === "tiers") b = { x: b.x - 170, y: b.y, w: b.w + 170, h: b.h };
+      if (!b || !b.w) return b;
+      var minX = b.x;
+      var minY = b.y;
+      var maxX = b.x + b.w;
+      var maxY = b.y + b.h;
+      var sheet = systemBox(scene);
+      if (sheet) {
+        minX = Math.min(minX, sheet.x - 16); minY = Math.min(minY, sheet.y - 16);
+        maxX = Math.max(maxX, sheet.x + sheet.w + 16); maxY = Math.max(maxY, sheet.y + sheet.h + 16);
+      }
+      if (scene.mode === "tiers" && (scene.lanesNow || []).length) {
+        var widest = 0;
+        var grow = laneScale(atScale || camera.scale);
+        scene.lanesNow.forEach(function (lane) { widest = Math.max(widest, lane.name.length * 7.4 * grow + 16); });
+        minX = Math.min(minX, laneLeft - widest - 16);
+      }
+      return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
+
+    function panelInset() {
+      if (panel.hidden) return { right: 0, bottom: 0 };
+      if (narrow()) return { right: 0, bottom: panel.offsetHeight || viewSize().h * 0.55 };
+      return { right: (panel.offsetWidth || 400) + 16, bottom: 0 };
+    }
+
+    /**
+     * Fit keeps text legible: the whole picture when it fits at a readable
+     * zoom, else the readable floor from the top, centred on the width.
+     */
+    function fit() {
       var size = viewSize();
+      var inset = panelInset();
+      var mobile = narrow();
+      var left = mobile ? 8 : 16;
+      var right = size.w - (mobile ? 8 : 16) - inset.right;
+      var top = mobile ? 108 : 68;
+      var bottom = size.h - (mobile ? 12 : 52) - inset.bottom;
+      var floor = mobile ? 0.5 : 0.55;
+      var b = worldBounds(1);
       if (!b || !b.w || !b.h) return;
-      var open = panel.hidden ? 0 : Math.min(380, size.w * 0.4);
-      var scale = Math.min((size.w - open - 80) / b.w, (size.h - 140) / b.h);
-      camera.scale = Math.max(0.1, Math.min(scale, 1.4));
-      camera.x = b.x + b.w / 2 + open / 2 / camera.scale;
-      camera.y = b.y + b.h / 2 - 20 / camera.scale;
+      var scale = 1;
+      // Twice: the layer-label gutter depends on the zoom it is fitted at.
+      for (var pass = 0; pass < 2; pass += 1) {
+        var sw = (right - left) / b.w;
+        var sh = (bottom - top) / b.h;
+        // As much of the picture as fits while text stays readable; never
+        // wider than the view unless even the width needs the floor.
+        scale = Math.min(sw, Math.max(sh, floor));
+        if (scale < floor) scale = floor;
+        scale = Math.min(scale, 1.2);
+        b = worldBounds(scale);
+      }
+      camera.scale = scale;
+      var cx = (left + right) / 2;
+      if (b.w * scale <= right - left + 1) camera.x = b.x + b.w / 2 - (cx - size.w / 2) / scale;
+      else {
+        // Too wide: start at the left edge (layer names in view), unless the
+        // journey's first layer would then be off screen; phones start on it.
+        var start = journeyStart(b);
+        var seen = b.x + (right - left) / scale;
+        camera.x = !mobile && start < seen - 40 / scale ? b.x - (left - size.w / 2) / scale : start - (cx - size.w / 2) / scale;
+      }
+      if (b.h * scale <= bottom - top + 1) camera.y = b.y + b.h / 2 - ((top + bottom) / 2 - size.h / 2) / scale;
+      else camera.y = b.y - (top - size.h / 2) / scale;
       applyCamera();
+    }
+
+    /** Where the journey starts: the middle of the top layer. */
+    function journeyStart(b) {
+      var lanes = (scene.lanesNow || []).slice().sort(function (p, q) { return p.y - q.y; });
+      if (!lanes.length) return b.x + b.w / 2;
+      var lo = Infinity;
+      var hi = -Infinity;
+      lanes[0].members.forEach(function (id) {
+        var node = nodeById(id);
+        if (!node) return;
+        lo = Math.min(lo, node.x);
+        hi = Math.max(hi, node.x + node.w);
+      });
+      return lo < hi ? (lo + hi) / 2 : b.x + b.w / 2;
     }
 
     function zoomAt(factor, sx, sy) {
@@ -360,16 +519,35 @@
       if (sx == null) { sx = size.w / 2; sy = size.h / 2; }
       var wx = (sx - size.w / 2) / camera.scale + camera.x;
       var wy = (sy - size.h / 2) / camera.scale + camera.y;
-      camera.scale = Math.max(0.05, Math.min(5, camera.scale * factor));
+      camera.scale = Math.max(0.1, Math.min(4, camera.scale * factor));
       camera.x = wx - (sx - size.w / 2) / camera.scale;
       camera.y = wy - (sy - size.h / 2) / camera.scale;
       applyCamera();
     }
 
     function centerOn(node) {
-      camera.x = node.x + node.w / 2 + (panel.hidden ? 0 : 160 / camera.scale);
-      camera.y = node.y + node.h / 2;
+      var size = viewSize();
+      var inset = panelInset();
+      var sx = (size.w - inset.right) / 2;
+      var sy = 64 + (size.h - 64 - inset.bottom) / 2;
+      camera.x = node.x + node.w / 2 - (sx - size.w / 2) / camera.scale;
+      camera.y = node.y + node.h / 2 - (sy - size.h / 2) / camera.scale;
       applyCamera();
+    }
+
+    /** Pan just enough that a box is not hidden under the panel or the HUD. */
+    function reveal(node) {
+      if (!node) return;
+      var size = viewSize();
+      var inset = panelInset();
+      var s = camera.scale;
+      var x0 = (node.x - camera.x) * s + size.w / 2;
+      var y0 = (node.y - camera.y) * s + size.h / 2;
+      var x1 = x0 + node.w * s;
+      var y1 = y0 + node.h * s;
+      var free = { x0: 8, y0: 72, x1: size.w - inset.right - 8, y1: size.h - inset.bottom - 8 };
+      if (x0 >= free.x0 && x1 <= free.x1 && y0 >= free.y0 && y1 <= free.y1) return;
+      centerOn(node);
     }
 
     function nodeById(id) {
@@ -394,16 +572,121 @@
       }
       var lanes = scene.mode === "tiers" ? lanesOf(scene) : [];
       var left = Infinity;
-      (scene.nodes || []).forEach(function (node) { if (node.kind !== "system") left = Math.min(left, node.x); });
+      (scene.nodes || []).forEach(function (node) { if (node.kind !== "system" && node.kind !== "unmapped") left = Math.min(left, node.x); });
       (scene.zones || []).forEach(function (zone) { left = Math.min(left, zone.x); });
+      (scene.groups || []).forEach(function (group) { left = Math.min(left, group.x); });
+      var sheet = systemBox(scene);
+      if (sheet) left = Math.min(left, sheet.x);
+      laneLeft = left - 20;
       scene.lanesNow = lanes;
-      layerFrames.innerHTML = systemFrame(scene) + (scene.zones || []).map(zoneSvg).join("") +
-        (scene.groups || []).map(function (group) { return clusterSvg(group, titleFor(group)); }).join("") +
-        lanes.map(function (lane) { return laneSvg(lane, left); }).join("");
-      layerEdges.innerHTML = (scene.edges || []).map(function (edge, i) { edge.index = i; return edgeSvg(edge, related[i]); }).join("");
-      layerNodes.innerHTML = (scene.nodes || []).map(function (node) { return nodeSvg(node, node.id === selected, fresh[node.id]); }).join("");
+      var flow = scene.mode !== "tiers";
+      layerFrames.innerHTML = systemFrameSvg(sheet) + (scene.zones || []).map(zoneSvg).join("") +
+        (scene.groups || []).map(function (group) { return clusterSvg(group, titleFor(group), group.id === selected, flow); }).join("") +
+        lanes.map(function (lane) { return laneSvg(lane, laneLeft); }).join("");
+      var edges = scene.edges || [];
+      edges.forEach(function (edge, i) { edge.index = i; });
+      layerEdges.innerHTML = edges.map(function (edge, i) { return edgeSvg(edge, related[i]); }).join("");
+      layerLabels.innerHTML = (scene.zones || []).map(zoneLabelSvg).join("") +
+        edges.map(function (edge, i) { return edgeLabelSvg(edge, related[i]); }).join("");
+      layerNodes.innerHTML = (scene.nodes || []).map(function (node) {
+        return nodeSvg(node, { selected: node.id === selected, fresh: fresh[node.id] });
+      }).join("");
+      viewport.classList.toggle("has-selection", Boolean(selected) && Object.keys(related).length > 0);
+      if (selected) {
+        edges.forEach(function (edge, i) {
+          if (!related[i]) return;
+          var other = edge.from === selected ? edge.to : edge.from;
+          var el = layerNodes.querySelector('[data-node-id="' + cssEscape(other) + '"]');
+          if (el) el.classList.add("is-near");
+        });
+      }
+      hotKey = "";
+      viewport.classList.remove("has-hot");
       applyCamera();
     }
+
+    function cssEscape(value) {
+      if (root.CSS && typeof root.CSS.escape === "function") return root.CSS.escape(value);
+      return String(value).replace(/["\\]/g, "\\$&");
+    }
+
+    // ---- Focus and tooltip ---------------------------------------------------
+
+    function clearHot() {
+      Array.prototype.forEach.call(world.querySelectorAll(".is-hot, .is-lit"), function (el) {
+        el.classList.remove("is-hot");
+        el.classList.remove("is-lit");
+      });
+      viewport.classList.remove("has-hot");
+    }
+
+    function lightEdges(selector) {
+      Array.prototype.forEach.call(world.querySelectorAll(selector), function (el) {
+        el.classList.add("is-hot");
+        var from = el.getAttribute("data-from");
+        var to = el.getAttribute("data-to");
+        [from, to].forEach(function (id) {
+          var node = layerNodes.querySelector('[data-node-id="' + cssEscape(id) + '"]');
+          if (node) node.classList.add("is-lit");
+        });
+      });
+    }
+
+    function setHot(hit, event) {
+      var key = hit && (hit.kind === "node" || hit.kind === "edge") ? hit.kind + ":" + hit.id : "";
+      if (key === hotKey) {
+        if (key && !tip.hidden && event) moveTip(event);
+        return;
+      }
+      hotKey = key;
+      clearHot();
+      hideTip();
+      if (!key) return;
+      if (hit.kind === "node") {
+        var id = cssEscape(hit.id);
+        lightEdges('[data-from="' + id + '"], [data-to="' + id + '"]');
+        var self = layerNodes.querySelector('[data-node-id="' + id + '"]');
+        if (self) self.classList.add("is-lit");
+        viewport.classList.add("has-hot");
+        var node = nodeById(hit.id);
+        if (node && node.kind !== "system" && event && event.pointerType !== "touch") {
+          var at = { x: event.clientX, y: event.clientY };
+          tipTimer = setTimeout(function () { showTip(node, at); }, 280);
+        }
+      } else {
+        lightEdges('[data-edge-index="' + hit.id + '"]');
+        viewport.classList.add("has-hot");
+      }
+    }
+
+    function showTip(node, at) {
+      var source = sourceById(node.id) || node;
+      var why = source.why || "";
+      tip.innerHTML = '<p class="tip-name">' + esc(source.name) + "</p>" +
+        (node.blurb ? '<p class="tip-blurb">' + esc(node.blurb) + "</p>" : "") +
+        (why ? '<p class="tip-why"><span>Why</span>' + esc(why) + "</p>" : "") +
+        '<p class="tip-hint">Click for details</p>';
+      tip.hidden = false;
+      moveTip({ clientX: at.x, clientY: at.y });
+    }
+
+    function moveTip(event) {
+      var size = viewSize();
+      var w = tip.offsetWidth || 280;
+      var h = tip.offsetHeight || 100;
+      var x = event.clientX + 16;
+      var y = event.clientY + 18;
+      if (x + w > size.w - 8) x = event.clientX - w - 12;
+      if (y + h > size.h - 8) y = event.clientY - h - 12;
+      tip.style.transform = "translate(" + Math.max(8, x) + "px," + Math.max(8, y) + "px)";
+    }
+
+    function hideTip() {
+      clearTimeout(tipTimer);
+      tip.hidden = true;
+    }
+
+    // ---- Data -------------------------------------------------------------------
 
     function rebuild() {
       var visible = SmartypantsScene.collapse(model, collapsed);
@@ -435,7 +718,7 @@
       if (knownIds) Object.keys(ids).forEach(function (id) { if (!knownIds[id]) fresh[id] = true; });
       knownIds = ids;
       model = next;
-      levelLabel.textContent = next.level ? " · level " + next.level : next.floor ? " · " + next.floor : "";
+      levelLabel.textContent = next.level ? "level " + next.level : next.floor ? String(next.floor) : "";
       busy.hidden = !next.busy;
       var status = next.catchup;
       busy.textContent = status && status.state === "running" ? (status.message || "catching up from code…") : "thinking…";
@@ -477,11 +760,65 @@
         .catch(function () { return { atoms: [], text: "", tokens: 0 }; });
     }
 
-    function flowRow(edge, direction) {
-      var other = direction === "out" ? edge.toId : edge.fromId;
-      var node = sourceById(other);
-      return '<li><button class="link" data-goto="' + esc(other) + '">' + (direction === "out" ? "→ " : "← ") + esc(node ? node.name : other) +
-        '</button><span class="muted"> ' + esc(edge.label) + (edge.kind === "control" ? " (control)" : "") + "</span></li>";
+    // ---- Panel ---------------------------------------------------------------------
+
+    function nameOf(id) {
+      var node = sourceById(id) || nodeById(id);
+      return node ? node.name : id;
+    }
+
+    function tierOf(node) {
+      var placed = nodeById(node.id);
+      return (placed && placed.tier) || (typeof SmartypantsScene.inferTier === "function" ? SmartypantsScene.inferTier(node) : node.tier) || "";
+    }
+
+    function tierChip(tier) {
+      if (!tier) return "";
+      return '<span class="chip tier-chip tier-' + esc(tier) + '"><i></i>' + esc(TIER_NAMES[tier] === "Services" && tier !== "service" ? tier : TIER_NAMES[tier] || tier) + "</span>";
+    }
+
+    function section(title, body, extra) {
+      return '<section class="p-sec' + (extra ? " " + extra : "") + '"><h3>' + title + "</h3>" + body + "</section>";
+    }
+
+    function linkRow(id, text, sub, tag) {
+      return '<li><button class="row-link" data-goto="' + esc(id) + '"><span class="row-name">' + esc(text) + "</span>" +
+        (sub ? '<span class="row-sub">' + esc(sub) + "</span>" : "") + "</button>" + (tag || "") + "</li>";
+    }
+
+    /** Calls this part makes (with the reply that comes back) and calls it receives. */
+    function flowsOf(id) {
+      var all = model.connections || [];
+      var replyOf = {};
+      var isReply = {};
+      all.forEach(function (c, i) {
+        if (isReply[i]) return;
+        for (var j = i + 1; j < all.length; j += 1) {
+          if (!isReply[j] && replyOf[j] == null && all[j].fromId === c.toId && all[j].toId === c.fromId) {
+            replyOf[i] = j;
+            isReply[j] = true;
+            break;
+          }
+        }
+      });
+      var calls = [];
+      var callers = [];
+      all.forEach(function (c, i) {
+        if (isReply[i]) return;
+        var reply = replyOf[i] != null ? all[replyOf[i]] : null;
+        if (c.fromId === id) calls.push({ c: c, other: c.toId, reply: reply });
+        else if (c.toId === id) callers.push({ c: c, other: c.fromId, reply: reply });
+      });
+      return { calls: calls, callers: callers };
+    }
+
+    function flowList(items) {
+      return '<ul class="rows flows">' + items.map(function (item) {
+        var c = item.c;
+        var tag = c.kind === "control" ? '<span class="tag control">control</span>' : "";
+        var sub = (c.label || "") + (item.reply ? "  ↩ " + (item.reply.label || "reply") : "");
+        return linkRow(item.other, nameOf(item.other), sub, tag);
+      }).join("") + "</ul>";
     }
 
     function openPanel(id, quiet) {
@@ -490,42 +827,57 @@
         closePanel();
         return;
       }
+      hideTip();
       selected = id;
       var parent = node.parentId ? sourceById(node.parentId) : null;
       var children = (model.nodes || []).filter(function (item) { return item.parentId === node.id; });
-      var outgoing = (model.connections || []).filter(function (edge) { return edge.fromId === node.id; });
-      var incoming = (model.connections || []).filter(function (edge) { return edge.toId === node.id; });
       var isCollapsed = collapsed.indexOf(node.id) !== -1;
+      var placed = nodeById(id);
+      var blurb = (placed && placed.blurb) || node.blurb || "";
+      var tier = node.kind === "system" || node.kind === "unmapped" ? "" : tierOf(node);
+      var flags = node.flags || [];
       var html =
-        '<p class="eyebrow">' + esc(KIND_LABEL[node.kind] || node.kind) + (node.shape ? " · " + esc(node.shape) : "") +
+        '<header class="p-head">' +
+        '<p class="eyebrow">' + esc(KIND_LABEL[node.kind] || node.kind) + (node.shape && node.kind !== "system" && node.kind !== "unmapped" ? " · " + esc(node.shape) : "") +
         (parent ? ' · in <button class="link" data-goto="' + esc(parent.id) + '">' + esc(parent.name) + "</button>" : "") + "</p>" +
         "<h2>" + esc(node.name) + "</h2>" +
-        (node.blurb ? '<p class="lede">' + esc(node.blurb) + "</p>" : "") +
-        ((node.tier || node.zone) ? '<p class="chips">' + (node.tier ? '<span class="chip">' + esc(node.tier) + "</span>" : "") + (node.zone ? '<span class="chip zone-chip">' + esc(node.zone) + "</span>" : "") + "</p>" : "") +
-        '<h3>What</h3><p>' + esc(node.what) + "</p>" +
-        '<h3>Why</h3><p>' + esc(node.why) + "</p>";
+        (blurb ? '<p class="lede">' + esc(blurb) + "</p>" : "") +
+        '<p class="chips">' + tierChip(tier) + (node.zone ? '<span class="chip zone-chip">' + esc(node.zone) + "</span>" : "") +
+        (flags.length ? '<span class="chip drift-chip">' + flags.length + " drift</span>" : "") + "</p></header>";
+      var unmapped = node.kind === "unmapped";
+      if (unmapped) html += '<p class="muted small">The code diverges from the intent, and the divergence does not map to a part on the diagram yet.</p>';
+      if (node.why && !unmapped) html += section("Why it exists", '<p class="why-text">' + esc(node.why) + "</p>", "why");
+      if (node.what && !unmapped) html += section("What it does", "<p>" + esc(node.what) + "</p>");
       if (node.notes && node.notes.length) {
-        html += "<h3>Deep dive</h3><ul class=\"notes\">" + node.notes.map(function (note) { return "<li>" + esc(note) + "</li>"; }).join("") + "</ul>";
+        html += section("Deep dive", '<ul class="notes">' + node.notes.map(function (note) { return "<li>" + esc(note) + "</li>"; }).join("") + "</ul>");
       }
-      (node.flags || []).forEach(function (flag) {
-        html += '<div class="flag"><p class="eyebrow">Drift</p><p><strong>Intent:</strong> ' + esc(flag.intent) + '</p><p><strong>Code:</strong> ' + esc(flag.difference) + "</p></div>";
-      });
       if (children.length) {
-        html += "<h3>Inside</h3><ul>" + children.map(function (child) {
-          return '<li><button class="link" data-goto="' + esc(child.id) + '">' + esc(child.name) + '</button><span class="muted"> ' + esc(child.what) + "</span></li>";
-        }).join("") + "</ul>";
+        html += section("Inside <span class=\"count\">" + children.length + "</span>", '<ul class="rows">' + children.map(function (child) {
+          return linkRow(child.id, child.name, child.blurb || child.what || "");
+        }).join("") + "</ul>");
       }
-      if (outgoing.length || incoming.length) {
-        html += "<h3>Flows</h3><ul>" + outgoing.map(function (e) { return flowRow(e, "out"); }).join("") + incoming.map(function (e) { return flowRow(e, "in"); }).join("") + "</ul>";
+      var flows = flowsOf(node.id);
+      if (flows.calls.length) html += section("Calls <span class=\"count\">" + flows.calls.length + "</span>", flowList(flows.calls));
+      if (flows.callers.length) html += section("Called by <span class=\"count\">" + flows.callers.length + "</span>", flowList(flows.callers));
+      if (flags.length) {
+        html += section("Drift", flags.map(function (flag) {
+          return '<div class="flag"><p><span class="flag-k">Intent</span>' + esc(flag.intent) + '</p><p><span class="flag-k">Code</span>' + esc(flag.difference) + "</p></div>";
+        }).join(""), "drift");
       }
       html += '<div id="panel-intent"></div>';
       html += '<div class="actions">' +
-        (node.kind !== "unmapped" ? '<button id="go-deeper" class="primary">Go deeper</button>' : "") +
+        (node.kind !== "unmapped" ? '<button id="go-deeper" class="primary" title="Ask for the next level of detail (D)">Go deeper</button>' : "") +
         (children.length ? '<button id="toggle-collapse">' + (isCollapsed ? "Expand" : "Collapse") + "</button>" : "") +
         '<button id="center-node">Center</button></div>';
+      var scroll = quiet ? panel.scrollTop : 0;
       panelBody.innerHTML = html;
+      var wasHidden = panel.hidden;
       panel.hidden = false;
-      if (!quiet) paint();
+      panel.scrollTop = scroll;
+      if (!quiet) {
+        paint();
+        if (wasHidden || narrow()) reveal(nodeById(id));
+      }
       intent().then(function (data) {
         var mine = (data.atoms || []).filter(function (atom) {
           var head = String(atom.s).split(".")[0];
@@ -533,8 +885,16 @@
         });
         var target = document.getElementById("panel-intent");
         if (!target || !mine.length) return;
-        target.innerHTML = "<h3>Intent</h3><pre class=\"intent\">" + mine.map(function (a) { return esc(a.k + " " + a.s + " " + a.v); }).join("\n") + "</pre>";
+        target.innerHTML = section("Intent <span class=\"count\">" + mine.length + "</span>", '<pre class="intent">' + mine.map(function (a) { return esc(a.k + " " + a.s + " " + a.v); }).join("\n") + "</pre>");
       });
+    }
+
+    function showPanel(html) {
+      hideTip();
+      panelBody.innerHTML = html;
+      panel.hidden = false;
+      panel.scrollTop = 0;
+      paint();
     }
 
     function closePanel() {
@@ -567,16 +927,14 @@
         var data = all[0];
         var stats = all[1];
         selected = null;
-        var html = '<p class="eyebrow">Memory</p><h2>Intent</h2><p class="muted">' + (data.atoms || []).length + " atoms · ~" + (data.tokens || 0) +
-          ' tokens. <code>K subject value</code>: G goal, F function, N constraint, D decision, X excluded, E flow, Q question, ! drift.</p>' +
-          '<pre class="intent">' + esc(data.text || "(nothing recorded yet)") + "</pre>";
+        var html = '<header class="p-head"><p class="eyebrow">Memory</p><h2>Intent</h2><p class="lede">' + (data.atoms || []).length + " atoms · ~" + (data.tokens || 0) + " tokens</p></header>" +
+          section("Key", '<p class="muted"><code>K subject value</code> — G goal, F function, N constraint, D decision, X excluded, E flow, Q question, ! drift.</p>') +
+          section("Atoms", '<pre class="intent">' + esc(data.text || "(nothing recorded yet)") + "</pre>");
         if (stats && stats.turns) {
-          html += "<h3>Efficiency</h3><p>" + stats.turns + " turns · " + (stats.actions.skip || 0) + " skipped free · " + (stats.actions.remember || 0) +
-            " remembered without a builder · " + stats.calls.builder + " builder calls · $" + Number(stats.cost || 0).toFixed(4) + "</p>";
+          html += section("Efficiency", "<p>" + stats.turns + " turns · " + (stats.actions.skip || 0) + " skipped free · " + (stats.actions.remember || 0) +
+            " remembered without a builder · " + stats.calls.builder + " builder calls · $" + Number(stats.cost || 0).toFixed(4) + "</p>");
         }
-        panelBody.innerHTML = html;
-        panel.hidden = false;
-        paint();
+        showPanel(html);
       });
     }
 
@@ -598,15 +956,15 @@
     }
 
     function drawMinimap() {
-      var b = scene.bounds;
+      var b = worldBounds();
       if (!b || !b.w || !b.h) {
         minimap.innerHTML = "";
         return;
       }
       var size = viewSize();
-      var mw = 180;
-      var mh = 120;
-      var s = Math.min(mw / b.w, mh / b.h);
+      var mw = 176;
+      var mh = 112;
+      var s = Math.min((mw - 12) / b.w, (mh - 12) / b.h);
       var ox = (mw - b.w * s) / 2 - b.x * s;
       var oy = (mh - b.h * s) / 2 - b.y * s;
       var view = {
@@ -615,9 +973,11 @@
         w: size.w / camera.scale,
         h: size.h / camera.scale,
       };
-      minimap.innerHTML = (scene.nodes || []).map(function (node) {
-        return '<rect class="' + (node.flagged ? "mm-drift" : "mm-node") + '" x="' + (node.x * s + ox) + '" y="' + (node.y * s + oy) + '" width="' + Math.max(2, node.w * s) + '" height="' + Math.max(2, node.h * s) + '"/>';
-      }).join("") + '<rect class="mm-view" x="' + (view.x * s + ox) + '" y="' + (view.y * s + oy) + '" width="' + view.w * s + '" height="' + view.h * s + '"/>';
+      minimap.innerHTML = (scene.zones || []).map(function (zone) {
+        return '<rect class="mm-zone" x="' + n1(zone.x * s + ox) + '" y="' + n1(zone.y * s + oy) + '" width="' + n1(zone.w * s) + '" height="' + n1(zone.h * s) + '" rx="2"/>';
+      }).join("") + (scene.nodes || []).filter(function (node) { return !node.header && node.kind !== "system"; }).map(function (node) {
+        return '<rect class="' + (node.flagged ? "mm-drift" : "mm-node") + '" x="' + n1(node.x * s + ox) + '" y="' + n1(node.y * s + oy) + '" width="' + n1(Math.max(2, node.w * s)) + '" height="' + n1(Math.max(2, node.h * s)) + '" rx="1"/>';
+      }).join("") + '<rect class="mm-view" x="' + n1(view.x * s + ox) + '" y="' + n1(view.y * s + oy) + '" width="' + n1(view.w * s) + '" height="' + n1(view.h * s) + '" rx="3"/>';
       minimap.__map = { s: s, ox: ox, oy: oy };
     }
 
@@ -630,13 +990,23 @@
       };
     }
 
+    function everything() {
+      return (scene.nodes || []).filter(function (n) { return n.kind !== "unmapped"; }).map(function (n) { return n.id; });
+    }
+
     /** What the pointer is on: a box, a subgraph, a zone, a tier lane, an arrow, the system frame, or empty canvas. */
     function targetOf(event) {
       var el = event.target;
       while (el && el !== viewport) {
         if (el.getAttribute) {
           var id = el.getAttribute("data-node-id");
-          if (id) return { kind: "node", id: id, members: [id] };
+          if (id) {
+            var node = nodeById(id);
+            // A subgraph title moves its subgraph; the system title moves the picture.
+            if (node && node.header) return { kind: "node", id: id, members: groupMembers(id) };
+            if (node && node.kind === "system") return { kind: "node", id: id, members: everything() };
+            return { kind: "node", id: id, members: [id] };
+          }
           var group = el.getAttribute("data-group");
           if (group) return { kind: "group", id: group, members: groupMembers(group) };
           var zone = el.getAttribute("data-zone");
@@ -652,16 +1022,11 @@
           var edge = el.getAttribute("data-edge-index");
           if (edge != null) return { kind: "edge", id: Number(edge), members: [] };
           var system = el.getAttribute("data-system");
-          if (system) return { kind: "system-frame", id: system, members: (scene.nodes || []).filter(function (n) { return n.kind !== "system" && n.kind !== "unmapped"; }).map(function (n) { return n.id; }) };
+          if (system) return { kind: "system-frame", id: system, members: everything() };
         }
         el = el.parentNode;
       }
       return null;
-    }
-
-    function nodeFromEvent(event) {
-      var hit = targetOf(event);
-      return hit && hit.kind === "node" ? hit.id : null;
     }
 
     function groupMembers(id) {
@@ -670,6 +1035,7 @@
 
     viewport.addEventListener("pointerdown", function (event) {
       if (event.button !== 0) return;
+      hideTip();
       var hit = targetOf(event);
       var start = {};
       (hit ? hit.members : []).forEach(function (id) {
@@ -688,18 +1054,21 @@
       if (!drag || drag.id !== event.pointerId) {
         var over = drag ? null : targetOf(event);
         viewport.classList.toggle("is-over", Boolean(over));
+        if (!drag) setHot(over, event);
         return;
       }
       if (drag.kind === "target") {
         if (!drag.moved && Math.hypot(event.clientX - drag.sx, event.clientY - drag.sy) < 4) return;
-        if (!Object.keys(drag.start).length) return;
+        var ids = Object.keys(drag.start);
+        if (!ids.length) return;
+        if (!drag.moved) { hotKey = ""; clearHot(); }
         drag.moved = true;
         var point = toWorld(event);
         var dx = point.x - drag.px;
         var dy = point.y - drag.py;
-        Object.keys(drag.start).forEach(function (id) {
+        ids.forEach(function (id, i) {
           var to = { x: drag.start[id].x + dx, y: drag.start[id].y + dy };
-          SmartypantsScene.moveNode(scene, id, to.x, to.y);
+          SmartypantsScene.moveNode(scene, id, to.x, to.y, i < ids.length - 1);
           held[id] = to;
         });
         paint();
@@ -709,6 +1078,10 @@
       camera.x = drag.camX - (event.clientX - drag.x) / camera.scale;
       camera.y = drag.camY - (event.clientY - drag.y) / camera.scale;
       applyCamera();
+    });
+
+    viewport.addEventListener("pointerleave", function () {
+      if (!drag) setHot(null);
     });
 
     function endDrag(event) {
@@ -751,22 +1124,22 @@
       var to = sourceById(edge.to) || nodeById(edge.to);
       var reply = (model.connections || []).filter(function (c) { return c.fromId === edge.to && c.toId === edge.from; })[0];
       var crossing = from && to && from.zone && to.zone && from.zone !== to.zone;
-      panelBody.innerHTML =
-        '<p class="eyebrow">Flow · ' + esc(edge.kind === "control" ? "control" : edge.kind === "dependency" ? "dependency" : "data") + "</p>" +
+      var kind = edge.kind === "control" ? "control" : edge.kind === "dependency" ? "dependency" : "data";
+      var html = '<header class="p-head"><p class="eyebrow">Flow · ' + esc(kind) + "</p>" +
         "<h2>" + esc(edge.label || "(unlabeled)") + "</h2>" +
-        '<p><button class="link" data-goto="' + esc(edge.from) + '">' + esc(from ? from.name : edge.from) + '</button> → <button class="link" data-goto="' + esc(edge.to) + '">' + esc(to ? to.name : edge.to) + "</button></p>" +
-        (crossing ? '<p class="muted">Crosses the boundary from <strong>' + esc(from.zone) + "</strong> to <strong>" + esc(to.zone) + "</strong>.</p>" : "") +
-        (reply ? '<h3>Reply</h3><p><button class="link" data-goto="' + esc(edge.from) + '">' + esc(reply.label) + "</button> comes back to the caller.</p>" : "") +
-        (from ? "<h3>From</h3><p>" + esc(from.what) + "</p>" : "") +
-        (to ? "<h3>To</h3><p>" + esc(to.what) + "</p>" : "");
-      panel.hidden = false;
-      paint();
+        '<div class="route"><button class="route-end" data-goto="' + esc(edge.from) + '">' + esc(from ? from.name : edge.from) + '</button><span class="route-arrow ' + esc(kind) + '">→</span>' +
+        '<button class="route-end" data-goto="' + esc(edge.to) + '">' + esc(to ? to.name : edge.to) + "</button></div></header>";
+      if (crossing) html += section("Crosses a boundary", "<p>From <strong>" + esc(from.zone) + "</strong> into <strong>" + esc(to.zone) + "</strong>.</p>", "why");
+      if (reply) html += section("Reply", '<ul class="rows">' + linkRow(edge.from, reply.label || "reply", "comes back to " + (from ? from.name : edge.from)) + "</ul>");
+      if (from) html += section("From", '<ul class="rows">' + linkRow(edge.from, from.name, from.what) + "</ul>");
+      if (to) html += section("To", '<ul class="rows">' + linkRow(edge.to, to.name, to.what) + "</ul>");
+      showPanel(html);
     }
 
     function memberList(ids) {
-      return "<ul>" + ids.map(function (id) {
+      return '<ul class="rows">' + ids.map(function (id) {
         var node = sourceById(id) || nodeById(id);
-        return node ? '<li><button class="link" data-goto="' + esc(id) + '">' + esc(node.name) + '</button><span class="muted"> ' + esc(node.blurb || node.what || "") + "</span></li>" : "";
+        return node ? linkRow(id, node.name, node.blurb || node.what || "") : "";
       }).join("") + "</ul>";
     }
 
@@ -774,22 +1147,19 @@
       var zone = (scene.zones || []).filter(function (z) { return z.id === id; })[0];
       if (!zone) return;
       selected = null;
-      panelBody.innerHTML = '<p class="eyebrow">Boundary</p><h2>' + esc(zone.name) + "</h2>" +
-        '<p class="muted">A network or trust boundary. Arrows that leave it cross a firewall, a namespace, or a subnet. Drag the frame to move everything inside.</p>' +
-        "<h3>Inside</h3>" + memberList(zone.members);
-      panel.hidden = false;
-      paint();
+      showPanel('<header class="p-head"><p class="eyebrow">Boundary</p><h2>' + esc(zone.name) + "</h2>" +
+        '<p class="lede">A network or trust boundary. Arrows that leave it cross a firewall, a namespace, or a subnet.</p></header>' +
+        section("Inside <span class=\"count\">" + zone.members.length + "</span>", memberList(zone.members)) +
+        '<p class="muted small">Drag the frame to move everything inside.</p>');
     }
 
     function openLane(name) {
       var lane = (scene.lanesNow || []).filter(function (l) { return l.name === name; })[0];
       if (!lane) return;
       selected = null;
-      panelBody.innerHTML = '<p class="eyebrow">Layer</p><h2>' + esc(name) + "</h2><p>" + esc(TIER_TEXT[name] || "") + "</p>" +
-        '<p class="muted">Layers run top to bottom: users, edge, frontend, API, services, async (messaging then workers), data (cache then databases), storage. Drag the label to move the whole layer.</p>' +
-        "<h3>In this layer</h3>" + memberList(lane.members);
-      panel.hidden = false;
-      paint();
+      showPanel('<header class="p-head"><p class="eyebrow">Layer</p><h2>' + esc(name) + '</h2><p class="lede">' + esc(TIER_TEXT[name] || "") + "</p></header>" +
+        section("In this layer <span class=\"count\">" + lane.members.length + "</span>", memberList(lane.members)) +
+        '<p class="muted small">Layers run top to bottom: users, edge, frontend, API, services, async, data, storage. Drag the label to move the whole layer.</p>');
     }
     viewport.addEventListener("pointerup", endDrag);
     viewport.addEventListener("pointercancel", endDrag);
@@ -802,6 +1172,7 @@
 
     viewport.addEventListener("wheel", function (event) {
       event.preventDefault();
+      hideTip();
       var rect = viewport.getBoundingClientRect();
       var pan = !event.ctrlKey && Math.abs(event.deltaX) > Math.abs(event.deltaY) * 0.5 && Math.abs(event.deltaX) > 0;
       if (pan) {
@@ -824,7 +1195,7 @@
     });
 
     panel.addEventListener("click", function (event) {
-      var target = event.target;
+      var target = event.target && event.target.closest ? event.target.closest("button") || event.target : event.target;
       if (!target) return;
       if (target.id === "panel-close") return closePanel();
       if (target.id === "go-deeper" && selected) return goDeeper(selected);
@@ -837,7 +1208,8 @@
       var go = target.getAttribute && target.getAttribute("data-goto");
       if (go) {
         if (!nodeById(go)) {
-          collapsed = collapsed.filter(function (id) { return id !== sourceById(go)?.parentId; });
+          var src = sourceById(go);
+          collapsed = collapsed.filter(function (id) { return !src || id !== src.parentId; });
           rebuild();
         }
         openPanel(go);
@@ -910,6 +1282,7 @@
 
     document.addEventListener("keydown", function (event) {
       if (event.target === search) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (event.key === "/") { event.preventDefault(); search.focus(); return; }
       if (event.key === "Escape") return closePanel();
       if (event.key === "f" || event.key === "F") return fit();

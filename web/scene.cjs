@@ -5,9 +5,25 @@
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.SmartypantsScene = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
-  var WIDTH = { system: 520, component: 230, module: 210, unmapped: 240 };
-  var GAP_X = 96;
-  var GAP_Y = 34;
+  // ---- Box metrics -----------------------------------------------------------
+  //
+  // One 8px rhythm for everything: box sizes snap to 8, gaps are multiples of 8.
+  // Text widths are estimated (the builder runs in Node too), with averages
+  // taken from common UI sans faces: 16px semibold names, 13px regular blurbs.
+  var NAME_PX = 8.3;
+  var BLURB_PX = 6.2;
+  var TITLE_PX = 11.6;
+  var PAD_X = 18;
+  var BOX_MIN = 184;
+  var BOX_MAX = 288;
+  var NAME_LINE = 20;
+  var BLURB_LINE = 17;
+  var SYSTEM_H = 64;
+  var HEADER_MIN = 168;
+  var HEADER_MAX = 256;
+  var LABEL_PX = 6.0;
+  var LABEL_H = 20;
+  var LABEL_CHARS = 28;
 
   function slug(name) {
     return String(name || "")
@@ -31,25 +47,9 @@
     return parent.name || "";
   }
 
-  function lineCount(text, perLine) {
-    var words = String(text || "").split(/\s+/).filter(Boolean);
-    if (!words.length) return 1;
-    var lines = 1;
-    var length = 0;
-    words.forEach(function (word) {
-      var next = length === 0 ? word.length : length + 1 + word.length;
-      if (length > 0 && next > perLine) {
-        lines += 1;
-        length = word.length;
-      } else {
-        length = next;
-      }
-    });
-    return lines;
+  function snap(value) {
+    return Math.ceil(value / 8) * 8;
   }
-
-  var NAME_CHARS = 24;
-  var BLURB_CHARS = 30;
 
   /** The short line under the name: the blurb, else the first words of what. */
   function blurbOf(node) {
@@ -66,6 +66,7 @@
     var lines = [];
     var line = "";
     words.forEach(function (word) {
+      if (word.length > per) word = word.slice(0, Math.max(1, per - 1)) + "…";
       var next = line ? line + " " + word : word;
       if (line && next.length > per) {
         lines.push(line);
@@ -75,31 +76,86 @@
     if (line) lines.push(line);
     if (max && lines.length > max) {
       lines = lines.slice(0, max);
-      lines[max - 1] = lines[max - 1].replace(/\s*\S*$/, "") + "…";
+      var last = lines[max - 1];
+      lines[max - 1] = (last.length > per - 1 ? last.slice(0, per - 1).replace(/\s*\S*$/, "") : last) + "…";
     }
     return lines;
   }
 
+  /** Slanted and pointed shapes lose some width for text. */
+  function insetOf(shape) {
+    return shape === "queue" ? 28 : shape === "external" ? 24 : shape === "gateway" ? 20 : shape === "worker" ? 12 : 0;
+  }
+
+  function capOf(shape) {
+    return shape === "store" || shape === "cache" ? 16 : 0;
+  }
+
+  /** Name and blurb lines for a box of a given width. */
+  function boxLines(node, w) {
+    var inner = Math.max(80, w - PAD_X * 2 - insetOf(node.shape));
+    var blurb = blurbOf(node);
+    return {
+      name: wrapLines(node.name, Math.max(8, Math.floor(inner / NAME_PX)), 2),
+      blurb: blurb ? wrapLines(blurb, Math.max(10, Math.floor(inner / BLURB_PX)), 2) : [],
+    };
+  }
+
+  function boxHeight(lines, shape) {
+    var text = lines.name.length * NAME_LINE + (lines.blurb.length ? 4 + lines.blurb.length * BLURB_LINE : 0);
+    return snap(28 + text) + capOf(shape);
+  }
+
+  /** A cluster's title panel: name, blurb, and how many parts are inside. */
+  function headerLines(node, w) {
+    var inner = w - 32;
+    return {
+      name: wrapLines(node.name, Math.max(8, Math.floor(inner / NAME_PX)), 3),
+      blurb: wrapLines(blurbOf(node), Math.max(10, Math.floor(inner / BLURB_PX)), 3),
+    };
+  }
+
+  function headerSize(node) {
+    var natural = Math.max(String(node.name || "").length * NAME_PX, blurbOf(node).length * BLURB_PX * 0.6) + 32;
+    var w = Math.max(HEADER_MIN, Math.min(HEADER_MAX, snap(natural)));
+    var lines = headerLines(node, w);
+    var h = snap(20 + lines.name.length * NAME_LINE + 6 + lines.blurb.length * BLURB_LINE + 10 + 14 + 20);
+    return { w: w, h: h, lines: lines };
+  }
+
   // Boxes carry a readable name and a one-line description; details open on click.
   function sizeOf(node) {
-    var kind = WIDTH[node.kind] ? node.kind : "module";
     var name = String(node.name || "");
-    if (kind === "system") {
-      return { w: Math.max(240, Math.min(620, name.length * 11 + 110)), h: 58 };
+    if (node.kind === "system") {
+      return { w: snap(Math.max(name.length * TITLE_PX, blurbOf(node).length * BLURB_PX) + 48), h: SYSTEM_H };
     }
-    if (kind === "unmapped") {
-      var body = lineCount(node.what, 30) + lineCount(node.why, 30);
-      return { w: WIDTH.unmapped, h: 44 + body * 16 };
+    if (node.kind === "unmapped") {
+      var body = wrapLines(node.what, 34).length + wrapLines(node.why, 34).length;
+      return { w: 264, h: snap(64 + body * BLURB_LINE) };
     }
-    var nameLines = wrapLines(name, NAME_CHARS, 3);
-    var blurbLines = wrapLines(blurbOf(node), BLURB_CHARS, 2);
-    var longest = 0;
-    nameLines.forEach(function (line) { longest = Math.max(longest, line.length * 8.4); });
-    blurbLines.forEach(function (line) { longest = Math.max(longest, line.length * 6.4); });
-    var sideShape = node.shape === "queue" || node.shape === "external" || node.shape === "gateway";
-    var w = Math.max(kind === "component" ? 168 : 150, Math.min(WIDTH[kind] + 30, longest + 44)) + (sideShape ? 26 : 0);
-    var capPad = node.shape === "store" || node.shape === "cache" ? 18 : 0;
-    return { w: Math.round(w), h: 24 + nameLines.length * 19 + blurbLines.length * 15 + capPad };
+    var natural = Math.max(name.length * NAME_PX, blurbOf(node).length * BLURB_PX) + PAD_X * 2 + insetOf(node.shape);
+    var w = Math.max(BOX_MIN, Math.min(BOX_MAX, snap(natural)));
+    return { w: w, h: boxHeight(boxLines(node, w), node.shape) };
+  }
+
+  /** One width and height per row, so a layer reads as a layer. */
+  function evenSizes(nodes, rankOf) {
+    var rows = {};
+    nodes.forEach(function (node) {
+      var key = rankOf(node);
+      (rows[key] = rows[key] || []).push(node);
+    });
+    var out = {};
+    Object.keys(rows).forEach(function (key) {
+      var row = rows[key];
+      var w = 0;
+      row.forEach(function (node) { w = Math.max(w, sizeOf(node).w); });
+      var base = 0;
+      row.forEach(function (node) { base = Math.max(base, boxHeight(boxLines(node, w), node.shape) - capOf(node.shape)); });
+      // Cylinders keep their caps; everything else shares the row height.
+      row.forEach(function (node) { out[node.id] = { w: w, h: base + capOf(node.shape) }; });
+    });
+    return out;
   }
 
   function labelOf(node) {
@@ -112,8 +168,14 @@
     return parts.filter(Boolean).join(" ");
   }
 
-  function place(node, x, y) {
-    var size = sizeOf(node);
+  function place(node, x, y, size, extra) {
+    size = size || sizeOf(node);
+    var header = Boolean(extra && extra.header);
+    var lines;
+    if (node.kind === "system") lines = { name: [String(node.name || "")], blurb: blurbOf(node) ? [blurbOf(node)] : [] };
+    else if (node.kind === "unmapped") lines = { name: ["Unmapped drift"], blurb: wrapLines(node.what, 34), code: wrapLines(node.why, 34) };
+    else if (header) lines = headerLines(node, size.w);
+    else lines = boxLines(node, size.w);
     return {
       id: node.id,
       kind: node.kind,
@@ -131,6 +193,9 @@
       collapsed: Boolean(node.collapsed),
       hidden: node.hidden || 0,
       parentId: node.parentId || null,
+      header: header,
+      parts: header ? extra.parts || 0 : 0,
+      lines: lines,
       x: x,
       y: y,
       w: size.w,
@@ -296,6 +361,7 @@
   }
 
 
+
   // ---- Tiered layout ---------------------------------------------------------
   //
   // 2026 architecture-diagram convention: layers run top to bottom (who calls at
@@ -309,9 +375,18 @@
   var TIER_ORDER = { client: 0, edge: 1, frontend: 2, api: 3, service: 4, platform: 4, external: 4, messaging: 5, worker: 5, cache: 6, database: 6, storage: 7 };
   var TIER_LABEL = ["Users and clients", "Edge", "Frontend", "API", "Services", "Async", "Data", "Storage"];
   var WITHIN_ROW = { messaging: 0, worker: 1, cache: 0, database: 1, platform: 1, service: 0, external: 2 };
-  var TIER_GAP = 104;
-  var COL_GAP = 68;
-  var ZONE_PAD = 20;
+  var TIER_GAP = 88; // between layers: room for arrow lanes and frame padding
+  var COL_GAP = 48; // between boxes in a layer
+  var ZONE_SEP = 88; // between boxes in different boundaries
+  var ZONE_PAD = 16; // boundary frame padding
+  var ZONE_TOP = 36; // boundary frame padding under its label
+  var ZONE_WIDEN = 48; // how close a widened boundary may come to a neighbour
+  var FRAME_PAD = 16; // subgraph padding
+  var INNER_GAP = 32; // between modules inside a subgraph
+  var INNER_ROW_GAP = 64;
+  var TRACK = 12; // spacing of parallel arrows in one channel
+  var MAX_PER_ROW = 6; // a layer with more boxes wraps into sub-rows
+  var LABEL_KEEP = 32; // room kept in a gap for a boundary label
 
   function inferTier(node) {
     if (!node) return "service";
@@ -344,11 +419,38 @@
     return TIER_ORDER[inferTier(node)];
   }
 
+  /** Least-squares nondecreasing fit (pool adjacent violators). */
+  function isotonic(values) {
+    var pools = [];
+    values.forEach(function (value) {
+      pools.push({ sum: value, n: 1 });
+      while (pools.length > 1) {
+        var a = pools[pools.length - 2];
+        var b = pools[pools.length - 1];
+        if (a.sum / a.n <= b.sum / b.n) break;
+        pools.pop();
+        a.sum += b.sum;
+        a.n += b.n;
+      }
+    });
+    var out = [];
+    pools.forEach(function (pool) {
+      for (var i = 0; i < pool.n; i += 1) out.push(pool.sum / pool.n);
+    });
+    return out;
+  }
+
   /**
    * Rows of items, top to bottom by tier; left to right by journey order, then
-   * pulled toward the items they talk to. Returns positions and size.
+   * pulled toward the items they talk to. Items of one boundary stay together
+   * in a row, so boundary frames never interleave. Returns positions and size.
    */
-  function tierRows(items, links) {
+  function tierRows(items, links, options) {
+    options = options || {};
+    var colGap = options.colGap || COL_GAP;
+    var sepGap = options.sepGap || ZONE_SEP;
+    var rowGap = options.rowGap || TIER_GAP;
+    var rowGaps = options.rowGaps || [];
     var index = {};
     items.forEach(function (item, i) { index[item.id] = i; });
     var neighbors = {};
@@ -388,92 +490,191 @@
         });
       }
     });
+    function zoneKey(item) {
+      return (item.last ? "last|" : "") + (options.flat ? "" : item.zone || "");
+    }
+    var zoneOrder = {};
+    var zones = 0;
+    items.slice().sort(function (a, b) { return a.rank - b.rank || journey[a.id] - journey[b.id]; }).forEach(function (item) {
+      var key = zoneKey(item);
+      if (zoneOrder[key] == null) zoneOrder[key] = zones++;
+    });
     var rowsByRank = {};
     items.forEach(function (item) { (rowsByRank[item.rank] = rowsByRank[item.rank] || []).push(item); });
     var ranks = Object.keys(rowsByRank).map(Number).sort(function (a, b) { return a - b; });
-    var rows = ranks.map(function (rank) {
-      return rowsByRank[rank].sort(function (a, b) {
-        return (a.last ? 1 : 0) - (b.last ? 1 : 0) || (a.sub || 0) - (b.sub || 0) || journey[a.id] - journey[b.id];
-      });
-    });
-    var at = {};
-    function placeRow(row) {
-      var x = 0;
+    function sortRow(row) {
+      var blocks = {};
       row.forEach(function (item) {
-        at[item.id] = at[item.id] || {};
-        at[item.id].x = x;
-        at[item.id].w = item.w;
-        x += item.w + COL_GAP;
+        var key = zoneKey(item);
+        var block = (blocks[key] = blocks[key] || { last: Boolean(item.last), sub: Infinity });
+        block.sub = Math.min(block.sub, item.sub || 0);
       });
-      return x - COL_GAP;
+      var keys = Object.keys(blocks).sort(function (a, b) {
+        return (blocks[a].last ? 1 : 0) - (blocks[b].last ? 1 : 0) || blocks[a].sub - blocks[b].sub || zoneOrder[a] - zoneOrder[b];
+      });
+      row.forEach(function (item) { item.block = keys.indexOf(zoneKey(item)); });
+      return row.sort(function (a, b) {
+        return a.block - b.block || (a.sub || 0) - (b.sub || 0) || journey[a.id] - journey[b.id];
+      });
     }
-    var widest = 0;
-    rows.forEach(function (row) { widest = Math.max(widest, placeRow(row)); });
-    rows.forEach(function (row) {
-      var width = row.reduce(function (sum, item) { return sum + item.w; }, 0) + COL_GAP * (row.length - 1);
-      var shift = (widest - width) / 2;
-      row.forEach(function (item) { at[item.id].x += shift; });
-    });
-    function center(id) { return at[id].x + at[id].w / 2; }
-    function align(row) {
-      var want = row.map(function (item) {
-        var near = neighbors[item.id].filter(function (n) { return at[n] && !row.some(function (r) { return r.id === n; }); });
-        if (!near.length) return center(item.id);
-        var xs = near.map(center).sort(function (a, b) { return a - b; });
-        return (xs[Math.floor((xs.length - 1) / 2)] + xs[Math.ceil((xs.length - 1) / 2)]) / 2;
-      });
-      // Reorder by pull, keeping third parties at the right edge.
-      var order = row.map(function (item, i) { return { item: item, want: want[i] }; });
-      order.sort(function (a, b) { return (a.item.last ? 1 : 0) - (b.item.last ? 1 : 0) || (a.item.sub || 0) - (b.item.sub || 0) || a.want - b.want; });
-      row.splice.apply(row, [0, row.length].concat(order.map(function (o) { return o.item; })));
-      var lefts = order.map(function (o) { return o.want - o.item.w / 2; });
-      for (var i = 1; i < row.length; i += 1) {
-        var min = lefts[i - 1] + row[i - 1].w + COL_GAP;
-        if (lefts[i] < min) lefts[i] = min;
+    function gapOf(a, b) {
+      return zoneKey(a) === zoneKey(b) ? colGap : sepGap;
+    }
+
+    /**
+     * Wrap a long layer into sub-rows: callers inside the layer above the
+     * parts they call (an orchestrator above its services), else balanced
+     * runs in journey order. Third parties stay on the first sub-row.
+     */
+    function splitRow(row, per) {
+      var own = row.filter(function (item) { return !item.last; });
+      var tail = row.filter(function (item) { return item.last; });
+      var inRow = {};
+      own.forEach(function (item) { inRow[item.id] = true; });
+      var depth = {};
+      function depthOf(id, seen) {
+        if (depth[id] != null) return depth[id];
+        if (seen[id]) return 0;
+        seen[id] = true;
+        var best = 0;
+        own.forEach(function (other) {
+          if (other.id !== id && out[other.id].indexOf(id) !== -1 && out[id].indexOf(other.id) === -1) best = Math.max(best, depthOf(other.id, seen) + 1);
+        });
+        seen[id] = false;
+        depth[id] = best;
+        return best;
       }
-      for (var j = row.length - 2; j >= 0; j -= 1) {
-        var max = lefts[j + 1] - row[j].w - COL_GAP;
-        if (lefts[j] > max) lefts[j] = max;
+      own.forEach(function (item) { depthOf(item.id, {}); });
+      var levels = [];
+      own.forEach(function (item) { (levels[depth[item.id]] = levels[depth[item.id]] || []).push(item); });
+      levels = levels.filter(Boolean);
+      if (levels.length < 2 || levels.length > 3) levels = [own];
+      var subRows = [];
+      levels.forEach(function (level) {
+        var parts = Math.ceil(level.length / per);
+        var size = Math.ceil(level.length / parts);
+        for (var i = 0; i < level.length; i += size) subRows.push(level.slice(i, i + size));
+      });
+      if (subRows.length < 2 && own.length > 1) {
+        var half = Math.ceil(own.length / 2);
+        subRows = [own.slice(0, half), own.slice(half)];
       }
-      row.forEach(function (item, k) { at[item.id].x = lefts[k]; });
+      subRows[0] = subRows[0].concat(tail);
+      return subRows.map(sortRow);
     }
-    for (var pass = 0; pass < 4; pass += 1) {
-      rows.slice(1).forEach(align);
-      rows.slice(0, -1).reverse().forEach(align);
+
+    function layoutRows(rows) {
+      var at = {};
+      function placeRow(row) {
+        var x = 0;
+        row.forEach(function (item, i) {
+          if (i) x += gapOf(row[i - 1], item);
+          at[item.id] = { x: x, w: item.w };
+          x += item.w;
+        });
+        return x;
+      }
+      var widest = 0;
+      var widths = rows.map(function (row) { var w = placeRow(row); widest = Math.max(widest, w); return w; });
+      rows.forEach(function (row, r) {
+        var shift = (widest - widths[r]) / 2;
+        row.forEach(function (item) { at[item.id].x += shift; });
+      });
+      function center(id) { return at[id].x + at[id].w / 2; }
+      function align(row) {
+        var inRow = {};
+        row.forEach(function (item) { inRow[item.id] = true; });
+        var want = {};
+        row.forEach(function (item) {
+          var near = neighbors[item.id].filter(function (n) { return at[n] && !inRow[n]; });
+          if (!near.length) {
+            want[item.id] = center(item.id);
+            return;
+          }
+          var xs = near.map(center).sort(function (a, b) { return a - b; });
+          want[item.id] = (xs[Math.floor((xs.length - 1) / 2)] + xs[Math.ceil((xs.length - 1) / 2)]) / 2;
+        });
+        // Reorder by pull inside each boundary block; blocks keep their order.
+        row.sort(function (a, b) {
+          return a.block - b.block || (a.sub || 0) - (b.sub || 0) || want[a.id] - want[b.id] || journey[a.id] - journey[b.id];
+        });
+        // Move as little as possible while keeping order and gaps.
+        var offsets = [];
+        var offset = 0;
+        row.forEach(function (item, i) {
+          if (i) offset += row[i - 1].w + gapOf(row[i - 1], item);
+          offsets.push(offset);
+        });
+        var fitted = isotonic(row.map(function (item, i) { return want[item.id] - item.w / 2 - offsets[i]; }));
+        row.forEach(function (item, i) { at[item.id].x = fitted[i] + offsets[i]; });
+      }
+      for (var pass = 0; pass < 4; pass += 1) {
+        rows.slice(1).forEach(align);
+        rows.slice(0, -1).reverse().forEach(align);
+      }
+      // Third parties sit at the right edge of the whole picture.
+      var rightEdge = -Infinity;
+      rows.forEach(function (row) {
+        row.forEach(function (item) { if (!item.last) rightEdge = Math.max(rightEdge, at[item.id].x + item.w); });
+      });
+      rows.forEach(function (row) {
+        var cursor = rightEdge > -Infinity ? rightEdge + sepGap : 0;
+        var prev = null;
+        row.forEach(function (item) {
+          if (!item.last) return;
+          if (prev) cursor += gapOf(prev, item);
+          at[item.id].x = cursor;
+          cursor += item.w;
+          prev = item;
+        });
+      });
+      var y = 0;
+      var plain = 0;
+      var minX = Infinity;
+      var maxX = -Infinity;
+      var rowInfo = [];
+      rows.forEach(function (row, r) {
+        var height = 0;
+        row.forEach(function (item) { height = Math.max(height, item.h); });
+        row.forEach(function (item) {
+          at[item.id].y = y + (height - item.h) / 2;
+          at[item.id].h = item.h;
+          minX = Math.min(minX, at[item.id].x);
+          maxX = Math.max(maxX, at[item.id].x + item.w);
+        });
+        rowInfo.push({ rank: row[0].rank, y: y, h: height });
+        y += height + (rowGaps[r] != null ? rowGaps[r] : rowGap);
+        plain += height + (r < rows.length - 1 ? rowGap : 0);
+      });
+      Object.keys(at).forEach(function (id) { at[id].x = Math.round(at[id].x - minX); at[id].y = Math.round(at[id].y); });
+      var lastGap = rows.length && rowGaps[rows.length - 1] != null ? rowGaps[rows.length - 1] : rowGap;
+      return { at: at, w: items.length ? maxX - minX : 0, h: items.length ? y - lastGap : 0, plainH: plain, rows: rowInfo };
     }
-    // Third parties sit at the right edge of the whole picture.
-    var rightEdge = -Infinity;
-    rows.forEach(function (row) {
-      row.forEach(function (item) { if (!item.last) rightEdge = Math.max(rightEdge, at[item.id].x + item.w); });
+
+    var per = options.perRow || MAX_PER_ROW;
+    var rows = [];
+    ranks.forEach(function (rank) {
+      var row = sortRow(rowsByRank[rank]);
+      var own = row.filter(function (item) { return !item.last; }).length;
+      if (own > per) rows = rows.concat(splitRow(row, per));
+      else rows.push(row);
     });
-    rows.forEach(function (row) {
-      var inner = row.filter(function (item) { return !item.last; });
-      var cursor = inner.length ? at[inner[inner.length - 1].id].x + inner[inner.length - 1].w + COL_GAP * 2 : -Infinity;
-      if (rightEdge > -Infinity) cursor = Math.max(cursor, rightEdge + COL_GAP);
-      row.forEach(function (item) {
-        if (!item.last) return;
-        at[item.id].x = cursor;
-        cursor += item.w + COL_GAP;
+    var result = layoutRows(rows);
+    // A picture far wider than tall cannot be read at any zoom: wrap the
+    // longest layers until it is at most about twice as wide as tall. The
+    // check uses plain gaps, so the result does not depend on gap sizing.
+    for (var guard = 0; guard < 3 && !options.flat && result.w > 2 * result.plainH; guard += 1) {
+      var target = null;
+      rows.forEach(function (row, r) {
+        var own = row.filter(function (item) { return !item.last; }).length;
+        if (own >= 5 && (!target || own > target.own)) target = { r: r, own: own };
       });
-    });
-    var y = 0;
-    var minX = Infinity;
-    var maxX = -Infinity;
-    var rowInfo = [];
-    rows.forEach(function (row) {
-      var height = 0;
-      row.forEach(function (item) { height = Math.max(height, item.h); });
-      row.forEach(function (item) {
-        at[item.id].y = y + (height - item.h) / 2;
-        at[item.id].h = item.h;
-        minX = Math.min(minX, at[item.id].x);
-        maxX = Math.max(maxX, at[item.id].x + item.w);
-      });
-      rowInfo.push({ rank: row[0].rank, y: y, h: height });
-      y += height + TIER_GAP;
-    });
-    Object.keys(at).forEach(function (id) { at[id].x -= minX; });
-    return { at: at, w: items.length ? maxX - minX : 0, h: items.length ? y - TIER_GAP : 0, rows: rowInfo };
+      if (!target) break;
+      var subRows = splitRow(rows[target.r], Math.ceil(target.own / 2));
+      rows = rows.slice(0, target.r).concat(subRows, rows.slice(target.r + 1));
+      result = layoutRows(rows);
+    }
+    return result;
   }
 
   function tieredScene(design) {
@@ -489,6 +690,19 @@
       if (node.kind !== "module" || !byId[node.parentId] || byId[node.parentId].kind !== "component") return;
       (members[node.parentId] = members[node.parentId] || []).push(node);
     });
+    function inside(id, cid) {
+      var node = byId[id];
+      return Boolean(node && node.kind === "module" && node.parentId === cid);
+    }
+    // A component that talks to its own modules is an actor: it is drawn as a
+    // box inside its frame. Otherwise the component is the frame, titled on
+    // its left, and arrows to it land on the frame.
+    var actor = {};
+    Object.keys(members).forEach(function (cid) {
+      actor[cid] = connections.some(function (c) {
+        return (c.fromId === cid && inside(c.toId, cid)) || (c.toId === cid && inside(c.fromId, cid));
+      });
+    });
     function ownerOf(id) {
       var node = byId[id];
       if (!node) return null;
@@ -498,26 +712,38 @@
     }
     function itemFor(node, size) {
       var tier = inferTier(node);
-      return { id: node.id, w: size.w, h: size.h, rank: TIER_ORDER[tier], sub: WITHIN_ROW[tier] || 0, last: tier === "external" };
+      return { id: node.id, w: size.w, h: size.h, rank: TIER_ORDER[tier], sub: WITHIN_ROW[tier] || 0, last: tier === "external", zone: node.zone || "" };
     }
     var inner = {};
     Object.keys(members).forEach(function (cid) {
-      var list = [byId[cid]].concat(members[cid]);
+      var list = (actor[cid] ? [byId[cid]] : []).concat(members[cid]);
       var local = {};
       list.forEach(function (node) { local[node.id] = true; });
-      var items = list.map(function (node) { return itemFor(node, sizeOf(node)); });
+      var sizes = evenSizes(list, function () { return 0; });
+      var items = list.map(function (node) { return itemFor(node, sizes[node.id]); });
       var links = connections.filter(function (c) { return local[c.fromId] && local[c.toId]; }).map(function (c) { return { from: c.fromId, to: c.toId }; });
-      list.slice(1).forEach(function (node) {
-        if (!links.some(function (l) { return l.from === node.id || l.to === node.id; })) links.push({ from: cid, to: node.id });
-      });
-      inner[cid] = tierRows(items, links);
+      if (actor[cid]) {
+        list.slice(1).forEach(function (node) {
+          if (!links.some(function (l) { return l.from === node.id || l.to === node.id; })) links.push({ from: cid, to: node.id });
+        });
+      }
+      inner[cid] = { box: tierRows(items, links, { flat: true, colGap: INNER_GAP, sepGap: INNER_GAP, rowGap: INNER_ROW_GAP }), sizes: sizes };
     });
+    var plain = rest.filter(function (node) { return ownerOf(node.id) === node.id && !inner[node.id]; });
+    var sizes = evenSizes(plain, tierRank);
+    var heads = {};
     var topItems = [];
     rest.forEach(function (node) {
       if (ownerOf(node.id) !== node.id) return;
-      var size = inner[node.id]
-        ? { w: inner[node.id].w + CLUSTER_PAD * 2, h: inner[node.id].h + CLUSTER_PAD * 2 + CLUSTER_TITLE }
-        : sizeOf(node);
+      var size = sizes[node.id];
+      if (inner[node.id]) {
+        var box = inner[node.id].box;
+        if (actor[node.id]) size = { w: box.w + FRAME_PAD * 2, h: box.h + FRAME_PAD * 2 };
+        else {
+          var head = (heads[node.id] = headerSize(node));
+          size = { w: head.w + box.w + FRAME_PAD * 2, h: Math.max(box.h + FRAME_PAD * 2, head.h) };
+        }
+      }
       topItems.push(itemFor(node, size));
     });
     var topLinks = [];
@@ -526,35 +752,86 @@
       var to = ownerOf(c.toId);
       if (from && to && from !== to) topLinks.push({ from: from, to: to });
     });
-    var top = tierRows(topItems, topLinks);
-    var titleH = 0;
-    systems.forEach(function (node) { titleH = Math.max(titleH, sizeOf(node).h); });
-    var offsetY = systems.length ? titleH + 64 : 0;
-    var placed = [];
-    topItems.forEach(function (item) {
-      var at = top.at[item.id];
-      if (inner[item.id]) {
-        Object.keys(inner[item.id].at).forEach(function (id) {
-          var spot = inner[item.id].at[id];
-          placed.push(place(byId[id], at.x + CLUSTER_PAD + spot.x, offsetY + at.y + CLUSTER_PAD + CLUSTER_TITLE + spot.y));
+    function arrange(rowGaps) {
+      var top = tierRows(topItems, topLinks, { rowGaps: rowGaps });
+      // The system title sits at the top left: beside the first layer when that
+      // layer leaves room (it usually is narrow and centred), else above it.
+      var titleW = 0;
+      systems.forEach(function (node) { titleW = Math.max(titleW, sizeOf(node).w); });
+      var firstLeft = Infinity;
+      topItems.forEach(function (item) { if (top.rows.length && item.rank === top.rows[0].rank) firstLeft = Math.min(firstLeft, top.at[item.id].x); });
+      var beside = systems.length === 1 && firstLeft - ZONE_PAD >= titleW + 48;
+      var offsetY = !systems.length ? 0 : beside ? ZONE_TOP : SYSTEM_H + 24 + ZONE_TOP;
+      var placed = [];
+      topItems.forEach(function (item) {
+        var at = top.at[item.id];
+        var x = at.x;
+        var y = offsetY + at.y;
+        var group = inner[item.id];
+        if (!group) {
+          placed.push(place(byId[item.id], x, y, { w: item.w, h: item.h }));
+          return;
+        }
+        var box = group.box;
+        if (actor[item.id]) {
+          Object.keys(box.at).forEach(function (id) {
+            var spot = box.at[id];
+            placed.push(place(byId[id], x + FRAME_PAD + spot.x, y + FRAME_PAD + spot.y, group.sizes[id]));
+          });
+          return;
+        }
+        var headW = heads[item.id].w;
+        placed.push(place(byId[item.id], x, y, { w: headW, h: item.h }, { header: true, parts: members[item.id].length }));
+        var top0 = y + Math.round((item.h - box.h) / 2);
+        Object.keys(box.at).forEach(function (id) {
+          var spot = box.at[id];
+          placed.push(place(byId[id], x + headW + FRAME_PAD + spot.x, top0 + spot.y, group.sizes[id]));
         });
-      } else placed.push(place(byId[item.id], at.x, offsetY + at.y));
-    });
-    systems.forEach(function (node, index) {
-      var card = place(node, 0, index * (sizeOf(node).h + 12));
-      card.x = top.w ? Math.max(0, (top.w - card.w) / 2) : 0;
-      placed.unshift(card);
-    });
-    placed.forEach(function (card) {
-      if (card.kind !== "module") return;
-      if (placed.some(function (item) { return item.id === card.parentId && item.kind === "component"; })) card.group = "";
-    });
-    applySavedPositions(placed, sourceNodes);
-    var edges = tierEdges(placed, connections);
-    var groups = groupsFor(placed);
-    var zones = zonesFor(placed);
-    var lanes = top.rows.map(function (row) {
-      return { rank: row.rank, label: TIER_LABEL[row.rank] || "", y: offsetY + row.y, h: row.h };
+      });
+      systems.forEach(function (node, index) {
+        placed.unshift(place(node, 0, index * (SYSTEM_H + 8)));
+      });
+      placed.forEach(function (card) {
+        if (card.kind !== "module") return;
+        if (placed.some(function (item) { return item.id === card.parentId && item.kind === "component"; })) card.group = "";
+      });
+      applySavedPositions(placed, sourceNodes);
+      var groups = groupsFor(placed, FRAME_PAD);
+      var zones = zonesFor(placed, groups);
+      var reserved = zoneLabelRects(zones);
+      var routed = routeTiers(placed, connections, groups, reserved);
+      return { top: top, placed: placed, groups: groups, zones: zones, edges: routed.edges, demand: routed.demand, bands: routed.bands, reserved: reserved, offsetY: offsetY };
+    }
+    // Route once, then give each gap between layers the room its arrows need.
+    var pass = arrange(null);
+    var pinned = sourceNodes.some(function (node) { return isFinite(node.x) && isFinite(node.y); });
+    if (!pinned && pass.bands.length === pass.top.rows.length) {
+      var wanted = pass.top.rows.slice(0, -1).map(function (row, i) {
+        var tracks = pass.demand["g" + i] || 0;
+        var gap = pass.bands[i + 1].top - pass.bands[i].bottom;
+        var labelled = pass.reserved.some(function (r) { return r.y > pass.bands[i].bottom && r.y < pass.bands[i + 1].top; });
+        var need = snap(32 + Math.max(0, tracks - 1) * TRACK + (labelled ? LABEL_KEEP : 0));
+        return need > gap ? TIER_GAP + (need - gap) : TIER_GAP;
+      });
+      if (wanted.some(function (g) { return g > TIER_GAP; })) pass = arrange(wanted);
+    }
+    var top = pass.top;
+    var placed = pass.placed;
+    var groups = pass.groups;
+    var zones = pass.zones;
+    var edges = pass.edges;
+    var offsetY = pass.offsetY;
+    placeLabels(edges, placed, pass.reserved);
+    // One lane per tier, spanning its sub-rows when a long layer wrapped.
+    var lanes = [];
+    top.rows.forEach(function (row) {
+      var last = lanes[lanes.length - 1];
+      if (last && last.rank === row.rank) {
+        last.h = offsetY + row.y + row.h - last.y;
+        last.rows += 1;
+        return;
+      }
+      lanes.push({ rank: row.rank, label: TIER_LABEL[row.rank] || "", y: offsetY + row.y, h: row.h, rows: 1 });
     });
     var bounds = expandForFlows(boundsOf(placed.concat(groups, zones)), edges);
     var unmappedSrc = design && Array.isArray(design.unmappedFlags) ? design.unmappedFlags : [];
@@ -583,140 +860,498 @@
     };
   }
 
-  /** Network and trust boundaries: one frame per zone around its parts. */
-  function zonesFor(placed) {
-    var buckets = {};
-    placed.forEach(function (node) {
-      if (!node.zone || node.kind === "system" || node.kind === "unmapped") return;
-      (buckets[node.zone] = buckets[node.zone] || []).push(node);
-    });
-    var names = Object.keys(buckets);
-    return names.map(function (name) {
-      var box = boundsOf(buckets[name]);
-      return {
-        id: "zone:" + name,
-        name: name,
-        members: buckets[name].map(function (node) { return node.id; }),
-        x: box.x - ZONE_PAD - 8,
-        y: box.y - ZONE_PAD - 18,
-        w: box.w + (ZONE_PAD + 8) * 2,
-        h: box.h + ZONE_PAD * 2 + 18,
-      };
-    });
-  }
+  // ---- Geometry helpers --------------------------------------------------------
 
   function overlapsY(a, b) {
     return a.y < b.y + b.h && b.y < a.y + a.h;
   }
 
-  function verticalClear(x, ya, yb, placed, skip) {
-    var lo = Math.min(ya, yb);
-    var hi = Math.max(ya, yb);
-    return !placed.some(function (node) {
-      if (skip[node.id] || node.kind === "system") return false;
-      return x >= node.x - 8 && x <= node.x + node.w + 8 && hi >= node.y - 6 && lo <= node.y + node.h + 6;
-    });
+  function overlapX(a, b) {
+    return Math.min(a.r, b.r) - Math.max(a.x, b.x);
   }
 
-  function horizontalClear(y, xa, xb, placed, skip) {
-    var lo = Math.min(xa, xb);
-    var hi = Math.max(xa, xb);
-    return !placed.some(function (node) {
-      if (skip[node.id] || node.kind === "system") return false;
-      return y >= node.y - 6 && y <= node.y + node.h + 6 && hi >= node.x - 8 && lo <= node.x + node.w + 8;
+  function hits(a, b, margin) {
+    var m = margin || 0;
+    return a.x < b.x + b.w + m && b.x < a.x + a.w + m && a.y < b.y + b.h + m && b.y < a.y + a.h + m;
+  }
+
+  /** Horizontal bands: y ranges where something stands, merged when they touch. */
+  function bandsOf(rects) {
+    var spans = rects.map(function (r) { return { top: r.y, bottom: r.y + r.h }; }).sort(function (a, b) { return a.top - b.top || a.bottom - b.bottom; });
+    var bands = [];
+    spans.forEach(function (span) {
+      var last = bands[bands.length - 1];
+      if (last && span.top < last.bottom + 1) last.bottom = Math.max(last.bottom, span.bottom);
+      else bands.push({ top: span.top, bottom: span.bottom });
     });
+    return bands;
+  }
+
+  function bandIndex(bands, y) {
+    var best = 0;
+    var distance = Infinity;
+    for (var i = 0; i < bands.length; i += 1) {
+      if (y >= bands[i].top - 0.5 && y <= bands[i].bottom + 0.5) return i;
+      var d = Math.min(Math.abs(y - bands[i].top), Math.abs(y - bands[i].bottom));
+      if (d < distance) { distance = d; best = i; }
+    }
+    return best;
+  }
+
+  /** The outline of a union of rectangles, as closed rectilinear polygons. */
+  function outlineOf(rects) {
+    function uniq(list) {
+      return list.sort(function (a, b) { return a - b; }).filter(function (v, i, all) { return i === 0 || v !== all[i - 1]; });
+    }
+    var xs = [];
+    var ys = [];
+    rects.forEach(function (r) { xs.push(r.x, r.x + r.w); ys.push(r.y, r.y + r.h); });
+    xs = uniq(xs);
+    ys = uniq(ys);
+    var nx = xs.length - 1;
+    var ny = ys.length - 1;
+    var grid = [];
+    for (var i = 0; i < nx; i += 1) {
+      for (var j = 0; j < ny; j += 1) {
+        var cx = (xs[i] + xs[i + 1]) / 2;
+        var cy = (ys[j] + ys[j + 1]) / 2;
+        grid[i * ny + j] = rects.some(function (r) { return cx > r.x && cx < r.x + r.w && cy > r.y && cy < r.y + r.h; });
+      }
+    }
+    function covered(a, b) {
+      return a >= 0 && b >= 0 && a < nx && b < ny && grid[a * ny + b];
+    }
+    var edges = [];
+    for (i = 0; i < nx; i += 1) {
+      for (j = 0; j < ny; j += 1) {
+        if (!covered(i, j)) continue;
+        if (!covered(i, j - 1)) edges.push([xs[i], ys[j], xs[i + 1], ys[j]]);
+        if (!covered(i + 1, j)) edges.push([xs[i + 1], ys[j], xs[i + 1], ys[j + 1]]);
+        if (!covered(i, j + 1)) edges.push([xs[i + 1], ys[j + 1], xs[i], ys[j + 1]]);
+        if (!covered(i - 1, j)) edges.push([xs[i], ys[j + 1], xs[i], ys[j]]);
+      }
+    }
+    var starts = {};
+    edges.forEach(function (e, n) { (starts[e[0] + "," + e[1]] = starts[e[0] + "," + e[1]] || []).push(n); });
+    var used = [];
+    var polygons = [];
+    edges.forEach(function (e, n) {
+      if (used[n]) return;
+      var ring = [];
+      var cur = n;
+      var guard = 0;
+      while (cur != null && !used[cur] && guard < 100000) {
+        guard += 1;
+        used[cur] = true;
+        var edge = edges[cur];
+        ring.push({ x: edge[0], y: edge[1] });
+        var next = (starts[edge[2] + "," + edge[3]] || []).filter(function (m) { return !used[m]; });
+        cur = next.length ? next[0] : null;
+      }
+      var clean = ring.filter(function (pt, k) {
+        var prev = ring[(k - 1 + ring.length) % ring.length];
+        var next = ring[(k + 1) % ring.length];
+        return !((prev.x === pt.x && pt.x === next.x) || (prev.y === pt.y && pt.y === next.y));
+      });
+      if (clean.length >= 4) polygons.push(clean);
+    });
+    return polygons;
+  }
+
+  // ---- Subgraphs and boundaries ---------------------------------------------
+
+  function groupsFor(placed, pad) {
+    pad = pad == null ? CLUSTER_PAD : pad;
+    var groups = [];
+    placed.forEach(function (owner) {
+      if (owner.kind !== "component") return;
+      var kids = placed.filter(function (node) { return node.kind === "module" && node.parentId === owner.id; });
+      if (!kids.length) return;
+      var box = boundsOf(kids);
+      if (owner.header) {
+        var x0 = Math.min(owner.x, box.x - pad);
+        var y0 = Math.min(owner.y, box.y - pad);
+        var x1 = Math.max(owner.x + owner.w, box.x + box.w + pad);
+        var y1 = Math.max(owner.y + owner.h, box.y + box.h + pad);
+        groups.push({ id: owner.id, header: true, x: x0, y: y0, w: x1 - x0, h: y1 - y0, divider: owner.x + owner.w });
+        return;
+      }
+      var all = boundsOf([owner].concat(kids));
+      groups.push({ id: owner.id, header: false, x: all.x - pad, y: all.y - pad, w: all.w + pad * 2, h: all.h + pad * 2 });
+    });
+    return groups;
   }
 
   /**
-   * Orthogonal routes for a tiered picture: down the page from bottom to top
-   * ports, replies back up, same-row flows side to side. Crossing a busy row
-   * goes through the nearest free channel between boxes.
+   * Network and trust boundaries. A boundary is drawn around runs of its parts
+   * in each layer, widened and bridged to the runs in the next layer, so its
+   * outline is one rectilinear shape that never cuts through another boundary.
    */
-  function tierEdges(placed, connections) {
+  function zonesFor(placed, groups) {
+    var frames = {};
+    (groups || []).forEach(function (g) { frames[g.id] = g; });
+    var solid = placed.filter(function (node) { return node.kind !== "system" && node.kind !== "unmapped"; });
+    var byId = {};
+    solid.forEach(function (node) { byId[node.id] = node; });
+    var units = [];
+    var unitOf = {};
+    solid.forEach(function (node) {
+      var key = frames[node.id] ? node.id : node.parentId && frames[node.parentId] ? node.parentId : node.id;
+      if (unitOf[key]) {
+        if (!unitOf[key].zone && node.zone) unitOf[key].zone = node.zone;
+        return;
+      }
+      var rect = frames[key] || node;
+      var owner = byId[key] || node;
+      unitOf[key] = { key: key, x: rect.x, y: rect.y, w: rect.w, h: rect.h, zone: owner.zone || node.zone || "" };
+      units.push(unitOf[key]);
+    });
+    var bands = bandsOf(units);
+    units.forEach(function (u) { u.band = bandIndex(bands, u.y + u.h / 2); });
+    var buckets = {};
+    var names = [];
+    solid.forEach(function (node) {
+      if (!node.zone) return;
+      if (!buckets[node.zone]) { buckets[node.zone] = []; names.push(node.zone); }
+      buckets[node.zone].push(node.id);
+    });
+    return names.map(function (name) {
+      var blocks = [];
+      bands.forEach(function (band, b) {
+        var run = null;
+        units.filter(function (u) { return u.band === b; }).sort(function (p, q) { return p.x - q.x; }).forEach(function (u) {
+          if (u.zone !== name) {
+            run = null;
+            return;
+          }
+          if (!run) {
+            run = { band: b, x: u.x, y: u.y, r: u.x + u.w, bottom: u.y + u.h };
+            blocks.push(run);
+            return;
+          }
+          run.x = Math.min(run.x, u.x);
+          run.y = Math.min(run.y, u.y);
+          run.r = Math.max(run.r, u.x + u.w);
+          run.bottom = Math.max(run.bottom, u.y + u.h);
+        });
+      });
+      if (!blocks.length) return null;
+      blocks.forEach(function (block) {
+        block.minX = -Infinity;
+        block.maxX = Infinity;
+        units.forEach(function (u) {
+          if (u.band !== block.band || u.zone === name) return;
+          if (u.x + u.w <= block.x) block.minX = Math.max(block.minX, u.x + u.w + ZONE_WIDEN);
+          if (u.x >= block.r) block.maxX = Math.min(block.maxX, u.x - ZONE_WIDEN);
+        });
+      });
+      function widen(block, toward) {
+        block.x = Math.min(block.x, Math.max(block.minX, toward.x));
+        block.r = Math.max(block.r, Math.min(block.maxX, toward.r));
+      }
+      blocks.forEach(function (lower) {
+        var uppers = blocks.filter(function (u) { return u.band === lower.band - 1; });
+        if (!uppers.length || uppers.some(function (u) { return overlapX(u, lower) >= 24; })) return;
+        var mid = (lower.x + lower.r) / 2;
+        var upper = uppers.slice().sort(function (p, q) { return Math.abs((p.x + p.r) / 2 - mid) - Math.abs((q.x + q.r) / 2 - mid); })[0];
+        widen(upper, lower);
+        if (overlapX(upper, lower) < 24) widen(lower, upper);
+      });
+      var rects = [];
+      var labels = [];
+      blocks.forEach(function (block) {
+        var bridged = blocks.some(function (u) { return u.band === block.band - 1 && overlapX(u, block) >= 24; });
+        block.px = block.x - ZONE_PAD;
+        block.pr = block.r + ZONE_PAD;
+        block.py = block.y - (bridged ? ZONE_PAD : ZONE_TOP);
+        block.pb = block.bottom + ZONE_PAD;
+        rects.push({ x: block.px, y: block.py, w: block.pr - block.px, h: block.pb - block.py });
+        if (!bridged) labels.push({ x: block.px + 10, y: block.py + 9, w: Math.round(name.length * 6.9 + 18), h: 22 });
+      });
+      blocks.forEach(function (lower) {
+        blocks.forEach(function (upper) {
+          if (upper.band !== lower.band - 1) return;
+          var lo = Math.max(upper.px, lower.px);
+          var hi = Math.min(upper.pr, lower.pr);
+          if (hi - lo < 24 || lower.py <= upper.pb) return;
+          rects.push({ x: lo, y: upper.pb - 1, w: hi - lo, h: lower.py - upper.pb + 2 });
+        });
+      });
+      var box = boundsOf(rects);
+      return {
+        id: "zone:" + name,
+        name: name,
+        members: buckets[name],
+        x: box.x,
+        y: box.y,
+        w: box.w,
+        h: box.h,
+        outline: outlineOf(rects),
+        labels: labels,
+      };
+    }).filter(Boolean);
+  }
+
+  function zoneLabelRects(zones) {
+    var out = [];
+    (zones || []).forEach(function (zone) { (zone.labels || []).forEach(function (label) { out.push(label); }); });
+    return out;
+  }
+
+  // ---- Orthogonal routing ----------------------------------------------------
+
+  /**
+   * Orthogonal routes for a tiered picture. Arrows leave the bottom of a
+   * caller and enter the top of the callee; replies go back up on their own
+   * port beside the request, so a request and its reply run as a pair. Flows
+   * inside a layer go side to side, or under the layer when something stands
+   * between. Horizontal runs live in the gaps between layers; a flow that
+   * skips layers drops straight down when the column is free, else through
+   * the nearest free channel. Runs that share a gap or channel are then
+   * spread onto separate tracks, ordered to avoid crossings.
+   */
+  function tierEdges(placed, connections, groups, reserved) {
+    return routeTiers(placed, connections, groups, reserved).edges;
+  }
+
+  function routeTiers(placed, connections, groups, reserved) {
+    groups = groups || groupsFor(placed, FRAME_PAD);
+    reserved = reserved || [];
     var byId = {};
     placed.forEach(function (node) { byId[node.id] = node; });
-    var same = [];
-    var vertical = [];
-    (connections || []).forEach(function (connection) {
-      var from = byId[connection.fromId];
-      var to = byId[connection.toId];
-      if (!from || !to || from === to) return;
-      if (overlapsY(from, to)) same.push(connection);
-      else vertical.push({ connection: connection, from: from, to: to, down: to.y >= from.y + from.h });
+    var solid = placed.filter(function (node) { return node.kind !== "system" && node.kind !== "unmapped"; });
+    var frameOf = {};
+    groups.forEach(function (g) { frameOf[g.id] = g.id; });
+    solid.forEach(function (node) {
+      if (node.kind === "module" && node.parentId && frameOf[node.parentId] === node.parentId) frameOf[node.id] = node.parentId;
     });
-    // Ports: every vertical flow takes a slot on the bottom or top side of each end.
-    var sides = {};
-    function side(node, where) {
-      var key = node.id + ":" + where;
-      return (sides[key] = sides[key] || []);
+    var obstacles = solid.map(function (node) { return { key: node.id, x: node.x - 6, y: node.y - 4, w: node.w + 12, h: node.h + 8 }; })
+      .concat(groups.map(function (g) { return { key: "frame:" + g.id, x: g.x, y: g.y, w: g.w, h: g.h }; }));
+    var bands = bandsOf(solid.concat(groups));
+    function bandOf(node) { return bandIndex(bands, node.y + node.h / 2); }
+    function gapBelow(i) {
+      var gap;
+      if (!bands.length) gap = { id: "g", top: 0, bottom: 0 };
+      else if (i < 0) gap = { id: "g-1", top: bands[0].top - 72, bottom: bands[0].top };
+      else if (i >= bands.length - 1) gap = { id: "g" + (bands.length - 1), top: bands[bands.length - 1].bottom, bottom: bands[bands.length - 1].bottom + 72 };
+      else gap = { id: "g" + i, top: bands[i].bottom, bottom: bands[i + 1].top };
+      // Boundary labels hang in the lower part of a gap; tracks keep clear.
+      gap.labels = reserved.filter(function (r) { return r.y > gap.top - 1 && r.y < gap.bottom; });
+      return gap;
     }
-    vertical.forEach(function (edge) {
-      side(edge.from, edge.down ? "bottom" : "top").push({ edge: edge, other: edge.to, end: "from" });
-      side(edge.to, edge.down ? "top" : "bottom").push({ edge: edge, other: edge.from, end: "to" });
+    function mid(gap) { return (gap.top + gap.bottom) / 2; }
+    function blocked(x1, y1, x2, y2, skip) {
+      var r = { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
+      return obstacles.some(function (o) { return !skip[o.key] && hits(r, o); });
+    }
+    function pt(x, y) { return { x: x, y: y }; }
+
+    // A subgraph titled by its owner is one shape for routing: its frame.
+    var geo = {};
+    placed.forEach(function (node) { geo[node.id] = node; });
+    groups.forEach(function (g) {
+      var owner = byId[g.id];
+      if (!g.header || !owner) return;
+      geo[g.id] = { id: g.id, kind: owner.kind, shape: "frame", x: g.x, y: g.y, w: g.w, h: g.h, portX: owner.x, portW: owner.w };
     });
-    Object.keys(sides).forEach(function (key) {
-      var list = sides[key];
-      var node = byId[key.slice(0, key.lastIndexOf(":"))];
-      list.sort(function (a, b) {
-        return a.other.x + a.other.w / 2 - (b.other.x + b.other.w / 2) || (a.edge.down ? 0 : 1) - (b.edge.down ? 0 : 1);
-      });
-      list.forEach(function (slot, i) {
-        var x = node.x + (node.w * (i + 1)) / (list.length + 1);
-        if (slot.end === "from") slot.edge.x1 = x;
-        else slot.edge.x2 = x;
-      });
-    });
-    var lane = 0;
-    var result = vertical.map(function (edge) {
-      var from = edge.from;
-      var to = edge.to;
+    var list = [];
+    (connections || []).forEach(function (c) {
+      var from = geo[c.fromId];
+      var to = geo[c.toId];
+      if (!from || !to || from === to) return;
       var skip = {};
       skip[from.id] = true;
       skip[to.id] = true;
-      var x1 = edge.x1;
-      var x2 = edge.x2;
-      var y1 = edge.down ? from.y + from.h : from.y;
-      var y2 = edge.down ? to.y : to.y + to.h;
-      var dir = edge.down ? 1 : -1;
-      var offset = 22 + (lane % 4) * 7;
-      lane += 1;
-      var points = null;
-      var tries = [y2 - dir * offset, y1 + dir * offset];
-      for (var t = 0; t < tries.length && !points; t += 1) {
-        var mid = tries[t];
-        if (verticalClear(x1, y1, mid, placed, skip) && horizontalClear(mid, x1, x2, placed, skip) && verticalClear(x2, mid, y2, placed, skip)) {
-          points = [{ x: x1, y: y1 }, { x: x1, y: mid }, { x: x2, y: mid }, { x: x2, y: y2 }];
-        }
+      if (frameOf[from.id]) skip["frame:" + frameOf[from.id]] = true;
+      if (frameOf[to.id]) skip["frame:" + frameOf[to.id]] = true;
+      var e = { c: c, from: from, to: to, skip: skip, index: list.length, segs: [] };
+      // Same layer band but not beside each other: still a flow inside the
+      // layer, unless both sit in one subgraph's stacked inner rows.
+      var sameFrame = frameOf[from.id] && frameOf[from.id] === frameOf[to.id];
+      var sideways = overlapsY(from, to) || (!sameFrame && bandOf(from) === bandOf(to));
+      if (sideways) {
+        var left = from.x + from.w / 2 <= to.x + to.w / 2 ? from : to;
+        var right = left === from ? to : from;
+        var ya = Math.min(from.y + from.h / 2, to.y + to.h / 2) - 12;
+        var yb = Math.max(from.y + from.h / 2, to.y + to.h / 2) + 12;
+        var clear = right.x - (left.x + left.w) >= 16 && !blocked(left.x + left.w + 1, ya, right.x - 1, yb, skip);
+        e.type = clear ? "side" : "under";
+        e.band = Math.max(bandOf(from), bandOf(to));
+      } else {
+        e.type = to.y >= from.y + from.h ? "down" : "up";
+        e.a = bandOf(from);
+        e.b = bandOf(to);
       }
-      if (!points) {
-        var gapA = y1 + dir * offset;
-        var gapB = y2 - dir * offset;
-        var edges = [];
-        placed.forEach(function (node) {
-          if (skip[node.id] || node.kind === "system") return;
-          if (Math.max(gapA, gapB) >= node.y && Math.min(gapA, gapB) <= node.y + node.h) edges.push([node.x - 8, node.x + node.w + 8]);
-        });
-        edges.sort(function (a, b) { return a[0] - b[0]; });
-        var channels = [];
-        if (edges.length) {
-          channels.push(edges[0][0] - 24);
-          for (var i = 0; i < edges.length - 1; i += 1) {
-            if (edges[i + 1][0] - edges[i][1] > 16) channels.push((edges[i][1] + edges[i + 1][0]) / 2);
-          }
-          var right = Math.max.apply(null, edges.map(function (e) { return e[1]; }));
-          channels.push(right + 24);
-        }
-        var target = (x1 + x2) / 2;
-        channels.sort(function (a, b) { return Math.abs(a - target) - Math.abs(b - target); });
-        var channel = channels.find(function (c) {
-          return verticalClear(c, gapA, gapB, placed, skip);
-        });
-        if (channel == null) channel = target;
-        points = [{ x: x1, y: y1 }, { x: x1, y: gapA }, { x: channel, y: gapA }, { x: channel, y: gapB }, { x: x2, y: gapB }, { x: x2, y: y2 }];
+      list.push(e);
+    });
+
+    // Ports: each flow takes a slot on the side of each end it uses.
+    var sides = {};
+    function slot(node, side, entry) {
+      var key = node.id + ":" + side;
+      (sides[key] = sides[key] || { node: node, side: side, list: [] }).list.push(entry);
+    }
+    list.forEach(function (e) {
+      var pair = pairKey(e.from.id, e.to.id);
+      var fromSide;
+      var toSide;
+      if (e.type === "side") {
+        var rightward = e.to.x + e.to.w / 2 >= e.from.x + e.from.w / 2;
+        fromSide = rightward ? "right" : "left";
+        toSide = rightward ? "left" : "right";
+      } else if (e.type === "under") {
+        fromSide = "bottom";
+        toSide = "bottom";
+      } else {
+        fromSide = e.type === "down" ? "bottom" : "top";
+        toSide = e.type === "down" ? "top" : "bottom";
       }
+      slot(e.from, fromSide, { e: e, end: "from", other: e.to, pair: pair });
+      slot(e.to, toSide, { e: e, end: "to", other: e.from, pair: pair });
+    });
+    Object.keys(sides).sort().forEach(function (key) {
+      var s = sides[key];
+      var node = s.node;
+      var upright = s.side === "left" || s.side === "right";
+      s.list.sort(function (p, q) {
+        var a = upright ? p.other.y + p.other.h / 2 : p.other.x + p.other.w / 2;
+        var b = upright ? q.other.y + q.other.h / 2 : q.other.x + q.other.w / 2;
+        return a - b || (p.pair < q.pair ? -1 : p.pair > q.pair ? 1 : 0) || p.e.index - q.e.index;
+      });
+      var units = [];
+      s.list.forEach(function (entry) {
+        var last = units[units.length - 1];
+        if (last && last.pair === entry.pair && last.items.length < 2) last.items.push(entry);
+        else units.push({ pair: entry.pair, items: [entry] });
+      });
+      var margin = upright ? 14 : Math.max(20, insetOf(node.shape) + 8);
+      var start = (upright ? node.y : node.portW ? node.portX : node.x) + margin;
+      var end = (upright ? node.y + node.h : node.portW ? node.portX + node.portW : node.x + node.w) - margin;
+      if (end < start) start = end = upright ? node.y + node.h / 2 : node.x + node.w / 2;
+      // Arrows into a top side keep out from under a boundary label hanging
+      // just above it.
+      if (s.side === "top") {
+        reserved.forEach(function (r) {
+          if (r.y + r.h > node.y + 1 || r.y + r.h < node.y - 72) return;
+          if (r.x + r.w + 8 > start && r.x < start && end - (r.x + r.w + 8) >= 32) start = r.x + r.w + 8;
+        });
+      }
+      units.forEach(function (unit, i) {
+        var c = start + ((end - start) * (i + 1)) / (units.length + 1);
+        unit.items.forEach(function (entry, k) {
+          var v = Math.round(unit.items.length === 2 ? c + (k === 0 ? -7 : 7) : c);
+          if (entry.end === "from") entry.e.p1 = v;
+          else entry.e.p2 = v;
+        });
+      });
+    });
+
+    function channelFor(top, bottom, target, skip) {
+      var spans = [];
+      obstacles.forEach(function (o) {
+        if (skip[o.key] || o.y >= bottom || o.y + o.h <= top) return;
+        spans.push([o.x - 8, o.x + o.w + 8]);
+      });
+      if (!spans.length) return { x: target, id: "k:open", lo: target - 40, hi: target + 40 };
+      spans.sort(function (a, b) { return a[0] - b[0]; });
+      var merged = [spans[0].slice()];
+      spans.slice(1).forEach(function (span) {
+        var last = merged[merged.length - 1];
+        if (span[0] <= last[1]) last[1] = Math.max(last[1], span[1]);
+        else merged.push(span.slice());
+      });
+      var options = [{ lo: merged[0][0] - 64, hi: merged[0][0] }];
+      for (var i = 0; i < merged.length - 1; i += 1) {
+        if (merged[i + 1][0] - merged[i][1] >= 16) options.push({ lo: merged[i][1], hi: merged[i + 1][0] });
+      }
+      options.push({ lo: merged[merged.length - 1][1], hi: merged[merged.length - 1][1] + 64 });
+      options.forEach(function (o) { o.x = Math.round((o.lo + o.hi) / 2); });
+      options.sort(function (a, b) { return Math.abs(a.x - target) - Math.abs(b.x - target); });
+      var best = options[0];
+      return { x: best.x, id: "k:" + Math.round(best.lo) + ":" + Math.round(best.hi), lo: best.lo + 6, hi: best.hi - 6 };
+    }
+
+    list.forEach(function (e) {
+      var from = e.from;
+      var to = e.to;
+      var x1;
+      var x2;
+      var y1;
+      var y2;
+      if (e.type === "side") {
+        var rightward = to.x + to.w / 2 >= from.x + from.w / 2;
+        x1 = rightward ? from.x + from.w : from.x;
+        x2 = rightward ? to.x : to.x + to.w;
+        y1 = e.p1;
+        y2 = e.p2;
+        if (Math.abs(y1 - y2) < 1) e.points = [pt(x1, y1), pt(x2, y2)];
+        else {
+          var mx = Math.round((x1 + x2) / 2);
+          e.points = [pt(x1, y1), pt(mx, y1), pt(mx, y2), pt(x2, y2)];
+          e.segs.push({ k: 1, v: true, id: "c:" + pairKey(from.id, to.id), lo: Math.min(x1, x2) + 10, hi: Math.max(x1, x2) - 10 });
+        }
+        return;
+      }
+      if (e.type === "under") {
+        var gap = gapBelow(e.band);
+        var gy = mid(gap);
+        x1 = e.p1;
+        x2 = e.p2;
+        e.points = [pt(x1, from.y + from.h), pt(x1, gy), pt(x2, gy), pt(x2, to.y + to.h)];
+        e.segs.push({ k: 1, h: true, gap: gap });
+        return;
+      }
+      var down = e.type === "down";
+      x1 = e.p1;
+      x2 = e.p2;
+      y1 = down ? from.y + from.h : from.y;
+      y2 = down ? to.y : to.y + to.h;
+      var near;
+      var far;
+      if (e.a === e.b) near = far = { id: "l:" + from.id + ">" + to.id, top: Math.min(y1, y2), bottom: Math.max(y1, y2) };
+      else if (down) {
+        near = gapBelow(e.a);
+        far = gapBelow(e.b - 1);
+      } else {
+        near = gapBelow(e.a - 1);
+        far = gapBelow(e.b);
+      }
+      if (near.id === far.id) {
+        var y = mid(near);
+        e.points = [pt(x1, y1), pt(x1, y), pt(x2, y), pt(x2, y2)];
+        e.segs.push({ k: 1, h: true, gap: near });
+        return;
+      }
+      if (Math.abs(x1 - x2) < 1 && !blocked(x1, y1, x2, y2, e.skip)) {
+        e.points = [pt(x1, y1), pt(x2, y2)];
+        return;
+      }
+      var ny = mid(near);
+      var fy = mid(far);
+      if (!blocked(x1, y1, x1, fy, e.skip)) {
+        e.points = [pt(x1, y1), pt(x1, fy), pt(x2, fy), pt(x2, y2)];
+        e.segs.push({ k: 1, h: true, gap: far });
+        return;
+      }
+      if (!blocked(x2, ny, x2, y2, e.skip)) {
+        e.points = [pt(x1, y1), pt(x1, ny), pt(x2, ny), pt(x2, y2)];
+        e.segs.push({ k: 1, h: true, gap: near });
+        return;
+      }
+      var channel = channelFor(Math.min(ny, fy), Math.max(ny, fy), (x1 + x2) / 2, e.skip);
+      e.points = [pt(x1, y1), pt(x1, ny), pt(channel.x, ny), pt(channel.x, fy), pt(x2, fy), pt(x2, y2)];
+      e.segs.push({ k: 1, h: true, gap: near }, { k: 2, v: true, id: channel.id, lo: channel.lo, hi: channel.hi }, { k: 3, h: true, gap: far });
+    });
+
+    nudge(list, false);
+    var demand = nudge(list, true);
+
+    var edges = list.map(function (e) {
+      var points = e.points;
+      var last = points[points.length - 1];
       var longest = 0;
-      var cx = (x1 + x2) / 2;
-      var cy = (y1 + y2) / 2;
+      var cx = (points[0].x + last.x) / 2;
+      var cy = (points[0].y + last.y) / 2;
       for (var k = 1; k < points.length; k += 1) {
         var length = Math.abs(points[k].x - points[k - 1].x) + Math.abs(points[k].y - points[k - 1].y);
         if (length > longest) {
@@ -726,17 +1361,177 @@
         }
       }
       return {
-        from: from.id,
-        to: to.id,
-        id: edge.connection.id,
-        kind: edge.connection.kind || "data",
-        label: edge.connection.label || "",
-        x1: x1, y1: y1, x2: x2, y2: y2, cx: cx, cy: cy,
+        from: e.from.id,
+        to: e.to.id,
+        id: e.c.id,
+        kind: e.c.kind || "data",
+        label: e.c.label || "",
+        x1: points[0].x, y1: points[0].y, x2: last.x, y2: last.y, cx: cx, cy: cy,
         points: points,
       };
     });
-    var sideways = flowEdges(placed, same).map(function (edge, i) { return Object.assign({ id: same[i] && same[i].id }, edge); });
-    return sideways.concat(result);
+    return { edges: edges, demand: demand, bands: bands };
+  }
+
+  /**
+   * Lane separation: runs that share a gap (horizontal) or a channel
+   * (vertical) and overlap are spread onto parallel tracks, ordered so that
+   * the legs at their ends cross as few other runs as possible.
+   */
+  function nudge(list, horizontal) {
+    var groups = {};
+    var keys = [];
+    list.forEach(function (e) {
+      e.segs.forEach(function (s) {
+        if (horizontal ? !s.h : !s.v) return;
+        var P = e.points;
+        var a = P[s.k];
+        var b = P[s.k + 1];
+        var before = P[s.k - 1];
+        var after = P[s.k + 2];
+        var rec = horizontal
+          ? {
+            e: e, s: s, pos: a.y, lo: Math.min(a.x, b.x), hi: Math.max(a.x, b.x),
+            ends: [{ at: a.x, dir: before ? Math.sign(before.y - a.y) : 0 }, { at: b.x, dir: after ? Math.sign(after.y - b.y) : 0 }],
+            min: s.gap.top + 10, max: s.gap.bottom - 10, key: s.gap.id,
+          }
+          : {
+            e: e, s: s, pos: a.x, lo: Math.min(a.y, b.y), hi: Math.max(a.y, b.y),
+            ends: [{ at: a.y, dir: before ? Math.sign(before.x - a.x) : 0 }, { at: b.y, dir: after ? Math.sign(after.x - b.x) : 0 }],
+            min: s.lo, max: s.hi, key: s.id,
+          };
+        if (horizontal) {
+          (s.gap.labels || []).forEach(function (r) {
+            if (r.x < rec.hi + 8 && r.x + r.w > rec.lo - 8) rec.max = Math.min(rec.max, r.y - 8);
+          });
+          if (rec.max < rec.min) rec.max = rec.min;
+        }
+        if (!groups[rec.key]) { groups[rec.key] = []; keys.push(rec.key); }
+        groups[rec.key].push(rec);
+      });
+    });
+    // cost of putting `first` on the track before `second` (above / left of it)
+    function cost(first, second) {
+      var n = 0;
+      first.ends.forEach(function (end) { if (end.dir > 0 && end.at > second.lo + 0.5 && end.at < second.hi - 0.5) n += 1; });
+      second.ends.forEach(function (end) { if (end.dir < 0 && end.at > first.lo + 0.5 && end.at < first.hi - 0.5) n += 1; });
+      return n;
+    }
+    var demand = {};
+    keys.forEach(function (key) {
+      var recs = groups[key].sort(function (a, b) { return a.lo - b.lo || a.e.index - b.e.index; });
+      // components of runs that overlap along the channel
+      var parts = [];
+      recs.forEach(function (rec) {
+        var joined = parts.filter(function (part) { return part.some(function (other) { return rec.lo < other.hi + 12 && other.lo < rec.hi + 12; }); });
+        if (!joined.length) { parts.push([rec]); return; }
+        var merged = [rec];
+        joined.forEach(function (part) { merged = merged.concat(part); parts.splice(parts.indexOf(part), 1); });
+        parts.push(merged);
+      });
+      parts.forEach(function (part) {
+        demand[key] = Math.max(demand[key] || 0, part.length);
+        if (part.length < 2 && (!horizontal || (part[0].pos >= part[0].min && part[0].pos <= part[0].max))) return;
+        part.sort(function (a, b) { return a.lo - b.lo || a.e.index - b.e.index; });
+        var order = [];
+        part.forEach(function (rec) {
+          var bestAt = 0;
+          var bestCost = Infinity;
+          for (var p = 0; p <= order.length; p += 1) {
+            var total = 0;
+            for (var i = 0; i < order.length; i += 1) total += i < p ? cost(order[i], rec) : cost(rec, order[i]);
+            if (total < bestCost) { bestCost = total; bestAt = p; }
+          }
+          order.splice(bestAt, 0, rec);
+        });
+        var lo = Math.max.apply(null, order.map(function (r) { return r.min; }));
+        var hi = Math.min.apply(null, order.map(function (r) { return r.max; }));
+        var center = horizontal ? (lo + hi) / 2 : order.reduce(function (sum, r) { return sum + r.pos; }, 0) / order.length;
+        if (!(hi > lo)) { lo = center - TRACK * order.length; hi = center + TRACK * order.length; }
+        var spacing = order.length > 1 ? Math.max(4, Math.min(TRACK, (hi - lo) / (order.length - 1))) : 0;
+        order.forEach(function (rec, i) {
+          var value = Math.round(center + (i - (order.length - 1) / 2) * spacing);
+          var P = rec.e.points;
+          if (horizontal) { P[rec.s.k].y = value; P[rec.s.k + 1].y = value; }
+          else { P[rec.s.k].x = value; P[rec.s.k + 1].x = value; }
+        });
+      });
+    });
+    return demand;
+  }
+
+  function pairKey(a, b) {
+    return a < b ? a + "~" + b : b + "~" + a;
+  }
+
+  // ---- Arrow labels ------------------------------------------------------------
+
+  /**
+   * A label goes where it is readable: on a free stretch of its own arrow,
+   * clear of boxes, other labels, and (if possible) other arrows. A label that
+   * finds no clear spot is marked crowded; the canvas shows it on focus only.
+   */
+  function placeLabels(edges, placed, reserved) {
+    var boxes = (placed || []).map(function (n) { return { x: n.x - 10, y: n.y - 8, w: n.w + 20, h: n.h + 16 }; });
+    var taken = (reserved || []).slice();
+    var lines = [];
+    edges.forEach(function (edge, i) {
+      var P = edge.points || [];
+      for (var k = 0; k < P.length - 1; k += 1) lines.push({ i: i, x1: Math.min(P[k].x, P[k + 1].x), x2: Math.max(P[k].x, P[k + 1].x), y1: Math.min(P[k].y, P[k + 1].y), y2: Math.max(P[k].y, P[k + 1].y) });
+    });
+    edges.forEach(function (edge, i) {
+      var P = edge.points && edge.points.length ? edge.points : [{ x: edge.x1, y: edge.y1 }, { x: edge.x2, y: edge.y2 }];
+      var text = String(edge.label || "").trim();
+      if (text.length > LABEL_CHARS) text = text.slice(0, LABEL_CHARS - 1).replace(/[\s,;:/.-]+$/, "") + "…";
+      var w = Math.round(text.length * LABEL_PX + 18);
+      var h = LABEL_H;
+      edge.text = text;
+      edge.lw = w;
+      edge.lh = h;
+      edge.crowded = false;
+      if (!text) return;
+      var segs = [];
+      for (var k = 0; k < P.length - 1; k += 1) {
+        var a = P[k];
+        var b = P[k + 1];
+        var len = Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+        if (len < 1) continue;
+        var flat = Math.abs(a.y - b.y) < 0.5;
+        var fits = flat ? len >= w * 0.5 : len >= h + 24;
+        segs.push({ a: a, b: b, len: len, rank: (fits ? 0 : 2) + (flat ? 0 : 1) });
+      }
+      segs.sort(function (s, t) { return s.rank - t.rank || t.len - s.len; });
+      var best = null;
+      var order = 0;
+      for (var si = 0; si < segs.length && !(best && best.score < 1); si += 1) {
+        var seg = segs[si];
+        var ts = [0.5, 0.3, 0.7, 0.15, 0.85];
+        for (var ti = 0; ti < ts.length; ti += 1) {
+          var x = Math.round(seg.a.x + (seg.b.x - seg.a.x) * ts[ti]);
+          var y = Math.round(seg.a.y + (seg.b.y - seg.a.y) * ts[ti]);
+          var r = { x: x - w / 2, y: y - h / 2, w: w, h: h };
+          var nodeHits = 0;
+          var labelHits = 0;
+          var lineHits = 0;
+          boxes.forEach(function (box) { if (hits(r, box)) nodeHits += 1; });
+          taken.forEach(function (box) { if (hits(r, box, 4)) labelHits += 1; });
+          lines.forEach(function (line) {
+            if (line.i === i) return;
+            if (line.x2 > r.x + 1 && line.x1 < r.x + r.w - 1 && line.y2 > r.y + 1 && line.y1 < r.y + r.h - 1) lineHits += 1;
+          });
+          var score = nodeHits * 1000 + labelHits * 100 + lineHits * 6 + seg.rank * 2 + order * 0.04;
+          order += 1;
+          if (!best || score < best.score) best = { score: score, x: x, y: y, bad: nodeHits + labelHits > 0 };
+          if (score < 1) break;
+        }
+      }
+      if (!best) return;
+      edge.cx = best.x;
+      edge.cy = best.y;
+      edge.crowded = best.bad;
+      if (!best.bad) taken.push({ x: best.x - w / 2, y: best.y - h / 2, w: w, h: h });
+    });
+    return edges;
   }
 
   function buildScene(design) {
@@ -904,7 +1699,8 @@
     });
     applySavedPositions(placed, sourceNodes);
     var edges = routeEdges(placed, connections, direction);
-    var groups = groupsFor(placed);
+    var groups = groupsFor(placed, CLUSTER_PAD);
+    placeLabels(edges, placed);
     var captions = [];
     var bounds = expandForFlows(boundsOf(placed.concat(groups)), edges);
     var unmappedSrc = design && Array.isArray(design.unmappedFlags) ? design.unmappedFlags : [];
@@ -963,24 +1759,6 @@
     });
   }
 
-  function groupsFor(placed) {
-    var groups = [];
-    placed.forEach(function (owner) {
-      if (owner.kind !== "component") return;
-      var kids = placed.filter(function (node) { return node.kind === "module" && node.parentId === owner.id; });
-      if (!kids.length) return;
-      var box = boundsOf([owner].concat(kids));
-      groups.push({
-        id: owner.id,
-        x: box.x - CLUSTER_PAD,
-        y: box.y - CLUSTER_PAD,
-        w: box.w + CLUSTER_PAD * 2,
-        h: box.h + CLUSTER_PAD * 2,
-      });
-    });
-    return groups;
-  }
-
   function segmentHits(x1, y1, x2, y2, placed, skip) {
     var minX = Math.min(x1, x2);
     var maxX = Math.max(x1, x2);
@@ -998,10 +1776,6 @@
     var span = Math.max(18, Math.min(node.h - 28, (count - 1) * 16));
     var start = node.y + node.h / 2 - span / 2;
     return start + (span * slot) / (count - 1);
-  }
-
-  function pairKey(a, b) {
-    return a < b ? a + "~" + b : b + "~" + a;
   }
 
   function clampPort(value, node) {
@@ -1096,17 +1870,30 @@
     return [];
   }
 
-  function moveNode(scene, id, x, y) {
+  /**
+   * Move one card and re-route. Pass `later` when moving several cards at once
+   * and only the last move needs to re-route.
+   */
+  function moveNode(scene, id, x, y, later) {
     if (!scene || !isFinite(x) || !isFinite(y)) return scene;
     var node = (scene.nodes || []).find(function (item) { return item.id === id; });
     if (!node) return scene;
     node.x = x;
     node.y = y;
-    scene.edges = scene.mode === "tiers" ? tierEdges(scene.nodes, scene.connections || []) : routeEdges(scene.nodes, scene.connections || [], scene.direction);
-    if (scene.mode === "tiers") scene.zones = zonesFor(scene.nodes);
-    scene.groups = groupsFor(scene.nodes);
+    if (later) return scene;
+    if (scene.mode === "tiers") {
+      scene.groups = groupsFor(scene.nodes, FRAME_PAD);
+      scene.zones = zonesFor(scene.nodes, scene.groups);
+      var reserved = zoneLabelRects(scene.zones);
+      scene.edges = tierEdges(scene.nodes, scene.connections || [], scene.groups, reserved);
+      placeLabels(scene.edges, scene.nodes, reserved);
+    } else {
+      scene.groups = groupsFor(scene.nodes, CLUSTER_PAD);
+      scene.edges = routeEdges(scene.nodes, scene.connections || [], scene.direction);
+      placeLabels(scene.edges, scene.nodes);
+    }
     scene.captions = captionsFor(scene.nodes, scene.boundaries || []);
-    scene.bounds = expandForFlows(boundsOf(scene.nodes.concat(scene.groups || [])), scene.edges);
+    scene.bounds = expandForFlows(boundsOf(scene.nodes.concat(scene.groups || [], scene.zones || [])), scene.edges);
     return scene;
   }
 
@@ -1205,5 +1992,13 @@
     return Object.assign({}, model, { nodes: kept, connections: connections });
   }
 
-  return { buildScene: buildScene, moveNode: moveNode, collapse: collapse, inferTier: inferTier, blurbOf: blurbOf, TIER_LABEL: TIER_LABEL };
+  return {
+    buildScene: buildScene,
+    moveNode: moveNode,
+    collapse: collapse,
+    inferTier: inferTier,
+    blurbOf: blurbOf,
+    boxLines: boxLines,
+    TIER_LABEL: TIER_LABEL,
+  };
 });
