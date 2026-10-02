@@ -1,12 +1,9 @@
 name: Publish to npm
 
-# Runs when a vX.Y.Z tag is pushed, when a GitHub release is published, or by hand.
-# (A release for an already-published version fails harmlessly: npm refuses duplicates.)
+# Runs when a GitHub release is published (tag vX.Y.Z), or by hand.
 # First publish: add an npm automation token as the NPM_TOKEN repository secret.
 # After that, npm trusted publishing (this repo + this workflow) can replace the token.
 on:
-  push:
-    tags: ["v*"]
   release:
     types: [published]
   workflow_dispatch:
@@ -27,7 +24,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - name: Tag matches package.json
-        if: github.event_name != 'workflow_dispatch'
+        if: github.event_name == 'release'
         run: test "${GITHUB_REF_NAME#v}" = "$(node -p 'require("./package.json").version')"
       - run: npm publish --provenance --access public
         env:
