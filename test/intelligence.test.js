@@ -4,7 +4,7 @@ import http from "node:http";
 import path from "node:path";
 import test from "node:test";
 import { emptyIntent, heuristicAtoms, intentTokens, loadIntent, parseAtom, rememberAtoms, renderIntent } from "../src/intent.js";
-import { createChooser, heuristicChooser, jevChooser, jevMetaChooser, metaChooser } from "../src/jev.js";
+import { createChooser, heuristicChooser, jevChooser, metaChooser } from "../src/jev.js";
 import { toMermaid } from "../src/mermaid.js";
 import { applyDesign, emptyDesign, loadDesign, saveDesign } from "../src/model.js";
 import { handleHook } from "../src/pipeline.js";
@@ -345,40 +345,39 @@ test("payloads captured from real Claude Code, Codex, and Pi runs normalize", as
   assert.equal(parseDeeper("dig into the heap tracker please"), "heap tracker");
 });
 
-test("auto with both keys: Jev answers, and only its unsure answers get a Muse Spark second opinion", async () => {
+test("auto with both keys: Jev selects, even when unsure; Muse Spark answers menus only if Jev is down", async () => {
   const calls = [];
-  const fetchCall = async (url, init) => {
+  const jevUp = async (url, init) => {
     const body = JSON.parse(init.body);
     if (String(url).includes("typesafe")) {
-      calls.push(["jev", Object.keys(body.questions)]);
+      calls.push("jev");
       return new Response(JSON.stringify({ model: "jev-1.13.0", answers: { signal: { choice: "c1", confidence: 0.97 }, impact: { choice: "c0", confidence: 0.41 } } }));
     }
-    const asked = Object.keys(JSON.parse(body.messages.at(-1).content).questions);
-    calls.push(["meta", asked, body.reasoning_effort]);
-    return new Response(JSON.stringify({ model: body.model, choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ impact: { choice: "c1", confidence: 0.88 } }) } }], usage: { prompt_tokens: 80, completion_tokens: 10 } }));
+    calls.push(`meta:${body.reasoning_effort}`);
+    return new Response(JSON.stringify({ model: body.model, choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ signal: { choice: "c0", confidence: 0.9 }, impact: { choice: "c1", confidence: 0.9 } }) } }], usage: { prompt_tokens: 80, completion_tokens: 10 } }));
   };
   const env = { TYPESAFE_API_KEY: "t", META_API_KEY: "m", META_BASE_URL: "http://meta.test/v1" };
   const questions = {
     signal: { question: "q", options: [{ value: "noise" }, { value: "arch" }] },
     impact: { question: "q", options: [{ value: "none" }, { value: "extend" }] },
   };
-  const chain = createChooser({ decider: "auto" }, { env, fetchCall });
-  assert.equal(chain.via, "jev+meta");
+  const chain = createChooser({ decider: "auto" }, { env, fetchCall: jevUp });
+  assert.equal(chain.via, "jev");
   const { answers, via } = await chain.choose({}, questions);
-  assert.equal(via, "jev+meta");
-  assert.deepEqual(calls, [["jev", ["signal", "impact"]], ["meta", ["impact"], "minimal"]]);
+  assert.equal(via, "jev");
+  assert.deepEqual(calls, ["jev"]);
   assert.equal(answers.signal.value, "arch");
-  assert.equal(answers.impact.value, "extend");
-  assert.deepEqual(answers.impact.jev, { value: "none", confidence: 0.41 });
+  assert.deepEqual([answers.impact.value, answers.impact.confidence], ["none", 0.41]);
 
-  // A Muse Spark outage keeps Jev's answers instead of failing the turn.
+  // Jev unreachable: Muse Spark answers the same menus so a hook never blocks.
+  calls.length = 0;
+  const jevDown = async (url, init) => (String(url).includes("typesafe") ? new Response("down", { status: 503 }) : jevUp(url, init));
   const original = console.error;
   console.error = () => {};
   try {
-    const down = jevMetaChooser({ env, fetchCall: async (url, init) => (String(url).includes("typesafe") ? fetchCall(url, init) : new Response("down", { status: 503 })) });
-    const kept = await down.choose({}, questions);
-    assert.equal(kept.impact.value, "none");
-    assert.equal(down.lastVia, "jev");
+    const failover = await createChooser({ decider: "auto" }, { env, fetchCall: jevDown }).choose({}, questions);
+    assert.equal(failover.via, "meta");
+    assert.equal(failover.answers.impact.value, "extend");
   } finally {
     console.error = original;
   }

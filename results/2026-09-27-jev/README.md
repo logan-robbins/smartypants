@@ -1,5 +1,9 @@
 # Real Jev + Muse Spark
 
+> **Superseded by [2026-10-02-jev-muse](../2026-10-02-jev-muse/README.md).** The `auto` setup
+> below had Muse Spark re-answer Jev's unsure picks; `auto` is now Jev selects, Muse Spark
+> writes. The selector-only comparisons below still hold.
+
 Date: 2026-09-27. This is the first run against real Typesafe Jev (`jev-latest`, which served
 `jev-1.13.0`). The builder is Muse Spark 1.3 Contributor throughout. Four selectors answer the
 same Jev-protocol menus:

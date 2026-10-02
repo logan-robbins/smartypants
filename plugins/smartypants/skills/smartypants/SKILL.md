@@ -12,13 +12,13 @@ commands below instead of drawing a diagram by hand.
 
 ## Turn it on (no argument)
 
-1. `npm install github:logan-robbins/smartypants` (skip if `@logan-robbins/smartypants` is installed;
-   use `npm install <path>` for a local checkout).
+1. `npm install -D @logan-robbins/smartypants` (skip if it is already installed; use
+   `npm install <path>` for a local checkout).
 2. `npx smartypants init` — writes `smartypants.config.json` and hooks for Claude Code, Codex, Pi,
    Muse, and Grok without touching other hooks. On an existing codebase it also starts a background
    catch-up that draws the whole system from the code. Keep an existing config.
 3. The default builder needs `META_API_KEY`; with `TYPESAFE_API_KEY` too, Jev makes the per-turn
-   calls and Muse Spark only double-checks unsure ones. If the user keeps keys in a dotenv file, set
+   calls and Muse Spark writes the diagram updates and drift notes. If the user keeps keys in a dotenv file, set
    `envFile` in the config. Never print, echo, or ask for key values in chat.
 4. `npx smartypants serve` in the background; give the user the URL it prints (it takes the next
    free port if 4173 is busy; reuse a server already running for this project).

@@ -201,7 +201,7 @@ export async function handleHook(options = {}) {
     seed: seeding,
     sketch,
     ledger: legacy,
-    intent: renderIntent(intent, subjects ? { subjects: [...subjects, "sys"] } : {}),
+    intent: writerIntent(intent, subjects),
     target,
     owners: decision.owners || [],
   });
@@ -291,6 +291,19 @@ async function runCatchupEvent({ cwd, config, adapter, started, timeoutMs }) {
 }
 
 /**
+ * Intent for the drift writer. The whole memory when it is small (the usual
+ * case: ~200 tokens), because a decision about one part ("products cache is
+ * read-through") is often what a change to another part breaks. Only a large
+ * memory is narrowed to the touched parts.
+ */
+export const WRITER_INTENT_CHARS = 2400;
+function writerIntent(intent, owners) {
+  const full = renderIntent(intent);
+  if (full.length <= WRITER_INTENT_CHARS || !owners?.length) return full;
+  return renderIntent(intent, { subjects: [...owners, "sys"] });
+}
+
+/**
  * End of an agent turn: review what the turn changed in the working tree.
  * One batched verdict call, then at most one drift check and one design sync.
  */
@@ -320,7 +333,7 @@ async function runTurnEnd({ cwd, config, adapter, chooser, selectorUsage, starte
       floor: config.depth,
       taxonomy: TAXONOMY,
       cwd,
-      intent: renderIntent(intent, owners.length ? { subjects: [...owners, "sys"] } : {}),
+      intent: writerIntent(intent, owners),
       owners,
     });
     try {

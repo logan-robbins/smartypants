@@ -5,7 +5,7 @@ Keeps a system, component, and module diagram while an agent codes, and flags wh
 The skill in this folder installs the hook, opens the diagram, and resets the graph. `/smartypants reset` and `/reset-graph` delete `.smartypants/design.json` and `.smartypants/ledger.json`. They leave `smartypants.config.json`.
 
 ```sh
-npm install github:logan-robbins/smartypants
+npm install -D @logan-robbins/smartypants
 npx smartypants init --flavor claude
 npx smartypants serve
 ```

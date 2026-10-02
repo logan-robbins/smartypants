@@ -25,7 +25,7 @@ flags the moment a diff leaves the design you described.
 ## Install
 
 ```sh
-npm install github:logan-robbins/smartypants
+npm install -D @logan-robbins/smartypants
 npx smartypants init        # hooks for every host + config; catches up if code exists
 export META_API_KEY=...     # the default builder (Meta Muse Spark)
 npx smartypants serve       # open the printed URL
@@ -58,18 +58,16 @@ sources: [docs/research/competitors.md](docs/research/competitors.md).
 
 ## Proof
 
-Live runs with Typesafe Jev and Muse Spark ([Jev results](results/2026-09-27-jev/README.md) ·
-[earlier runs](results/2026-09-27-tiers/README.md)):
+Live runs, Jev selecting and Muse Spark writing ([results](results/2026-10-02-jev-muse/README.md) ·
+[selector benchmarks](results/2026-09-27-jev/README.md)):
 
 | | result |
 |---|---|
-| "Is this turn worth remembering?" on 34 held-out turns × 3 | **102/102** with Jev + Muse Spark (23/34 with local rules alone) |
-| Drift verdicts on 10 held-out edits × 3 | **30/30, none missed** (Muse Spark alone 26/30, Jev alone 26/30) |
-| Turn-end review of labeled agent changes × 3 | **39/39 drift flags right, 0 false alarms**, 1.7 s per review (Muse Spark alone: 5.1 s) |
-| Per-turn decision | **~250 ms** with Jev first (~3 s with Muse Spark alone), at half the selector cost |
-| Five design interviews (32 turns, 10 edits) | triage 32/32, all 33 expected parts drawn, drift 10/10 and 9/10 across runs, **$0.015 total** |
+| Stop-hook review of labeled agent changes × 2, end to end | **22/22 drift flags right, 0 missed, 0 false alarms**, 7.3 s per turn (Muse Spark selecting too: 12.6 s) |
+| Five design interviews (32 turns, 10 edits) | triage 32/32, all 33 expected parts drawn, **drift 10/10, $0.015 total** |
+| "Is this turn worth remembering?" on 34 held-out turns × 3 | **no turn worth keeping was dropped** by Jev (0 false skips); local rules alone get 23/34 |
+| Per-turn decision | **~200 ms** with Jev (~3 s asking Muse Spark the same menus) |
 | Noise turns ("thanks", "run the tests") | **$0**, no model call |
-| Turn-end review of 3 changed files | 1 batched selector call; caught a frontend querying Postgres directly; added a service from a new k8s manifest; 23 s |
 | Catch-up on 10 open-source repos | 36–115 s, $0.001–0.011 each ([crawler notes](docs/crawl/)) |
 
 Caught up from code alone — GoogleCloudPlatform/microservices-demo (11 services, Istio gateway,
@@ -142,8 +140,7 @@ Plugin commands mirror these: `/smartypants`, `/smartypants:deeper`, `:catchup`,
 | `flavor` | builder: `meta` (default), `claude`, `codex`, `grok`, `muse`, `pi` |
 | `model` | builder model; `muse-spark-1.3` = no training |
 | `depth` | `auto` (start from what you said, go finer as you do) or `system` / `component` / `module` |
-| `decider` | per-turn selector: `auto` (Jev, with Muse Spark re-checking answers under `escalateBelow`; then Muse Spark alone; then local rules), `jev`, `meta`, `heuristic` |
-| `escalateBelow` | Jev confidence under which Muse Spark gets a second look (default 0.6) |
+| `decider` | who answers the per-turn menus: `auto` (Jev; Muse Spark only if Jev is unreachable; then local rules), `jev`, `meta`, `heuristic` |
 | `review` | `turn` (once per agent turn), `edit` (every edit), `both` |
 | `background` | hooks return immediately; a project worker does the work |
 | `seed` | existing codebase: catch up from code |
@@ -162,11 +159,13 @@ Plugin commands mirror these: `/smartypants`, `/smartypants:deeper`, `:catchup`,
 
 ## How it works
 
-A free local pass drops noise. Then Typesafe Jev answers small menus in about 200 ms — is this
-worth remembering, does it change the design, what level, which part, does this diff conform —
-and any answer it is less than 60% sure of goes to Muse Spark for a second opinion (every wrong
-Jev answer in our tests was under that line). Only then does the builder write a delta. Without
-a Typesafe key, Muse Spark answers the menus itself.
+Two models, two jobs, the way WindTunnel pairs Jev with Mercury: **Jev selects, Muse Spark
+writes.** A free local pass drops noise. Typesafe Jev then answers small closed menus in about
+200 ms — is this worth remembering, does it change the design, at what level, which part, does
+this diff conform. Muse Spark runs only when Jev says there is work, and writes it: the diagram
+delta, the drift note, the IntentCode. An unsure pick leans toward doing the work, and the writer
+decides what actually lands, so a borderline file costs one write rather than a missed drift.
+Without a Typesafe key, Muse Spark answers the menus too.
 Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/INTENTCODE.md](docs/INTENTCODE.md) ·
 [docs/PROMPTING.md](docs/PROMPTING.md) · go-to-market: [docs/GTM.md](docs/GTM.md).
 

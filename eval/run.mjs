@@ -8,7 +8,7 @@
  * Arms:
  *   jev-meta  Jev-protocol selector on Muse Spark (minimal effort) gates the builder.
  *   jev       real Jev selector (needs TYPESAFE_API_KEY).
- *   auto      the default: Jev, with a Muse Spark second opinion on unsure answers.
+ *   auto      the default: Jev selects (Muse Spark only if Jev is unreachable); Muse Spark writes.
  *   always    no model selector: every non-trivial turn goes to the builder.
  * Every arm builds with Muse Spark 1.3 Contributor. Paid calls: a few cents per run.
  */
