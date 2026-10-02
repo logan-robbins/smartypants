@@ -1,6 +1,6 @@
 {
   "name": "@logan-robbins/smartypants",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "Live Mermaid-style system diagram, compact IntentCode memory, and intent-drift flags for coding agents. Jev-style triage; Meta Muse Spark by default.",
   "repository": {

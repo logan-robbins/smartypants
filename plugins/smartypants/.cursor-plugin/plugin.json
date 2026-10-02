@@ -1,7 +1,7 @@
 {
   "name": "smartypants",
   "description": "Keeps a Mermaid-style system diagram and a compact memory of your architectural intent while an agent codes, goes deeper on any part on request, and flags where the code drifts from the intent.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": {
     "name": "Logan Robbins"
   },

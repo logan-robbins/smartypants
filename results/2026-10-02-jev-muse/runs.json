@@ -1,0 +1,1246 @@
+[
+ {
+  "arm": "auto",
+  "name": "youtube-top-k",
+  "turns": [
+   {
+    "text": "hi! ready when you are",
+    "expect": "skip",
+    "got": "skip",
+    "reason": "noise-pattern",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 5
+   },
+   {
+    "text": "Design the YouTube top-K videos feature: return the 100 most viewed videos for the last hour, last day, and all time.",
+    "expect": "build",
+    "got": "build",
+    "reason": "first-design",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 20952
+   },
+   {
+    "text": "Scale: 1B views per day, peaks around 50k views per second. Reads are about 10k qps and the list can be up to 1 minute stale.",
+    "expect": "remember",
+    "got": "remember",
+    "reason": "numeric-constraint",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 4
+   },
+   {
+    "text": "Views land on a Kafka topic partitioned by video id. Flink workers keep a count-min sketch and a min-heap per window and push the top 100 to Redis; the Top-K API reads Redis.",
+    "expect": "build",
+    "got": "build",
+    "reason": "strong-arch",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 42110
+   },
+   {
+    "text": "sounds good, can you run the tests",
+    "expect": "skip",
+    "got": "skip",
+    "reason": "noise-pattern",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 1
+   },
+   {
+    "text": "go deeper on the aggregation workers",
+    "expect": "deepen",
+    "got": "deepen",
+    "reason": "command",
+    "via": "jev",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 17885
+   },
+   {
+    "text": "For all-time counts, don't use the sketch. Keep exact counts in a Cassandra counter table and recompute the all-time top list hourly with a batch job.",
+    "expect": "build",
+    "got": "build",
+    "reason": "strong-arch",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 25096
+   }
+  ],
+  "edits": [
+   {
+    "path": "services/topk-api/handler.ts",
+    "expect": "diverges",
+    "got": "diverges",
+    "triage": "drift:diverges",
+    "error": null,
+    "ms": 18117
+   },
+   {
+    "path": "services/topk-api/handler.test.ts",
+    "expect": "conforms",
+    "got": "conforms",
+    "triage": "skip:quiet-path",
+    "error": null,
+    "ms": 2
+   }
+  ],
+  "recall": {
+   "hit": 6,
+   "of": 6
+  },
+  "nodes": 15,
+  "flows": 15,
+  "level": "module",
+  "intent": {
+   "atoms": 17,
+   "tokens": 165,
+   "text": "sys|G top-100-most-viewed-videos|N load-views-day 1B views/day|N load-views-s-peak 50k views/s|N load-qps 10k qps|N interval 1min\nalltime-counters|D exact-cassandra-counter>count-min-sketch|X sketch-approximation\nbatch-ranker|D hourly-batch>streaming-ranker|F recompute-alltime-top-100-hourly\ncounter-svc|D counting count-min-sketch>exact-counts|F windowed-view-counts\nranker|D ranking min-heap-per-window>full-sort|D output redis-direct>cassandra-scan|F compute-top-100-per-window|! intent:ranking output redis-direct>cassandra-scan code:Code does cassandra-scan per request SELE\nranking-api|F serve-hour-day-alltime-windows\nview-stream|D partition video-id"
+  },
+  "context": {
+   "jsonChars": 7469,
+   "compactChars": 2436
+  },
+  "stats": {
+   "calls": {
+    "selector": 2,
+    "builder": 5
+   },
+   "tokens": {
+    "input": 13027,
+    "output": 11698,
+    "reasoning": 8361
+   },
+   "cost": 0.00324703,
+   "selectorCost": 0,
+   "builderCost": 0.00324703
+  }
+ },
+ {
+  "arm": "auto",
+  "name": "uber",
+  "turns": [
+   {
+    "text": "Let's do Uber. A rider requests a ride, we match them with a nearby driver, track the trip, and charge at the end.",
+    "expect": "build",
+    "got": "build",
+    "reason": "arch/extend",
+    "via": "jev",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 19734
+   },
+   {
+    "text": "Drivers send GPS every 4 seconds; 5M active drivers at peak. Matching should return a driver in under 2 seconds.",
+    "expect": "remember",
+    "got": "remember",
+    "reason": "numeric-constraint",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 5
+   },
+   {
+    "text": "ok",
+    "expect": "skip",
+    "got": "skip",
+    "reason": "noise-pattern",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 1
+   },
+   {
+    "text": "Location service keeps driver positions in an in-memory geo index sharded by H3 cell; the dispatch service queries nearby cells and offers the ride to drivers one at a time.",
+    "expect": "build",
+    "got": "build",
+    "reason": "strong-arch",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 19996
+   },
+   {
+    "text": "Add surge pricing computed per H3 cell from supply and demand every minute, and a payments service that charges the card after the trip completes.",
+    "expect": "build",
+    "got": "build",
+    "reason": "arch/extend",
+    "via": "jev",
+    "changed": true,
+    "deepened": "surge-calculator",
+    "error": null,
+    "ms": 45743
+   },
+   {
+    "text": "go deeper on dispatch",
+    "expect": "deepen",
+    "got": "deepen",
+    "reason": "command",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 20038
+   },
+   {
+    "text": "fix the lint errors please",
+    "expect": "skip",
+    "got": "skip",
+    "reason": "noise-pattern",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 2
+   }
+  ],
+  "edits": [
+   {
+    "path": "dispatch/match.go",
+    "expect": "diverges",
+    "got": "diverges",
+    "triage": "drift:diverges",
+    "error": null,
+    "ms": 11362
+   },
+   {
+    "path": "dispatch/README.md",
+    "expect": "conforms",
+    "got": "conforms",
+    "triage": "skip:quiet-path",
+    "error": null,
+    "ms": 4
+   }
+  ],
+  "recall": {
+   "hit": 7,
+   "of": 7
+  },
+  "nodes": 12,
+  "flows": 16,
+  "level": "module",
+  "intent": {
+   "atoms": 28,
+   "tokens": 299,
+   "text": "sys|G request-match-track-charge ride|N interval 4s|N users-drivers-peak 5M drivers|N latency <2s\nbilling-service|F post-trip charge\nbilling-service>payments-service|E charge-request\ndispatch-engine|F sequential-offer|! intent:Queries nearby H3 cells offers ride sequentially. code:Scans every online driver row Post\ndriver-app>location-service|E position-update\ngeo-index|D h3-sharded-memory>db-scan\nlocation-service|F track-driver-positions\nlocation-service>pricing-service|E supply-snapshot\nmatching-service|F nearby-driver match|! intent:Matches ride requests nearby available drivers. code:Delivered matching scans Postgres dr\nmatching-service>driver-app|E dispatch\nmatching-service>location-service|E nearby-query\nmatching-service>pricing-service|E demand-counts\npayments-service|F post-trip-card-charge\npayments-service>rider-app|E charge-receipt\npricing-service|F surge-pricing-per-H3-cell\npricing-service>billing-service|E surge-rates\npricing-service>matching-service|E surge-multipliers\nrider-app>matching-service|E ride-request\nsurge-calculator|N interval 1m|D h3-cell>zone-average|F supply-demand-ratio\ntrip-service|F live-trip tracking\ntrip-service>billing-service|E completed-trip"
+  },
+  "context": {
+   "jsonChars": 7649,
+   "compactChars": 2338
+  },
+  "stats": {
+   "calls": {
+    "selector": 3,
+    "builder": 6
+   },
+   "tokens": {
+    "input": 16783,
+    "output": 9661,
+    "reasoning": 6371
+   },
+   "cost": 0.0031232300000000003,
+   "selectorCost": 0,
+   "builderCost": 0.0031232300000000003
+  }
+ },
+ {
+  "arm": "auto",
+  "name": "news-feed",
+  "turns": [
+   {
+    "text": "Design the Facebook news feed: users publish posts and see a ranked feed of posts from friends and pages they follow.",
+    "expect": "build",
+    "got": "build",
+    "reason": "first-design",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 26957
+   },
+   {
+    "text": "500M DAU, each user has on average 300 friends; feed load p99 under 200ms.",
+    "expect": "remember",
+    "got": "remember",
+    "reason": "numeric-constraint",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 5
+   },
+   {
+    "text": "Use fan-out on write into per-user feed caches, but for celebrities with over 1M followers do fan-out on read and merge at request time.",
+    "expect": "build",
+    "got": "build",
+    "reason": "strong-arch",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 17123
+   },
+   {
+    "text": "thanks, looks right",
+    "expect": "skip",
+    "got": "skip",
+    "reason": "noise-pattern",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 1
+   },
+   {
+    "text": "Media goes to blob storage behind a CDN; posts store only the media URL.",
+    "expect": "build",
+    "got": "build",
+    "reason": "constraint/extend",
+    "via": "jev",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 24046
+   },
+   {
+    "text": "go deeper on ranking",
+    "expect": "deepen",
+    "got": "deepen",
+    "reason": "command",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 30099
+   }
+  ],
+  "edits": [
+   {
+    "path": "feed/fanout_worker.py",
+    "expect": "diverges",
+    "got": "diverges",
+    "triage": "drift:diverges",
+    "error": null,
+    "ms": 6506
+   },
+   {
+    "path": "feed/fanout_worker.py",
+    "expect": "conforms",
+    "got": "conforms",
+    "triage": "skip:conforms",
+    "error": null,
+    "ms": 134
+   }
+  ],
+  "recall": {
+   "hit": 7,
+   "of": 7
+  },
+  "nodes": 14,
+  "flows": 25,
+  "level": "component",
+  "intent": {
+   "atoms": 17,
+   "tokens": 159,
+   "text": "sys|G ranked-feed friends-pages|N scale billions-posts millions-qps|N users-dau 500M dau|N users-friends 300 friends|N latency p99<200ms|F publish-posts view-ranked-feed\ncelebrity|N threshold 1M followers\nfeed-client>media-cdn|E media-upload-fetch\nfeed-fanout|D hybrid-fanout>pure-push|X push-fanout|! intent:Feed Fanout Worker distributes new posts followers timeline caches skipping celebrities o\nfeed-ranker|N latency p99<300ms\nfeed-ranker>social-graph|E celebrity-lookup\nmedia-cdn>media-store|E origin-store-fetch\nmedia-store|D blob-behind-cdn>inline-bytes-in-post-store\npost-store|X inline-media-bytes\ntimeline-cache|D redis>none"
+  },
+  "context": {
+   "jsonChars": 7937,
+   "compactChars": 2863
+  },
+  "stats": {
+   "calls": {
+    "selector": 3,
+    "builder": 5
+   },
+   "tokens": {
+    "input": 15045,
+    "output": 8696,
+    "reasoning": 5254
+   },
+   "cost": 0.00256066,
+   "selectorCost": 0,
+   "builderCost": 0.00256066
+  }
+ },
+ {
+  "arm": "auto",
+  "name": "messenger",
+  "turns": [
+   {
+    "text": "Design a 1:1 and group chat system like WhatsApp or Messenger.",
+    "expect": "build",
+    "got": "build",
+    "reason": "first-design",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 23470
+   },
+   {
+    "text": "Clients hold a persistent websocket to a connection gateway; a chat service routes messages to the recipient's gateway, stores them, and sends a push notification when the recipient is offline.",
+    "expect": "build",
+    "got": "build",
+    "reason": "strong-arch",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 18457
+   },
+   {
+    "text": "Messages must be delivered in order per conversation and at least once; 100B messages per day.",
+    "expect": "remember",
+    "got": "remember",
+    "reason": "numeric-constraint",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 5
+   },
+   {
+    "text": "yep continue",
+    "expect": "skip",
+    "got": "skip",
+    "reason": "noise-pattern",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 1
+   },
+   {
+    "text": "Add presence: gateways publish online/offline heartbeats to a presence service that friends subscribe to.",
+    "expect": "build",
+    "got": "build",
+    "reason": "strong-arch",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 14985
+   },
+   {
+    "text": "go deeper on message storage",
+    "expect": "deepen",
+    "got": "deepen",
+    "reason": "command",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 20631
+   }
+  ],
+  "edits": [
+   {
+    "path": "chat/router.ts",
+    "expect": "conforms",
+    "got": "conforms",
+    "triage": "skip:conforms",
+    "error": null,
+    "ms": 201
+   },
+   {
+    "path": "chat/router.ts",
+    "expect": "diverges",
+    "got": "diverges",
+    "triage": "drift:diverges",
+    "error": null,
+    "ms": 9463
+   }
+  ],
+  "recall": {
+   "hit": 7,
+   "of": 7
+  },
+  "nodes": 15,
+  "flows": 25,
+  "level": "component",
+  "intent": {
+   "atoms": 21,
+   "tokens": 229,
+   "text": "sys|G 1:1 group chat|N in-order required|N at-least-once required|N load-messages-day 100B messages/day|X e2ee-key-management\nchat-service|F send-receive-history\nchat-service>push-service|E offline-trigger\nfanout-queue|D async-fanout>sync-fanout|! intent:Fanout Queue buffers outbound messages async group fanout async-fanout over sync-fanout.\ngateway>clients|E presence-updates\ngateway>presence-service|E heartbeat\ngroup-service|F membership\nmessage-store|D persistent-log>ephemeral-relay|! intent:Message Store durably stores conversations inboxes persistent-log over ephemeral-relay. c\nmsg-log|N ordering per-conversation-timeuuid|D conversation-partition>global-table|Q technology cassandra-vs-scylladb\npresence-service|F presence-subscribe\npresence-service>gateway|E presence-updates\npush-service|F offline-push|! intent:Push Notification Service sends push alerts offline recipients chat-service must emit off"
+  },
+  "context": {
+   "jsonChars": 8580,
+   "compactChars": 2844
+  },
+  "stats": {
+   "calls": {
+    "selector": 2,
+    "builder": 5
+   },
+   "tokens": {
+    "input": 13769,
+    "output": 7932,
+    "reasoning": 4599
+   },
+   "cost": 0.0027677000000000005,
+   "selectorCost": 0,
+   "builderCost": 0.0027677000000000005
+  }
+ },
+ {
+  "arm": "auto",
+  "name": "url-shortener",
+  "turns": [
+   {
+    "text": "Design a URL shortener like Bitly: create short links and redirect clicks to the long URL, with click counts for the owner.",
+    "expect": "build",
+    "got": "build",
+    "reason": "arch/extend",
+    "via": "jev",
+    "changed": true,
+    "deepened": "redirect-service",
+    "error": null,
+    "ms": 35896
+   },
+   {
+    "text": "100M new links a month, 10B redirects a month; redirect p99 under 50ms.",
+    "expect": "remember",
+    "got": "remember",
+    "reason": "numeric-constraint",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 5
+   },
+   {
+    "text": "Codes come from a pre-generated key range service so creators never collide; links live in a key-value table and redirects read through a cache.",
+    "expect": "build",
+    "got": "build",
+    "reason": "strong-arch",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 26889
+   },
+   {
+    "text": "commit that",
+    "expect": "skip",
+    "got": "skip",
+    "reason": "noise-pattern",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 1
+   },
+   {
+    "text": "Click counting must never slow the redirect: publish click events to a stream and aggregate them asynchronously.",
+    "expect": "build",
+    "got": "build",
+    "reason": "constraint/extend",
+    "via": "jev",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 9262
+   },
+   {
+    "text": "go deeper on redirect",
+    "expect": "deepen",
+    "got": "deepen",
+    "reason": "command",
+    "via": "jev",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 26422
+   }
+  ],
+  "edits": [
+   {
+    "path": "redirect/handler.js",
+    "expect": "diverges",
+    "got": "diverges",
+    "triage": "drift:diverges",
+    "error": null,
+    "ms": 10294
+   },
+   {
+    "path": "redirect/handler.js",
+    "expect": "conforms",
+    "got": "conforms",
+    "triage": "drift:diverges",
+    "error": null,
+    "ms": 6140
+   }
+  ],
+  "recall": {
+   "hit": 6,
+   "of": 6
+  },
+  "nodes": 12,
+  "flows": 20,
+  "level": "component",
+  "intent": {
+   "atoms": 14,
+   "tokens": 137,
+   "text": "sys|G short-links click-counts|N load-links-month 100M links/month|N load-redirects-month 10B redirects/month|N latency p99<50ms|D key-allocation pregen-range-service\nclick-emitter|Q semantics fire-and-forget-no-redirect-block\nkey-service>link-api|E assign-key-range\nlink-api|F create-manage-links\nredirect-service|N latency p99-under-50ms|D separate>combined-api|X sync-analytics-write|F redirect-clicks|! intent:Resolves short codes long URLs 302 redirects. code:Delivered redirect returns 301 instead\nurl-cache|Q technology redis-for-hot-reads"
+  },
+  "context": {
+   "jsonChars": 6804,
+   "compactChars": 2488
+  },
+  "stats": {
+   "calls": {
+    "selector": 5,
+    "builder": 7
+   },
+   "tokens": {
+    "input": 19691,
+    "output": 9555,
+    "reasoning": 6150
+   },
+   "cost": 0.0030033599999999996,
+   "selectorCost": 0,
+   "builderCost": 0.0030033599999999996
+  }
+ },
+ {
+  "arm": "jev-meta",
+  "name": "youtube-top-k",
+  "turns": [
+   {
+    "text": "hi! ready when you are",
+    "expect": "skip",
+    "got": "skip",
+    "reason": "noise-pattern",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 6
+   },
+   {
+    "text": "Design the YouTube top-K videos feature: return the 100 most viewed videos for the last hour, last day, and all time.",
+    "expect": "build",
+    "got": "build",
+    "reason": "first-design",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 21986
+   },
+   {
+    "text": "Scale: 1B views per day, peaks around 50k views per second. Reads are about 10k qps and the list can be up to 1 minute stale.",
+    "expect": "remember",
+    "got": "remember",
+    "reason": "numeric-constraint",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 5
+   },
+   {
+    "text": "Views land on a Kafka topic partitioned by video id. Flink workers keep a count-min sketch and a min-heap per window and push the top 100 to Redis; the Top-K API reads Redis.",
+    "expect": "build",
+    "got": "build",
+    "reason": "strong-arch",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 19018
+   },
+   {
+    "text": "sounds good, can you run the tests",
+    "expect": "skip",
+    "got": "skip",
+    "reason": "noise-pattern",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 2
+   },
+   {
+    "text": "go deeper on the aggregation workers",
+    "expect": "deepen",
+    "got": "deepen",
+    "reason": "command",
+    "via": "meta",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 23302
+   },
+   {
+    "text": "For all-time counts, don't use the sketch. Keep exact counts in a Cassandra counter table and recompute the all-time top list hourly with a batch job.",
+    "expect": "build",
+    "got": "build",
+    "reason": "strong-arch",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 19325
+   }
+  ],
+  "edits": [
+   {
+    "path": "services/topk-api/handler.ts",
+    "expect": "diverges",
+    "got": "diverges",
+    "triage": "drift:diverges",
+    "error": null,
+    "ms": 12853
+   },
+   {
+    "path": "services/topk-api/handler.test.ts",
+    "expect": "conforms",
+    "got": "conforms",
+    "triage": "skip:quiet-path",
+    "error": null,
+    "ms": 2
+   }
+  ],
+  "recall": {
+   "hit": 6,
+   "of": 6
+  },
+  "nodes": 14,
+  "flows": 18,
+  "level": "module",
+  "intent": {
+   "atoms": 23,
+   "tokens": 235,
+   "text": "sys|G top-100-most-viewed-videos|N load-views-day 1B views/day|N load-views-s-peak 50k views/s|N load-qps 10k qps|N interval 1min|Q exact-vs-approximate-counts\nalltime-batch-job|N interval hourly|F hourly-recompute-alltime-top-100\nalltime-counting|D exact-counter-table>count-min-sketch\nclient-app>view-ingest|E view-events\nranking-api|N topK-100-per-window|F serve-hour-day-alltime-windows|! intent:Serves top-100 videos hour day all-time windows. Dedicated read path so ranking queries s\nranking-cache|D redis>serve-from-db\nranking-worker|D counting count-min-sketch>exact-counts|D compute flink>custom-worker\nranking-worker>ranking-cache>ranking-api|E reads\nview-counts-store|D cassandra>relational-for-counters\nview-counts-store>alltime-batch-job>ranking-cache|E alltime-reads\nview-ingest>view-stream>ranking-worker|E counting\nview-stream|D kafka>direct-writes|D partitioning video-id>round-robin\nwindow-manager|F windows 1min-hour-day"
+  },
+  "context": {
+   "jsonChars": 7491,
+   "compactChars": 2600
+  },
+  "stats": {
+   "calls": {
+    "selector": 2,
+    "builder": 5
+   },
+   "tokens": {
+    "input": 13156,
+    "output": 9198,
+    "reasoning": 6271
+   },
+   "cost": 0.0026062900000000007,
+   "selectorCost": 0.00023210000000000003,
+   "builderCost": 0.00237419
+  }
+ },
+ {
+  "arm": "jev-meta",
+  "name": "uber",
+  "turns": [
+   {
+    "text": "Let's do Uber. A rider requests a ride, we match them with a nearby driver, track the trip, and charge at the end.",
+    "expect": "build",
+    "got": "build",
+    "reason": "arch/extend",
+    "via": "meta",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 20118
+   },
+   {
+    "text": "Drivers send GPS every 4 seconds; 5M active drivers at peak. Matching should return a driver in under 2 seconds.",
+    "expect": "remember",
+    "got": "remember",
+    "reason": "numeric-constraint",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 5
+   },
+   {
+    "text": "ok",
+    "expect": "skip",
+    "got": "skip",
+    "reason": "noise-pattern",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 1
+   },
+   {
+    "text": "Location service keeps driver positions in an in-memory geo index sharded by H3 cell; the dispatch service queries nearby cells and offers the ride to drivers one at a time.",
+    "expect": "build",
+    "got": "build",
+    "reason": "strong-arch",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 22516
+   },
+   {
+    "text": "Add surge pricing computed per H3 cell from supply and demand every minute, and a payments service that charges the card after the trip completes.",
+    "expect": "build",
+    "got": "build",
+    "reason": "arch/extend",
+    "via": "meta",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 36892
+   },
+   {
+    "text": "go deeper on dispatch",
+    "expect": "deepen",
+    "got": "deepen",
+    "reason": "command",
+    "via": "meta",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 16011
+   },
+   {
+    "text": "fix the lint errors please",
+    "expect": "skip",
+    "got": "skip",
+    "reason": "noise-pattern",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 1
+   }
+  ],
+  "edits": [
+   {
+    "path": "dispatch/match.go",
+    "expect": "diverges",
+    "got": "diverges",
+    "triage": "drift:diverges",
+    "error": null,
+    "ms": 15815
+   },
+   {
+    "path": "dispatch/README.md",
+    "expect": "conforms",
+    "got": "conforms",
+    "triage": "skip:quiet-path",
+    "error": null,
+    "ms": 4
+   }
+  ],
+  "recall": {
+   "hit": 7,
+   "of": 7
+  },
+  "nodes": 13,
+  "flows": 16,
+  "level": "module",
+  "intent": {
+   "atoms": 24,
+   "tokens": 247,
+   "text": "sys|G request-to-charge ride|N interval 4s|N users-drivers-peak 5M drivers|N latency <2s\nbilling-service|F charge end\nbilling-service>payments-service|E fare-charge\nh3-geo-index|! intent:Holds driver positions memory sharded H3 cell keep nearby lookup local fast without DB\nlocation-service|D geo-index H3-sharded-memory>in-memory-single-index|F track-driver-positions\nlocation-service>surge-service|E supply-snapshot\nmatching-service|D dispatch sequential-offer>parallel-broadcast|F match rider nearby-driver\nmatching-service>driver-app|E match-offer\nmatching-service>location-service|E nearby-query\nmatching-service>surge-service|E demand-counts\npayments-service|F charge-card-after-trip\nrider-app>matching-service|E ride-request\nsurge-service|N interval 1m|D cell-surge>H3-flat-pricing|F compute-per-H3-surge-every-minute\nsurge-service>matching-service|E surge-multiplier\ntrip-service|F track active trip\ntrip-service>billing-service|E completed-trip\ntrip-service>rider-app|E tracking"
+  },
+  "context": {
+   "jsonChars": 6884,
+   "compactChars": 2445
+  },
+  "stats": {
+   "calls": {
+    "selector": 4,
+    "builder": 5
+   },
+   "tokens": {
+    "input": 14821,
+    "output": 9495,
+    "reasoning": 6651
+   },
+   "cost": 0.00319813,
+   "selectorCost": 0.0005623000000000001,
+   "builderCost": 0.0026358300000000005
+  }
+ },
+ {
+  "arm": "jev-meta",
+  "name": "news-feed",
+  "turns": [
+   {
+    "text": "Design the Facebook news feed: users publish posts and see a ranked feed of posts from friends and pages they follow.",
+    "expect": "build",
+    "got": "build",
+    "reason": "first-design",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 25978
+   },
+   {
+    "text": "500M DAU, each user has on average 300 friends; feed load p99 under 200ms.",
+    "expect": "remember",
+    "got": "remember",
+    "reason": "numeric-constraint",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 4
+   },
+   {
+    "text": "Use fan-out on write into per-user feed caches, but for celebrities with over 1M followers do fan-out on read and merge at request time.",
+    "expect": "build",
+    "got": "build",
+    "reason": "strong-arch",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 23749
+   },
+   {
+    "text": "thanks, looks right",
+    "expect": "skip",
+    "got": "skip",
+    "reason": "noise-pattern",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 1
+   },
+   {
+    "text": "Media goes to blob storage behind a CDN; posts store only the media URL.",
+    "expect": "build",
+    "got": "build",
+    "reason": "arch/extend",
+    "via": "meta",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 29539
+   },
+   {
+    "text": "go deeper on ranking",
+    "expect": "deepen",
+    "got": "deepen",
+    "reason": "command",
+    "via": "meta",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 29562
+   }
+  ],
+  "edits": [
+   {
+    "path": "feed/fanout_worker.py",
+    "expect": "diverges",
+    "got": "diverges",
+    "triage": "drift:diverges",
+    "error": null,
+    "ms": 9556
+   },
+   {
+    "path": "feed/fanout_worker.py",
+    "expect": "conforms",
+    "got": "conforms",
+    "triage": "skip:conforms",
+    "error": null,
+    "ms": 3318
+   }
+  ],
+  "recall": {
+   "hit": 7,
+   "of": 7
+  },
+  "nodes": 16,
+  "flows": 37,
+  "level": "component",
+  "intent": {
+   "atoms": 19,
+   "tokens": 183,
+   "text": "sys|G ranked-posts-from-friends-and-pages|N scale billions-users-millions-qps|N users-dau 500M dau|N users-friends 300 friends|N latency p99<200ms|D celebrity-threshold 1M-followers-fanout-on-read|X hybrid-fanout|X fanout-on-write-except-celebs\nfanout-worker|E feed-cache>feed-ranker|! intent:Feed Fanout Worker pushes new posts follower timeline caches skipping authors over 1M fol\nfeed-ranker|N latency p99<300ms|F merge-celebrity-posts-on-read\ngraph-service|F friend-and-follow-edges\nmedia-store|D blob-behind-cdn>inline-in-post-store\npost-service|F publish-posts|E fanout-queue>fanout-worker\npost-store|X inline-media-bytes\nranker-celebrity|Q source post-store-vs-celebrity-cache\nranker-scorer|Q model ml-signals-vs-heuristic"
+  },
+  "context": {
+   "jsonChars": 9959,
+   "compactChars": 3783
+  },
+  "stats": {
+   "calls": {
+    "selector": 4,
+    "builder": 5
+   },
+   "tokens": {
+    "input": 16284,
+    "output": 9915,
+    "reasoning": 5883
+   },
+   "cost": 0.0032237700000000004,
+   "selectorCost": 0.00044322999999999997,
+   "builderCost": 0.0027805400000000006
+  }
+ },
+ {
+  "arm": "jev-meta",
+  "name": "messenger",
+  "turns": [
+   {
+    "text": "Design a 1:1 and group chat system like WhatsApp or Messenger.",
+    "expect": "build",
+    "got": "build",
+    "reason": "first-design",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 23784
+   },
+   {
+    "text": "Clients hold a persistent websocket to a connection gateway; a chat service routes messages to the recipient's gateway, stores them, and sends a push notification when the recipient is offline.",
+    "expect": "build",
+    "got": "build",
+    "reason": "strong-arch",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 5324
+   },
+   {
+    "text": "Messages must be delivered in order per conversation and at least once; 100B messages per day.",
+    "expect": "remember",
+    "got": "remember",
+    "reason": "numeric-constraint",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 4
+   },
+   {
+    "text": "yep continue",
+    "expect": "skip",
+    "got": "skip",
+    "reason": "noise-pattern",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 2
+   },
+   {
+    "text": "Add presence: gateways publish online/offline heartbeats to a presence service that friends subscribe to.",
+    "expect": "build",
+    "got": "build",
+    "reason": "strong-arch",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 12289
+   },
+   {
+    "text": "go deeper on message storage",
+    "expect": "deepen",
+    "got": "deepen",
+    "reason": "command",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 21591
+   }
+  ],
+  "edits": [
+   {
+    "path": "chat/router.ts",
+    "expect": "conforms",
+    "got": "diverges",
+    "triage": "drift:diverges",
+    "error": null,
+    "ms": 21418
+   },
+   {
+    "path": "chat/router.ts",
+    "expect": "diverges",
+    "got": "diverges",
+    "triage": "drift:diverges",
+    "error": null,
+    "ms": 13098
+   }
+  ],
+  "recall": {
+   "hit": 7,
+   "of": 7
+  },
+  "nodes": 15,
+  "flows": 24,
+  "level": "component",
+  "intent": {
+   "atoms": 15,
+   "tokens": 186,
+   "text": "sys|G 1-1 group chat|N in-order required|N at-least-once required|N load-messages-day 100B messages/day\nchat-apps>realtime-gateway>message-service|E fanout delivery\nevent-bus|! intent:Carries sent-message events offline side-effect consumers without blocking send path. cod\ngroup-service|F group membership|! intent:Owns group creation membership roles chat threads. code:No call Group Service resolve mem\nmessage-service|G durable-ordered-history|D sequencing per-conversation-counter>global-order|F send-receive 1-1 group\nmessage-store|Q partitioning convo-bucketed-partitioning\npresence-service|F online presence\npush-worker|F offline push|! intent:Consumes missed messages triggers offline push alerts async without blocking send path. c"
+  },
+  "context": {
+   "jsonChars": 8969,
+   "compactChars": 3036
+  },
+  "stats": {
+   "calls": {
+    "selector": 2,
+    "builder": 6
+   },
+   "tokens": {
+    "input": 14641,
+    "output": 8601,
+    "reasoning": 5305
+   },
+   "cost": 0.00262387,
+   "selectorCost": 0.0003027,
+   "builderCost": 0.00232117
+  }
+ },
+ {
+  "arm": "jev-meta",
+  "name": "url-shortener",
+  "turns": [
+   {
+    "text": "Design a URL shortener like Bitly: create short links and redirect clicks to the long URL, with click counts for the owner.",
+    "expect": "build",
+    "got": "build",
+    "reason": "arch/extend",
+    "via": "meta",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 35035
+   },
+   {
+    "text": "100M new links a month, 10B redirects a month; redirect p99 under 50ms.",
+    "expect": "remember",
+    "got": "remember",
+    "reason": "numeric-constraint",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 6
+   },
+   {
+    "text": "Codes come from a pre-generated key range service so creators never collide; links live in a key-value table and redirects read through a cache.",
+    "expect": "build",
+    "got": "build",
+    "reason": "strong-arch",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 24850
+   },
+   {
+    "text": "commit that",
+    "expect": "skip",
+    "got": "skip",
+    "reason": "noise-pattern",
+    "via": "local",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 1
+   },
+   {
+    "text": "Click counting must never slow the redirect: publish click events to a stream and aggregate them asynchronously.",
+    "expect": "build",
+    "got": "build",
+    "reason": "arch/none",
+    "via": "meta",
+    "changed": false,
+    "deepened": null,
+    "error": null,
+    "ms": 30117
+   },
+   {
+    "text": "go deeper on redirect",
+    "expect": "deepen",
+    "got": "deepen",
+    "reason": "command",
+    "via": "local",
+    "changed": true,
+    "deepened": null,
+    "error": null,
+    "ms": 16332
+   }
+  ],
+  "edits": [
+   {
+    "path": "redirect/handler.js",
+    "expect": "diverges",
+    "got": "diverges",
+    "triage": "drift:diverges",
+    "error": null,
+    "ms": 20172
+   },
+   {
+    "path": "redirect/handler.js",
+    "expect": "conforms",
+    "got": "diverges",
+    "triage": "drift:diverges",
+    "error": null,
+    "ms": 16684
+   }
+  ],
+  "recall": {
+   "hit": 6,
+   "of": 6
+  },
+  "nodes": 13,
+  "flows": 28,
+  "level": "component",
+  "intent": {
+   "atoms": 12,
+   "tokens": 134,
+   "text": "sys|G short-links-with-click-counts|N load-links-month 100M links/month|N load-redirects-month 10B redirects/month|N latency p99<50ms|D code-allocation pre-generated-ranges>collision-check-on-write\nclick-worker|F count-clicks-per-owner\nkey-range-svc|F hand-out-unique-code-ranges\nlink-api|F create-short-links\nredirect-svc|D cache-plus-store>direct-store-reads|F redirect-clicks-to-long-URL|! intent:redirect-svc redirect-clicks-to-long-URL via 302 redirects visitors code:redirect/handler\nredirect-svc>click-stream|E async-click-events"
+  },
+  "context": {
+   "jsonChars": 8577,
+   "compactChars": 3231
+  },
+  "stats": {
+   "calls": {
+    "selector": 4,
+    "builder": 6
+   },
+   "tokens": {
+    "input": 15392,
+    "output": 9990,
+    "reasoning": 6702
+   },
+   "cost": 0.0033440600000000003,
+   "selectorCost": 0.0007190300000000001,
+   "builderCost": 0.0026250300000000004
+  }
+ }
+]

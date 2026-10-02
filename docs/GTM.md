@@ -71,8 +71,8 @@ Lines we use in comments: "Archify draws a great poster; we keep the map and sou
       That is a launch-killer for coders if discovered in comments. Ship a first-run notice, a
       one-line opt-out (`"model": "muse-spark-1.3"`), and a "what leaves your machine" section.
       Consider a bring-your-own-model default (the agent's own provider) for the plugin install.
-- [ ] **Publish to npm** as `smartypants-diagram` or `@logan-robbins/smartypants` so installs are
-      one command and `npx` works without GitHub.
+- [x] **Published to npm** as `@logan-robbins/smartypants` (0.2.0, signed provenance), so
+      `npm install -D @logan-robbins/smartypants` and `npx` work without GitHub.
 - [ ] **Hero GIF** (≤ 8 MB, 1200 px wide): talk → diagram grows → "go deeper" → drift flagged.
 - [ ] **Zero-key demo**: `npx smartypants demo youtube-top-k && npx smartypants serve` and the
       GitHub Pages demo (`site/`), linked from the first line of the README. Show HN needs "no signup".
@@ -112,7 +112,7 @@ checklist: [../SUBMISSION.md](../SUBMISSION.md).
 
 | marketplace | route | blockers for us today | what we did |
 |---|---|---|---|
-| Claude Code directory | claude.ai/directory/manage (paid plan); old Console form retired | unpinned `npm install github:` until npm publish | strict validation passes; plugin eval +1.00; key moved to a sensitive `userConfig` |
+| Claude Code directory | claude.ai/directory/manage (paid plan); old Console form retired | none (on npm as `@logan-robbins/smartypants`) | strict validation passes; plugin eval +1.00; key moved to a sensitive `userConfig` |
 | Grok Build | PR to `xai-org/plugin-marketplace`, `url` source pinned to a 40-char SHA | none (license done) | Grok reads the Claude plugin as is; versions aligned |
 | Codex | repo marketplace for hooks; OpenAI directory = skills-only storefront | privacy policy URL, verified identity, 5+3 test cases | `.agents/plugins/marketplace.json` works with `codex plugin marketplace add` |
 | Cursor | manual review; open source required | none (Apache-2.0) | plugin dir ready |

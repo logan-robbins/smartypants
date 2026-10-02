@@ -39,8 +39,8 @@ Blocking (from the 2026 requirements in [docs/research/competitors.md](docs/rese
       (Meta Model API, optionally Typesafe). The default `muse-spark-1.3-contributor` tier lets
       Meta train on that traffic; decide whether launch installs default to `muse-spark-1.3`
       (no training). Security scans flag undisclosed destinations.
-- [ ] **Pin installs.** Tag a release (`v0.2.0`) and change `npm install github:logan-robbins/smartypants`
-      to `…#v0.2.0` (or publish to npm and pin the version) — unpinned launchers are blocking.
+- [x] **Pin installs.** Published as `@logan-robbins/smartypants@0.2.0` on npm with signed
+      provenance from GitHub Actions; docs install `npm install -D @logan-robbins/smartypants`.
 
 Routes:
 

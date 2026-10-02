@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 /**
  * Turn-end review benchmark: labeled changes to the shop-monorepo example,
- * each in a fresh git copy, reviewed the way the Stop hook reviews a turn
- * (git changes -> one batched selector call). No builder calls.
+ * each in a fresh git copy, reviewed the way the Stop hook reviews a turn.
  *
- *   node eval/turnend.mjs [--deciders heuristic,meta,jev,auto] [--reps 2] [--out results/<dir>]
+ *   node eval/turnend.mjs [--deciders heuristic,meta,jev] [--reps 2] [--out results/<dir>]
+ *     selector only: git changes -> one batched selector call, no writer.
+ *   node eval/turnend.mjs --e2e [--deciders heuristic,meta,jev] [--reps 2]
+ *     the whole Stop hook: the selector picks which files to check, then Muse
+ *     Spark writes the drift note; scored on the flags that actually land.
  *
  * Labels: diverges (breaks a recorded decision, constraint, or boundary),
  * conforms, not-architectural, new-boundary. The drift flag is what the user
@@ -15,7 +18,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawn } from "node:child_process";
 import { createChooser } from "../src/jev.js";
+import { saveIntent } from "../src/intent.js";
+import { loadDesign, saveDesign } from "../src/model.js";
+import { handleHook } from "../src/pipeline.js";
 import { reviewTurn } from "../src/turnend.js";
 
 const pkg = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -24,7 +31,7 @@ const opt = (name, fallback) => {
   const i = args.indexOf(`--${name}`);
   return i === -1 ? fallback : args[i + 1];
 };
-const deciders = opt("deciders", "heuristic,meta,jev,auto").split(",");
+const deciders = opt("deciders", "heuristic,meta,jev").split(",");
 const reps = Number(opt("reps", "2"));
 const out = path.resolve(pkg, opt("out", `results/${new Date().toISOString().slice(0, 10)}-jev`));
 const source = path.join(pkg, "examples/shop-monorepo");
@@ -117,6 +124,74 @@ function fresh(scenario) {
     fs.writeFileSync(file, after);
   }
   return root;
+}
+
+const flagTotal = (d) => d.nodes.reduce((sum, n) => sum + (n.flags?.length || 0), 0) + (d.unmappedFlags?.length || 0);
+
+// One Stop hook end to end, in its own process (the builder guard is per process).
+if (args[0] === "--child") {
+  const [, decider, index] = args;
+  const scenario = SCENARIOS[Number(index)];
+  const root = fresh(scenario);
+  saveDesign(root, design);
+  saveIntent(root, intent);
+  fs.writeFileSync(path.join(root, "smartypants.config.json"), JSON.stringify({ flavor: "meta", depth: "auto", decider, review: "turn", timeoutMs: 120000 }));
+  process.env.SMARTYPANTS_DECIDER = decider;
+  console.error = () => {};
+  const before = flagTotal(loadDesign(root));
+  const started = Date.now();
+  const result = await handleHook({ cwd: root, event: { type: "turn-end" }, timeoutMs: 120000 });
+  const after = loadDesign(root);
+  const flags = [...after.nodes.flatMap((n) => (n.flags || []).map((f) => ({ node: n.id, ...f }))), ...(after.unmappedFlags || [])].slice(before);
+  fs.rmSync(root, { recursive: true, force: true });
+  process.stdout.write(JSON.stringify({ flagged: flagTotal(after) > before, flags, ms: Date.now() - started, error: result.error || null }));
+  process.exit(0);
+}
+
+if (args.includes("--e2e")) {
+  const self = fileURLToPath(import.meta.url);
+  const runChild = (decider, index) => new Promise((resolve) => {
+    const child = spawn(process.execPath, [self, "--child", decider, String(index)], { env: process.env, stdio: ["ignore", "pipe", "ignore"] });
+    let text = "";
+    child.stdout.on("data", (d) => { text += d; });
+    child.on("close", () => { try { resolve(JSON.parse(text)); } catch { resolve({ flagged: false, flags: [], ms: 0, error: "child failed" }); } });
+  });
+  const rows = [];
+  const detail = [];
+  for (const decider of deciders) {
+    if (decider === "jev" && !process.env.TYPESAFE_API_KEY) { console.log("skip decider jev: TYPESAFE_API_KEY is not set"); continue; }
+    const row = { decider, turns: 0, ok: 0, missed: 0, falseFlags: 0, errors: 0, ms: [] };
+    for (let rep = 0; rep < reps; rep += 1) {
+      const results = await Promise.all(SCENARIOS.map((_, i) => runChild(decider, i)));
+      results.forEach((r, i) => {
+        const want = Object.values(SCENARIOS[i].expect).includes("diverges");
+        row.turns += 1;
+        row.ms.push(r.ms);
+        if (r.error) row.errors += 1;
+        if (want === r.flagged) row.ok += 1;
+        if (want && !r.flagged) row.missed += 1;
+        if (!want && r.flagged) row.falseFlags += 1;
+        detail.push({ decider, rep, scenario: SCENARIOS[i].name, want, got: r.flagged, flags: r.flags, ms: r.ms, error: r.error });
+      });
+    }
+    row.ms.sort((a, b) => a - b);
+    row.p50 = row.ms[row.ms.length >> 1];
+    delete row.ms;
+    rows.push(row);
+    console.log(`${decider}: drift flag right on ${row.ok}/${row.turns} turns, missed ${row.missed}, false flags ${row.falseFlags}, p50 ${row.p50}ms, errors ${row.errors}`);
+  }
+  const table = [
+    `End-to-end Stop hook on ${SCENARIOS.length} labeled turns of the shop-monorepo example (${reps} reps): the selector picks which changed files to check, Muse Spark writes the drift note, and a turn counts as flagged only if a flag lands on the diagram.`,
+    "",
+    "| selector (writer: Muse Spark) | drift flag right | missed drift | false flags | p50 hook time | errors |",
+    "|---|---:|---:|---:|---:|---:|",
+    ...rows.map((r) => `| ${r.decider} | ${r.ok}/${r.turns} | ${r.missed} | ${r.falseFlags} | ${(r.p50 / 1000).toFixed(1)} s | ${r.errors} |`),
+  ].join("\n");
+  fs.mkdirSync(out, { recursive: true });
+  fs.writeFileSync(path.join(out, "turnend-e2e.md"), `${table}\n`);
+  fs.writeFileSync(path.join(out, "turnend-e2e.json"), JSON.stringify({ rows, detail }, null, 2));
+  console.log(`\n${table}\nwrote ${path.relative(pkg, out)}/turnend-e2e.{md,json}`);
+  process.exit(0);
 }
 
 const flagged = (verdict) => verdict && (verdict.value === "diverges" || ((verdict.value === "conforms" || verdict.value === "not-architectural") && verdict.confidence < 0.5));

@@ -21,7 +21,7 @@ Grok Build 的钩子（hooks），在每一轮对话中保持一张分层的系�
 ## 安装
 
 ```sh
-npm install github:logan-robbins/smartypants
+npm install -D @logan-robbins/smartypants
 npx smartypants init        # 为所有宿主写入钩子与配置；已有代码时自动补全架构图
 export META_API_KEY=...     # 默认构建器（Meta Muse Spark）
 npx smartypants serve       # 打开输出的地址

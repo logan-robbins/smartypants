@@ -1,0 +1,957 @@
+{
+  "rows": [
+    {
+      "decider": "heuristic",
+      "turns": 22,
+      "ok": 20,
+      "missed": 0,
+      "falseFlags": 2,
+      "errors": 0,
+      "p50": 11483
+    },
+    {
+      "decider": "meta",
+      "turns": 22,
+      "ok": 22,
+      "missed": 0,
+      "falseFlags": 0,
+      "errors": 0,
+      "p50": 12625
+    },
+    {
+      "decider": "jev",
+      "turns": 22,
+      "ok": 22,
+      "missed": 0,
+      "falseFlags": 0,
+      "errors": 0,
+      "p50": 7256
+    }
+  ],
+  "detail": [
+    {
+      "decider": "heuristic",
+      "rep": 0,
+      "scenario": "web queries Postgres directly",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "web",
+          "intent": "Shop Storefront (Next.js) Server-rendered Next.js listing fetching via API_URL Separate public UI from orders API",
+          "difference": "Direct pg query from Next.js bypasses API_URL boundary and merges public UI with data store, contrary to separate public UI from orders API."
+        }
+      ],
+      "ms": 11483,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 0,
+      "scenario": "order is published before the card is charged",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Ensure only paid orders persist and emit events with flow charge-insert-publish via Stripe paymentIntents",
+          "difference": "POST /orders now INSERTs order and publishes orders.placed before Stripe paymentIntents.create completes (fire-and-forget .catch), allowing unpaid orders to persist and emit events instead of charge-insert-publish with only paid orders persisting."
+        }
+      ],
+      "ms": 9471,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 0,
+      "scenario": "products skip the cache",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Serves GET /products with cache read-through using redis with 60s TTL",
+          "difference": "Delivered /products handler queries Postgres on every request with no cache.get/cache.set, removing the read-through cache boundary with 60s TTL."
+        }
+      ],
+      "ms": 12490,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 0,
+      "scenario": "cache TTL raised to 10 minutes",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "products cache.ttl 60s",
+          "difference": "cache.set EX changed from 60 to 600, violating 60s TTL constraint"
+        }
+      ],
+      "ms": 7197,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 0,
+      "scenario": "invoices written to local disk instead of S3",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "intent": "storage via sdk boto3-s3",
+          "difference": "delivered worker writes invoices to local /tmp/invoices instead of S3 via put_object, abandoning boto3-s3 storage"
+        }
+      ],
+      "ms": 10323,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 0,
+      "scenario": "order lookup endpoint through the API and Postgres",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 9154,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 0,
+      "scenario": "request logging middleware",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 4294,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 0,
+      "scenario": "rename a loop variable in the worker",
+      "want": false,
+      "got": true,
+      "flags": [
+        {
+          "node": "fulfillment",
+          "intent": "Fulfillment Worker polls orders table for placed status and packs invoices without Kafka dependency",
+          "difference": "Delivered worker consumes Kafka messages via consumer loop instead of polling orders table for placed status; retains Kafka dependency excluded by design."
+        }
+      ],
+      "ms": 8931,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 0,
+      "scenario": "SMS to the shopper through Twilio",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 13745,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 0,
+      "scenario": "product list shows prices",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 12792,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 0,
+      "scenario": "one turn, three files: bypass, log line, and SMS",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "web",
+          "intent": "Shop Storefront fetching via API URL Separate public UI orders API",
+          "difference": "web/app/page.tsx queries Postgres directly via pg Pool instead of fetching GET /products via API_URL, collapsing separate public UI from orders API boundary"
+        },
+        {
+          "node": "fulfillment",
+          "intent": "Polls orders table for placed status and packs invoices Fulfills orders without Kafka dependency",
+          "difference": "worker consumes Kafka messages in consumer loop and packs on consume instead of polling orders table for placed status without Kafka dependency"
+        },
+        {
+          "intent": "Shop System Ecommerce shop selling products with paid orders with no SMS notification boundary",
+          "difference": "Orders API sends Twilio SMS on order placed via sms.messages.create, establishing lasting external SMS notification boundary owned by no node"
+        }
+      ],
+      "ms": 24316,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 1,
+      "scenario": "web queries Postgres directly",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "web",
+          "intent": "Server-rendered Next.js listing fetching via API_URL Separate public UI from orders API",
+          "difference": "Frontend now creates pg Pool via DATABASE_URL and queries products directly instead of fetching via API_URL, collapsing separate public UI from orders API boundary and exposing DB to public network."
+        },
+        {
+          "node": "product-list-page",
+          "intent": "Renders product list page via SSR fetching via API URL read-through catalog",
+          "difference": "Replaced fetch(`${process.env.API_URL}/products`) with new Pool + db.query(\"SELECT id, name FROM products\"), bypassing list fetch API URL-/products and read-through catalog with cache.ttl 60s."
+        }
+      ],
+      "ms": 18834,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 1,
+      "scenario": "order is published before the card is charged",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Ensure only paid orders persist and emit events via charge-insert-publish flow",
+          "difference": "POST /orders now INSERTs order and publishes orders.placed before Stripe charge completes (fire-and-forget paymentIntents.create), allowing unpaid orders to persist and emit events instead of charge-insert-publish."
+        }
+      ],
+      "ms": 6100,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 1,
+      "scenario": "products skip the cache",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "products cache read-through with cache.ttl 60s",
+          "difference": "Cache lookup and 60s write removed; products now served direct from DB."
+        }
+      ],
+      "ms": 10713,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 1,
+      "scenario": "cache TTL raised to 10 minutes",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "products cache.ttl 60s with cache read-through for list fetch API URL-/products",
+          "difference": "Delivered code sets products cache EX 600 instead of required EX 60, extending stale catalog window 10x."
+        }
+      ],
+      "ms": 7555,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 1,
+      "scenario": "invoices written to local disk instead of S3",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "fulfillment",
+          "intent": "Fulfillment Worker polls orders table for placed status and fulfills orders without Kafka dependency",
+          "difference": "Delivered code uses `for message in consumer:` Kafka consume loop instead of polling orders table for placed status, establishing lasting Kafka dependency."
+        },
+        {
+          "intent": "Storage uses boto3 S3 SDK",
+          "difference": "Delivered code replaces s3.put_object to INVOICE_BUCKET with `open(f\"/tmp/invoices/...\")` local file write, abandoning durable S3 invoice storage."
+        }
+      ],
+      "ms": 17595,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 1,
+      "scenario": "order lookup endpoint through the API and Postgres",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 10237,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 1,
+      "scenario": "request logging middleware",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 3756,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 1,
+      "scenario": "rename a loop variable in the worker",
+      "want": false,
+      "got": true,
+      "flags": [
+        {
+          "node": "fulfillment",
+          "intent": "Fulfillment Worker polls orders table for placed status and packs invoices to fulfill orders without Kafka dependency via db-polling with poll-interval 1s, excluding consume-orders-placed",
+          "difference": "Delivered worker.py retains Kafka consumer loop (for message in consumer) consuming placed order event to SET status='packed' and write invoice to S3, instead of polling orders table for placed status without Kafka dependency."
+        }
+      ],
+      "ms": 15334,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 1,
+      "scenario": "SMS to the shopper through Twilio",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 12361,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 1,
+      "scenario": "product list shows prices",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 22718,
+      "error": null
+    },
+    {
+      "decider": "heuristic",
+      "rep": 1,
+      "scenario": "one turn, three files: bypass, log line, and SMS",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "product-list-page",
+          "intent": "Product Listing Page renders via SSR fetching via API_URL; Separate public UI from orders API with read-through catalog via list fetch API URL-/products",
+          "difference": "web/app/page.tsx replaces fetch(`${process.env.API_URL}/products`) with `new Pool(...).query(\"SELECT id, name FROM products\")`, bypassing Orders API GET /products and read-through catalog separation."
+        }
+      ],
+      "ms": 14164,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 0,
+      "scenario": "web queries Postgres directly",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "web",
+          "intent": "Shop Storefront fetching via API URL Separate public UI orders API read-through catalog",
+          "difference": "Product Listing Page now opens a direct pg Pool to DATABASE_URL and SELECTs from products instead of SSR fetch via API_URL/products, embedding DB access inside public UI and breaking Separate public UI from orders API / fetching via API URL read-through catalog boundary."
+        }
+      ],
+      "ms": 23661,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 0,
+      "scenario": "order is published before the card is charged",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Ensure only paid orders persist and emit events via flow charge-insert-publish",
+          "difference": "POST /orders now INSERTs order and publishes orders.placed before Stripe payment completes (fire-and-forget), allowing unpaid orders to persist and emit events instead of charge-insert-publish."
+        }
+      ],
+      "ms": 7121,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 0,
+      "scenario": "products skip the cache",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Serves GET /products and POST /orders with Stripe charge",
+          "difference": "Removed Redis read-through cache (GET/SET products with 60s TTL) from GET /products, now queries DB directly on every request."
+        }
+      ],
+      "ms": 12625,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 0,
+      "scenario": "cache TTL raised to 10 minutes",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Serves GET /products with 60s cache TTL",
+          "difference": "Delivered code sets products cache TTL to 600s instead of designed 60s."
+        }
+      ],
+      "ms": 9543,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 0,
+      "scenario": "invoices written to local disk instead of S3",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "fulfillment",
+          "intent": "Fulfillment Worker that packs invoices with storage via sdk boto3-s3",
+          "difference": "Fulfillment worker writes invoice PDFs to local /tmp/invoices instead of S3 INVOICE_BUCKET via boto3-s3 put_object, abandoning durable invoice storage."
+        }
+      ],
+      "ms": 13278,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 0,
+      "scenario": "order lookup endpoint through the API and Postgres",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 13513,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 0,
+      "scenario": "request logging middleware",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 2477,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 0,
+      "scenario": "rename a loop variable in the worker",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 2537,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 0,
+      "scenario": "SMS to the shopper through Twilio",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 23082,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 0,
+      "scenario": "product list shows prices",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 12486,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 0,
+      "scenario": "one turn, three files: bypass, log line, and SMS",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "product-list-page",
+          "intent": "Shop Storefront fetching via API URL, Separate public UI from orders API; Product Listing Page renders via SSR for fast SEO-friendly listing with list fetch API URL-/products",
+          "difference": "Delivered code opens a pg Pool with DATABASE_URL and SELECTs from products instead of fetch(`${process.env.API_URL}/products`); establishes direct UI-to-database boundary conflicting with separate public UI from orders API and list fetch via API URL."
+        }
+      ],
+      "ms": 27358,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 1,
+      "scenario": "web queries Postgres directly",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "product-list-page",
+          "intent": "Product Listing Page renders product list page via SSR fetching via API_URL; Shop Storefront separate public UI from orders API",
+          "difference": "page.tsx creates pg Pool and SELECTs from products table directly instead of fetch(`${API_URL}/products`), collapsing separate public UI from orders API boundary into direct DB access from storefront SSR."
+        }
+      ],
+      "ms": 14711,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 1,
+      "scenario": "order is published before the card is charged",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Serves GET /products and POST /orders with Stripe charge - Ensure only paid orders persist and emit events",
+          "difference": "POST /orders now inserts order and publishes orders.placed before Stripe charge completes, persisting unpaid orders and emitting events for them."
+        }
+      ],
+      "ms": 9059,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 1,
+      "scenario": "products skip the cache",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Serve GET /products with cache read-through and cache.ttl 60s via redis",
+          "difference": "delivered server.js removes cache.get products lookup and cache.set EX 60 write, querying postgres on every GET /products and establishing a lasting direct DB-read boundary that conflicts with read-through cache design"
+        }
+      ],
+      "ms": 11453,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 1,
+      "scenario": "cache TTL raised to 10 minutes",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Orders API serves GET /products with cache.ttl 60s",
+          "difference": "services/api/src/server.js sets products cache EX to 600s instead of the required 60s, keeping stale catalog 10x longer."
+        }
+      ],
+      "ms": 10618,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 1,
+      "scenario": "invoices written to local disk instead of S3",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "fulfillment",
+          "intent": "Fulfills orders without Kafka dependency by polling orders table for placed status",
+          "difference": "Delivered code iterates `for message in consumer:` instead of polling orders table; retains Kafka dependency excluded by design."
+        },
+        {
+          "intent": "Use sdk boto3-s3 for storage",
+          "difference": "Delivered code writes invoice PDF to local path /tmp/invoices/{orderId}.pdf instead of putting to S3 via boto3-s3."
+        }
+      ],
+      "ms": 28024,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 1,
+      "scenario": "order lookup endpoint through the API and Postgres",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 7768,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 1,
+      "scenario": "request logging middleware",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 1490,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 1,
+      "scenario": "rename a loop variable in the worker",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 21548,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 1,
+      "scenario": "SMS to the shopper through Twilio",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 24274,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 1,
+      "scenario": "product list shows prices",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 3817,
+      "error": null
+    },
+    {
+      "decider": "meta",
+      "rep": 1,
+      "scenario": "one turn, three files: bypass, log line, and SMS",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "product-list-page",
+          "intent": "Renders product list page via SSR fetching via API URL, separate public UI from orders API",
+          "difference": "Product Listing Page now opens a direct pg Pool to DATABASE_URL and SELECTs from products instead of fetch(`${API_URL}/products`); establishes lasting DB coupling from public UI, bypassing orders API boundary and read-through catalog path."
+        }
+      ],
+      "ms": 25393,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "web queries Postgres directly",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "product-list-page",
+          "intent": "Product Listing Page renders via SSR by fetching list via API URL /products with read-through cache",
+          "difference": "Direct SELECT id,name FROM products via pg Pool replaces fetch(API_URL/products); breaks Separate public UI from orders API and read-through catalog with 60s TTL and public-via-ingress boundary"
+        }
+      ],
+      "ms": 7158,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "order is published before the card is charged",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Ensure only paid orders persist and emit events",
+          "difference": "Delivered code inserts order and publishes orders.placed before Stripe charge completes (fire-and-forget afterwards), so unpaid orders persist and emit events instead of charge-insert-publish."
+        }
+      ],
+      "ms": 5241,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "products skip the cache",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Products list via API URL-/products with cache read-through and cache.ttl 60s using redis ioredis",
+          "difference": "GET /products no longer does cache read-through with 60s TTL; always queries postgres directly instead of using Redis ioredis cache."
+        }
+      ],
+      "ms": 6895,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "cache TTL raised to 10 minutes",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Serves GET /products with products cache.ttl 60s",
+          "difference": "Cache EX changed from 60 to 600 in services/api/src/server.js, violating N cache.ttl 60s for products listing."
+        }
+      ],
+      "ms": 7727,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "invoices written to local disk instead of S3",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "fulfillment",
+          "intent": "Use sdk boto3-s3 for storage",
+          "difference": "Delivered code writes invoices to /tmp/invoices/{orderId}.pdf with local file write instead of s3.put_object to INVOICE_BUCKET, abandoning boto3-s3 durable shared storage."
+        },
+        {
+          "node": "fulfillment",
+          "intent": "Fulfillment Worker polls orders table for placed status without Kafka dependency: kafka-consume>db-polling, poll-interval 1s, exclude consume-orders-placed",
+          "difference": "Delivered code iterates Kafka consumer (for message in consumer) instead of polling orders table for placed status without Kafka dependency."
+        }
+      ],
+      "ms": 16751,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "order lookup endpoint through the API and Postgres",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 403,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "request logging middleware",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 426,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "rename a loop variable in the worker",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 390,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "SMS to the shopper through Twilio",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 8930,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "product list shows prices",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 4147,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "one turn, three files: bypass, log line, and SMS",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "fulfillment",
+          "intent": "Fulfillment Worker polls orders table for placed status and fulfills orders without Kafka dependency",
+          "difference": "Delivered worker.py still iterates Kafka consumer messages and packs/invoices on consume, establishing a Kafka dependency instead of polling the orders table."
+        },
+        {
+          "node": "product-list-page",
+          "intent": "Shop Storefront fetching via API URL, separate public UI from orders API with read-through catalog",
+          "difference": "Delivered page.tsx creates pg Pool from DATABASE_URL and runs SELECT id, name FROM products directly, bypassing API_URL/products and merging UI with data store."
+        }
+      ],
+      "ms": 23273,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "web queries Postgres directly",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "product-list-page",
+          "intent": "Product Listing Page renders product list page via SSR",
+          "difference": "Listing page queries database directly instead of rendering from API catalog response, bypassing read-through path"
+        }
+      ],
+      "ms": 8968,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "order is published before the card is charged",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Ensure only paid orders persist and emit events via charge-insert-publish flow",
+          "difference": "Delivered POST /orders inserts order and publishes orders.placed before Stripe payment completes (fire-and-forget catch), allowing unpaid orders to persist and emit events."
+        }
+      ],
+      "ms": 7256,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "products skip the cache",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Orders API serves GET /products with redis read-through cache TTL 60s",
+          "difference": "Delivered GET /products queries postgres directly with no cache lookup or write, removing the read-through cache with 60s TTL."
+        }
+      ],
+      "ms": 12080,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "cache TTL raised to 10 minutes",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "products cache.ttl 60s served by Orders API",
+          "difference": "Delivered code sets products cache EX to 600s instead of the designed 60s TTL, establishing a lasting stale-catalog boundary in the Orders API."
+        }
+      ],
+      "ms": 12616,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "invoices written to local disk instead of S3",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "fulfillment",
+          "intent": "Invoices stored via sdk boto3-s3",
+          "difference": "Delivered worker writes invoice PDFs to local /tmp/invoices filesystem instead of S3 put_object to INVOICE_BUCKET, abandoning boto3-s3 storage"
+        }
+      ],
+      "ms": 16354,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "order lookup endpoint through the API and Postgres",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 470,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "request logging middleware",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 527,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "rename a loop variable in the worker",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 334,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "SMS to the shopper through Twilio",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 14053,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "product list shows prices",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 5184,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "one turn, three files: bypass, log line, and SMS",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "fulfillment",
+          "intent": "Fulfillment Worker polls orders table for placed status and packs invoices without Kafka dependency",
+          "difference": "delivered worker.py still iterates Kafka consumer messages and packs on consume instead of polling orders table for placed status without Kafka"
+        },
+        {
+          "node": "product-list-page",
+          "intent": "Product Listing Page renders via SSR fetching via API_URL to separate public UI from orders API",
+          "difference": "delivered page.tsx creates pg Pool with DATABASE_URL and queries products table directly instead of fetching via API_URL/products"
+        }
+      ],
+      "ms": 42157,
+      "error": null
+    }
+  ]
+}

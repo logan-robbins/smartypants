@@ -14,10 +14,15 @@
  * - jev: Typesafe's Jev (`/v1/systemone`, `jev-latest`), TYPESAFE_API_KEY.
  * - meta: the same menus answered by Muse Spark at minimal reasoning effort,
  *   escalating to low effort only for questions under the confidence floor.
- * - jev+meta (`auto` with both keys): Jev answers every question in ~200 ms;
- *   only answers under the confidence floor go to Muse Spark for a second
- *   opinion. On the held-out set every wrong Jev answer was under 0.6.
+ *   Used when there is no Jev key, or as failover when Jev is unreachable.
  * - heuristic: each question's local `fallback`, no network.
+ *
+ * The selector never writes and the writer never re-picks: as in WindTunnel
+ * (Jev selects actions; Mercury writes arguments and the final answer), Jev
+ * decides what happens and Muse Spark, as the builder, writes the delta or the
+ * drift note. An unsure pick is resolved toward doing the work (triage builds
+ * unless a skip is confident; review sends unsure files to the drift writer),
+ * and the writer's output is what lands, so it can still find no change.
  */
 import { META_MODEL, metaJson, metaKey } from "./meta.js";
 
@@ -25,8 +30,6 @@ export const JEV_URL = "https://api.typesafe.ai/v1/systemone";
 export const JEV_MODEL = "jev-latest";
 export const JEV_REQUEST_CHAR_LIMIT = 100000;
 export const DECIDERS = ["auto", "jev", "meta", "heuristic"];
-/** Jev answers under this confidence get a Muse Spark second opinion. */
-export const ESCALATE_BELOW = 0.6;
 
 const SELECT_SYSTEM = [
   "You are System One, a fast selector for a live architecture diagram.",
@@ -137,36 +140,6 @@ export function metaChooser({ env = process.env, model = META_MODEL, escalateBel
 }
 
 /**
- * Jev first; questions it is unsure of go to Muse Spark. A Muse Spark failure
- * keeps Jev's answers rather than failing the turn.
- */
-export function jevMetaChooser({ env = process.env, model = META_MODEL, escalateBelow = ESCALATE_BELOW, fetchCall, record } = {}) {
-  const jev = jevChooser({ env, fetchCall, record });
-  const meta = metaChooser({ env, model, fetchCall, record });
-  const chooser = {
-    via: "jev+meta",
-    lastVia: "jev",
-    async choose(state, questions) {
-      const first = await jev.choose(state, questions);
-      const unsure = Object.keys(questions).filter((id) => !(first[id].confidence >= escalateBelow));
-      chooser.lastVia = "jev";
-      if (!unsure.length) return first;
-      try {
-        const second = await meta.choose(state, Object.fromEntries(unsure.map((id) => [id, questions[id]])));
-        chooser.lastVia = "jev+meta";
-        const merged = { ...first };
-        for (const id of unsure) merged[id] = { ...second[id], jev: { value: first[id].value, confidence: first[id].confidence } };
-        return merged;
-      } catch (error) {
-        console.error(`smartypants: meta second opinion failed (${error instanceof Error ? error.message : error}); keeping Jev`);
-        return first;
-      }
-    },
-  };
-  return chooser;
-}
-
-/**
  * Pick a selector chain for the config. `auto` prefers Jev, then Meta, then
  * the heuristic. A failing selector falls through to the next one so a hook
  * never blocks on a provider outage.
@@ -180,9 +153,8 @@ export function createChooser(config = {}, { env = process.env, fetchCall, recor
   if (wanted === "jev") jev();
   else if (wanted === "meta") meta();
   else if (wanted === "auto") {
-    // Both keys: Jev with a Muse Spark second opinion, then Muse Spark alone if Jev is down.
-    if (env.TYPESAFE_API_KEY && metaKey(env)) chain.push(jevMetaChooser({ env, model, escalateBelow: config.escalateBelow ?? ESCALATE_BELOW, fetchCall, record }));
-    else jev();
+    // Jev selects; Muse Spark answers the menus only if Jev is unavailable.
+    jev();
     meta();
   }
   chain.push(heuristicChooser());
@@ -193,7 +165,7 @@ export function createChooser(config = {}, { env = process.env, fetchCall, recor
       for (const chooser of chain) {
         try {
           const answers = await chooser.choose(state, questions);
-          return { answers, via: chooser.lastVia || chooser.via, error: lastError };
+          return { answers, via: chooser.via, error: lastError };
         } catch (error) {
           lastError = error instanceof Error ? error.message : String(error);
           console.error(`smartypants: ${chooser.via} selector failed (${lastError})`);
