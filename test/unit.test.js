@@ -14,7 +14,7 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
 const PACKAGES = {
   meta: "meta-model-api",
-  claude: "@anthropic-ai/claude-agent-sdk",
+  claude: "claude-code-cli",
   codex: "@openai/agents",
   grok: "openai",
   muse: "@muse-code/sdk",
@@ -23,7 +23,7 @@ const PACKAGES = {
 
 const APIS = {
   meta: "meta.chat.completions",
-  claude: "query",
+  claude: "claude -p",
   codex: "run",
   grok: "chat.completions",
   muse: "MuseClient.spawn",

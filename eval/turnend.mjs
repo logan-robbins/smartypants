@@ -5,9 +5,10 @@
  *
  *   node eval/turnend.mjs [--deciders heuristic,meta,jev] [--reps 2] [--out results/<dir>]
  *     selector only: git changes -> one batched selector call, no writer.
- *   node eval/turnend.mjs --e2e [--deciders heuristic,meta,jev] [--reps 2]
- *     the whole Stop hook: the selector picks which files to check, then Muse
- *     Spark writes the drift note; scored on the flags that actually land.
+ *   node eval/turnend.mjs --e2e [--deciders heuristic,claude,jev] [--writer claude|meta] [--reps 2]
+ *     the whole Stop hook: the selector picks which files to check, then the
+ *     writer (Claude by default) writes the drift note; scored on the flags
+ *     that actually land.
  *
  * Labels: diverges (breaks a recorded decision, constraint, or boundary),
  * conforms, not-architectural, new-boundary. The drift flag is what the user
@@ -33,6 +34,8 @@ const opt = (name, fallback) => {
 };
 const deciders = opt("deciders", "heuristic,meta,jev").split(",");
 const reps = Number(opt("reps", "2"));
+const writer = opt("writer", "claude");
+const WRITER_NAME = { claude: "Claude", meta: "Muse Spark" }[writer] || writer;
 const out = path.resolve(pkg, opt("out", `results/${new Date().toISOString().slice(0, 10)}-jev`));
 const source = path.join(pkg, "examples/shop-monorepo");
 const design = JSON.parse(fs.readFileSync(path.join(pkg, "examples/shop-monorepo.design.json"), "utf8"));
@@ -130,12 +133,12 @@ const flagTotal = (d) => d.nodes.reduce((sum, n) => sum + (n.flags?.length || 0)
 
 // One Stop hook end to end, in its own process (the builder guard is per process).
 if (args[0] === "--child") {
-  const [, decider, index] = args;
+  const [, decider, index, flavor = "claude"] = args;
   const scenario = SCENARIOS[Number(index)];
   const root = fresh(scenario);
   saveDesign(root, design);
   saveIntent(root, intent);
-  fs.writeFileSync(path.join(root, "smartypants.config.json"), JSON.stringify({ flavor: "meta", depth: "auto", decider, review: "turn", timeoutMs: 120000 }));
+  fs.writeFileSync(path.join(root, "smartypants.config.json"), JSON.stringify({ flavor, depth: "auto", decider, review: "turn", timeoutMs: 120000 }));
   process.env.SMARTYPANTS_DECIDER = decider;
   console.error = () => {};
   const before = flagTotal(loadDesign(root));
@@ -151,7 +154,7 @@ if (args[0] === "--child") {
 if (args.includes("--e2e")) {
   const self = fileURLToPath(import.meta.url);
   const runChild = (decider, index) => new Promise((resolve) => {
-    const child = spawn(process.execPath, [self, "--child", decider, String(index)], { env: process.env, stdio: ["ignore", "pipe", "ignore"] });
+    const child = spawn(process.execPath, [self, "--child", decider, String(index), writer], { env: process.env, stdio: ["ignore", "pipe", "ignore"] });
     let text = "";
     child.stdout.on("data", (d) => { text += d; });
     child.on("close", () => { try { resolve(JSON.parse(text)); } catch { resolve({ flagged: false, flags: [], ms: 0, error: "child failed" }); } });
@@ -181,9 +184,9 @@ if (args.includes("--e2e")) {
     console.log(`${decider}: drift flag right on ${row.ok}/${row.turns} turns, missed ${row.missed}, false flags ${row.falseFlags}, p50 ${row.p50}ms, errors ${row.errors}`);
   }
   const table = [
-    `End-to-end Stop hook on ${SCENARIOS.length} labeled turns of the shop-monorepo example (${reps} reps): the selector picks which changed files to check, Muse Spark writes the drift note, and a turn counts as flagged only if a flag lands on the diagram.`,
+    `End-to-end Stop hook on ${SCENARIOS.length} labeled turns of the shop-monorepo example (${reps} reps): the selector picks which changed files to check, ${WRITER_NAME} writes the drift note, and a turn counts as flagged only if a flag lands on the diagram.`,
     "",
-    "| selector (writer: Muse Spark) | drift flag right | missed drift | false flags | p50 hook time | errors |",
+    `| selector (writer: ${WRITER_NAME}) | drift flag right | missed drift | false flags | p50 hook time | errors |`,
     "|---|---:|---:|---:|---:|---:|",
     ...rows.map((r) => `| ${r.decider} | ${r.ok}/${r.turns} | ${r.missed} | ${r.falseFlags} | ${(r.p50 / 1000).toFixed(1)} s | ${r.errors} |`),
   ].join("\n");

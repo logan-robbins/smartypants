@@ -4,7 +4,7 @@
 To diagram a separate Claude Code or Codex instance, add `watch` with that instance's home:
 
 ```json
-{ "flavor": "meta", "depth": "auto", "watch": { "host": "claude", "home": "/absolute/path/to/claude-home" } }
+{ "flavor": "claude", "depth": "auto", "watch": { "host": "claude", "home": "/absolute/path/to/claude-home" } }
 ```
 
 Use `"host": "codex"` for Codex, or `"session": "/absolute/session.jsonl"` for one session.
@@ -18,7 +18,7 @@ working project's Smartypants config at that directory:
 
 ```json
 {
-  "flavor": "meta",
+  "flavor": "claude",
   "depth": "auto",
   "seed": false,
   "watch": {"host":"claude","home":"/absolute/path/to/hx-instance/run/partner/home"}

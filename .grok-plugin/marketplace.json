@@ -8,12 +8,18 @@
     {
       "name": "smartypants",
       "description": "Keep a system, component, and module diagram while an agent codes, and flag where the code leaves the request.",
-      "version": "0.2.1",
+      "version": "0.3.0",
       "author": {
         "name": "Logan Robbins"
       },
       "homepage": "https://github.com/logan-robbins/smartypants",
-      "keywords": ["diagram", "architecture", "intent", "hooks"],
+      "keywords": [
+        "diagram",
+        "architecture",
+        "intent",
+        "hooks",
+        "claude"
+      ],
       "source": {
         "type": "local",
         "path": "./plugins/smartypants"

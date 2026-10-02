@@ -23,9 +23,17 @@ Grok Build 的钩子（hooks），在每一轮对话中保持一张分层的系�
 ```sh
 npm install -D @logan-robbins/smartypants
 npx smartypants init        # 为所有宿主写入钩子与配置；已有代码时自动补全架构图
-export META_API_KEY=...     # 默认构建器（Meta Muse Spark）
 npx smartypants serve       # 打开输出的地址
 ```
+
+**默认模型是 Claude，沿用你的 Claude Code 登录方式。** Smartypants 以无界面方式调用本机的 `claude` CLI（无工具、无设置、每次一个回答），
+所以 Claude Code 能用的方式都能直接用，无需额外 key：`ANTHROPIC_API_KEY`、Bedrock / Vertex / Foundry、`ANTHROPIC_BASE_URL` 网关，
+或 `claude` 登录。没有 Claude Code 的宿主可用 `init --flavor codex|pi|grok|meta`。
+
+**加上 Jev（可选，推荐）。** Jev 约 0.2 秒回答每轮的小问题，成本不到一美分的零头，只有需要写入时才调用 Claude：
+在 [console.typesafe.ai/keys](https://console.typesafe.ai/keys) 登录并创建 API key，在启动代理的 shell 中
+`export TYPESAFE_API_KEY=...`（或写入 dotenv 并设置 `"envFile"`，或填入 Claude Code 插件的 “Typesafe (Jev) API key” 设置），然后重启代理会话。
+没有它时这些问题也由 Claude 回答（每次约 3 秒、1–2 美分）。
 
 插件：`/plugin marketplace add logan-robbins/smartypants` 然后 `/plugin install smartypants@smartypants`（Claude Code）·
 `codex plugin marketplace add logan-robbins/smartypants`（Codex）· `pi install git:github.com/logan-robbins/smartypants`（Pi）·
@@ -44,9 +52,9 @@ npx smartypants serve       # 打开输出的地址
 
 ## 数据去向
 
-没有 `smartypants.config.json` 的项目不会发送任何数据。默认的 `meta` 构建器会把设计对话、组件名、每轮结束时的改动 diff
-以及（补全时）关键源文件发送到 **api.meta.ai**。默认模型 `muse-spark-1.3-contributor` 是 Meta 的折扣档，**可能被用于训练**；
-设置 `"model": "muse-spark-1.3"` 可退出，或改用其他构建器。
+没有 `smartypants.config.json` 的项目不会发送任何数据。默认的 `claude` 构建器会把设计对话、组件名、每轮结束时的改动 diff
+以及（补全时）关键源文件通过你自己的 Claude Code 发送给 Claude，沿用它现有的账号、服务商和数据条款；Smartypants 从不读取或保存 Claude 凭据。
+使用 `meta` 构建器时数据发送到 **api.meta.ai**，其默认档 `muse-spark-1.3-contributor` **可能被用于训练**（`"model": "muse-spark-1.3"` 可退出）。
 
 更多内容见 [英文 README](README.md)。
 

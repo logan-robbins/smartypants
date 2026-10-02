@@ -361,7 +361,7 @@ test("auto with both keys: Jev selects, even when unsure; Muse Spark answers men
     signal: { question: "q", options: [{ value: "noise" }, { value: "arch" }] },
     impact: { question: "q", options: [{ value: "none" }, { value: "extend" }] },
   };
-  const chain = createChooser({ decider: "auto" }, { env, fetchCall: jevUp });
+  const chain = createChooser({ decider: "auto", flavor: "meta" }, { env, fetchCall: jevUp });
   assert.equal(chain.via, "jev");
   const { answers, via } = await chain.choose({}, questions);
   assert.equal(via, "jev");
@@ -375,7 +375,7 @@ test("auto with both keys: Jev selects, even when unsure; Muse Spark answers men
   const original = console.error;
   console.error = () => {};
   try {
-    const failover = await createChooser({ decider: "auto" }, { env, fetchCall: jevDown }).choose({}, questions);
+    const failover = await createChooser({ decider: "auto", flavor: "meta" }, { env, fetchCall: jevDown }).choose({}, questions);
     assert.equal(failover.via, "meta");
     assert.equal(failover.answers.impact.value, "extend");
   } finally {

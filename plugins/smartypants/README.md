@@ -10,7 +10,7 @@ npx smartypants init --flavor claude
 npx smartypants serve
 ```
 
-The package name is `@logan-robbins/smartypants`. Use `--flavor` `claude`, `codex`, `grok`, `muse`, or `pi`. Add `--seed` when the project already has code. Open http://127.0.0.1:4173.
+The package name is `@logan-robbins/smartypants`. The default builder is `claude`: this machine's Claude Code CLI, signed in the way Claude Code already is. Use `--flavor` `codex`, `grok`, `meta`, `muse`, or `pi` on a harness without Claude Code. Optional: a Jev key from https://console.typesafe.ai/keys as `TYPESAFE_API_KEY` makes the per-turn questions ~0.2 s. Add `--seed` when the project already has code. Open http://127.0.0.1:4173.
 
 ## Install the plugin
 

@@ -1,0 +1,638 @@
+{
+  "rows": [
+    {
+      "decider": "jev",
+      "turns": 22,
+      "ok": 22,
+      "missed": 0,
+      "falseFlags": 0,
+      "errors": 0,
+      "p50": 7324
+    },
+    {
+      "decider": "claude",
+      "turns": 22,
+      "ok": 22,
+      "missed": 0,
+      "falseFlags": 0,
+      "errors": 0,
+      "p50": 9727
+    }
+  ],
+  "detail": [
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "web queries Postgres directly",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "web",
+          "intent": "The storefront is a separate public UI. It gets its data through API_URL and never touches the orders API's data directly.",
+          "difference": "The storefront component now has a direct Postgres dependency through DATABASE_URL. That breaks the separation between the public UI and the API."
+        }
+      ],
+      "ms": 25966,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "order is published before the card is charged",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Follow the charge-insert-publish flow so that only paid orders are saved and emit events.",
+          "difference": "The order is inserted and published before the Stripe charge. The charge is fire-and-forget and its failures are ignored (.catch(() => {})). The payment_intent column is no longer stored."
+        }
+      ],
+      "ms": 26823,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "products skip the cache",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "The product catalog should be served read-through from the Redis cache with a 60s TTL (products: N cache.ttl 60s, E cache read-through; cache: D redis ioredis).",
+          "difference": "GET /products no longer reads from or writes to the Redis cache. Every request now goes straight to Postgres, which drops the read-through cache and its 60s TTL."
+        }
+      ],
+      "ms": 25984,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "cache TTL raised to 10 minutes",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "The products catalog should be cached read-through in Redis with a 60s TTL.",
+          "difference": "GET /products now caches the product list for 600s instead of 60s. That breaks the recorded cache.ttl 60s constraint and lets stale catalog data last ten times longer."
+        }
+      ],
+      "ms": 25835,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "invoices written to local disk instead of S3",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "fulfillment",
+          "intent": "Fulfillment stores packed-order invoices in S3 through boto3.",
+          "difference": "Invoices are written to the pod's local /tmp/invoices directory instead of S3."
+        },
+        {
+          "node": "fulfillment",
+          "intent": "Fulfillment polls the orders table for placed status every 1s and does not consume orders-placed from Kafka (decision: kafka-consume>db-polling; exclusion: consume-orders-placed).",
+          "difference": "The worker still loops over a Kafka consumer ('for message in consumer') instead of polling the database."
+        }
+      ],
+      "ms": 28148,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "order lookup endpoint through the API and Postgres",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 3502,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "request logging middleware",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 3572,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "rename a loop variable in the worker",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 3342,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "SMS to the shopper through Twilio",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 27508,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "product list shows prices",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 25425,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 0,
+      "scenario": "one turn, three files: bypass, log line, and SMS",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "web",
+          "intent": "The Shop Storefront is a public Next.js UI that gets its data through API_URL. It stays separate from the orders API and the database behind it.",
+          "difference": "The storefront now connects straight to Postgres through DATABASE_URL and skips the API. That breaks the separation and goes around the products read-through cache (60s TTL)."
+        },
+        {
+          "node": "fulfillment",
+          "intent": "The Fulfillment Worker checks the orders table every 1s for orders with status 'placed', then packs them and writes invoices. It must not depend on Kafka, and it is explicitly not supposed to consume orders-placed messages.",
+          "difference": "The worker still loops over a Kafka consumer, reading orders-placed messages and packing each one. It never polls the orders table, so the Kafka dependency the design ruled out is still there."
+        }
+      ],
+      "ms": 34182,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "web queries Postgres directly",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "web",
+          "intent": "Public Next.js storefront that fetches data through API_URL and stays separate from the API and data layer.",
+          "difference": "The storefront component now connects straight to Postgres using pg. This breaks the boundary between the public UI and the backend."
+        }
+      ],
+      "ms": 6559,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "order is published before the card is charged",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "POST /orders must charge via Stripe first, then insert the order, then publish orders.placed (charge-insert-publish), so that only paid orders are saved and emit events.",
+          "difference": "The order is now inserted and published before any charge happens, and the payment_intent is no longer stored. The Stripe charge runs as a fire-and-forget call afterward and its errors are swallowed. As a result, unpaid orders are saved and emit orders.placed."
+        }
+      ],
+      "ms": 5077,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "products skip the cache",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Products catalog is read-through cached in Redis with cache.ttl 60s.",
+          "difference": "The cache get and set calls with EX 60 were removed, so /products no longer uses the cache at all."
+        }
+      ],
+      "ms": 6386,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "cache TTL raised to 10 minutes",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "The product catalog cache is read-through and has a 60s TTL (products N cache.ttl 60s).",
+          "difference": "GET /products now writes the products cache with EX 600, a 10-minute TTL instead of the required 60s."
+        }
+      ],
+      "ms": 5404,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "invoices written to local disk instead of S3",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "fulfillment",
+          "intent": "Invoices are stored in S3 through boto3 (storage D sdk boto3-s3).",
+          "difference": "Invoice PDFs are written to the local /tmp/invoices directory instead of the S3 bucket."
+        },
+        {
+          "node": "fulfillment",
+          "intent": "The worker finds orders by checking the orders table for placed status every 1s instead of consuming Kafka (D kafka-consume>db-polling, X consume-orders-placed, N poll-interval 1s).",
+          "difference": "The surrounding code still loops over a Kafka consumer ('for message in consumer') to get orders, so the worker still depends on Kafka."
+        }
+      ],
+      "ms": 9169,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "order lookup endpoint through the API and Postgres",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 471,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "request logging middleware",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 464,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "rename a loop variable in the worker",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 521,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "SMS to the shopper through Twilio",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 7324,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "product list shows prices",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 5274,
+      "error": null
+    },
+    {
+      "decider": "jev",
+      "rep": 1,
+      "scenario": "one turn, three files: bypass, log line, and SMS",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "web",
+          "intent": "The storefront is a separate public UI. It gets its data through the API at API_URL and has no direct link to the backend database.",
+          "difference": "The storefront now imports pg and connects to the database with DATABASE_URL. A public, ingress-exposed app now holds a direct database dependency and credentials."
+        },
+        {
+          "node": "fulfillment",
+          "intent": "The fulfillment worker checks the orders table every 1s for orders with status placed, then packs them and writes invoices. It must not depend on Kafka, and consuming orders.placed is explicitly excluded.",
+          "difference": "The worker still loops over a Kafka consumer, reading orders.placed messages and packing each order as a message arrives. It does not poll the orders table, so it keeps the Kafka dependency the design ruled out."
+        },
+        {
+          "node": "product-list-page",
+          "intent": "The product listing page is rendered on the server and gets its products from the orders API at API_URL/products. This keeps the public storefront separate from the orders API and its data.",
+          "difference": "The page no longer calls API_URL. It opens its own Postgres pool using DATABASE_URL and runs SELECT on the products table directly. The public storefront is now coupled straight to the database, which skips the API boundary and the read-through catalog cache."
+        }
+      ],
+      "ms": 17841,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 0,
+      "scenario": "web queries Postgres directly",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "web",
+          "intent": "The Shop Storefront is a public Next.js UI that gets its data only through API_URL, kept separate from the orders API.",
+          "difference": "The storefront component now depends on the database (pg, DATABASE_URL), which creates a lasting public-UI-to-database boundary that the design doesn't include."
+        }
+      ],
+      "ms": 11029,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 0,
+      "scenario": "order is published before the card is charged",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Charge, then insert, then publish, so that only paid orders are saved and emit events.",
+          "difference": "The insert and publish happen before the charge, and failures from the charge are ignored."
+        }
+      ],
+      "ms": 10268,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 0,
+      "scenario": "products skip the cache",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "The products catalog should be served through a read-through Redis cache with a 60s TTL (products: N cache.ttl 60s, E cache read-through; cache: D redis ioredis).",
+          "difference": "GET /products no longer reads from or writes to the Redis cache. Every request now queries Postgres directly, so the read-through cache and the 60s TTL are gone."
+        }
+      ],
+      "ms": 9727,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 0,
+      "scenario": "cache TTL raised to 10 minutes",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Cached /products responses must expire after 60 seconds (products N cache.ttl 60s).",
+          "difference": "The cache.set call now uses EX 600 (10 minutes) instead of EX 60."
+        }
+      ],
+      "ms": 10773,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 0,
+      "scenario": "invoices written to local disk instead of S3",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "fulfillment",
+          "intent": "The Fulfillment Worker polls the orders table every 1s for orders with placed status and does not consume orders-placed from Kafka (decision: kafka-consume replaced by db-polling; excluded: consume-orders-placed).",
+          "difference": "The worker still loops over a Kafka consumer ('for message in consumer') to receive placed orders instead of polling the database."
+        }
+      ],
+      "ms": 14624,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 0,
+      "scenario": "order lookup endpoint through the API and Postgres",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 5374,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 0,
+      "scenario": "request logging middleware",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 4764,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 0,
+      "scenario": "rename a loop variable in the worker",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 5229,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 0,
+      "scenario": "SMS to the shopper through Twilio",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 12078,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 0,
+      "scenario": "product list shows prices",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 4930,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 0,
+      "scenario": "one turn, three files: bypass, log line, and SMS",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "web",
+          "intent": "The storefront is a public Next.js UI kept separate from the orders API. It fetches data only through API_URL.",
+          "difference": "The storefront now connects straight to Postgres with DATABASE_URL, so the public UI and the backend data layer are no longer separate."
+        }
+      ],
+      "ms": 16772,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 1,
+      "scenario": "web queries Postgres directly",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "web",
+          "intent": "The Next.js storefront is a public UI that fetches through API_URL and stays separate from the orders API and its database.",
+          "difference": "The storefront now holds its own Postgres connection (DATABASE_URL) and reads the database directly, so the separation between the public UI and the backend no longer holds."
+        }
+      ],
+      "ms": 10083,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 1,
+      "scenario": "order is published before the card is charged",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "Only paid orders should be saved and emit events. The flow is: charge with Stripe first, then insert the order, then publish orders.placed.",
+          "difference": "The order is now inserted and orders.placed is published before any charge. The Stripe paymentIntent is created afterward as fire-and-forget, and its errors are swallowed. The payment_intent is no longer stored. So unpaid orders get saved and emit events."
+        }
+      ],
+      "ms": 9260,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 1,
+      "scenario": "products skip the cache",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "The products catalog should be served from a read-through Redis cache with a 60s TTL (products: cache read-through, N cache.ttl 60s; cache: D redis ioredis).",
+          "difference": "The new code takes the Redis cache out of GET /products. Every request now queries Postgres directly, so the read-through cache and the 60s TTL are gone."
+        }
+      ],
+      "ms": 8683,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 1,
+      "scenario": "cache TTL raised to 10 minutes",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "api",
+          "intent": "The products catalog cache is read-through, and its TTL is constrained to 60s.",
+          "difference": "GET /products now sets the Redis products cache entry with EX 600, so it lives for 10 minutes. The recorded constraint is cache.ttl 60s."
+        }
+      ],
+      "ms": 9416,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 1,
+      "scenario": "invoices written to local disk instead of S3",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "fulfillment",
+          "intent": "Store packed-order invoices in S3 using boto3 (storage D sdk boto3-s3).",
+          "difference": "Invoices are now written to the local /tmp/invoices directory on the pod instead of the S3 invoice bucket."
+        },
+        {
+          "node": "fulfillment",
+          "intent": "Fulfillment polls the orders table every 1s for placed orders and does not consume orders-placed from Kafka (D kafka-consume>db-polling, X consume-orders-placed).",
+          "difference": "The worker still iterates over a Kafka consumer to receive orders instead of polling the database."
+        }
+      ],
+      "ms": 15226,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 1,
+      "scenario": "order lookup endpoint through the API and Postgres",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 5698,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 1,
+      "scenario": "request logging middleware",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 4345,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 1,
+      "scenario": "rename a loop variable in the worker",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 5059,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 1,
+      "scenario": "SMS to the shopper through Twilio",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 11259,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 1,
+      "scenario": "product list shows prices",
+      "want": false,
+      "got": false,
+      "flags": [],
+      "ms": 4616,
+      "error": null
+    },
+    {
+      "decider": "claude",
+      "rep": 1,
+      "scenario": "one turn, three files: bypass, log line, and SMS",
+      "want": true,
+      "got": true,
+      "flags": [
+        {
+          "node": "web",
+          "intent": "Server-rendered Next.js storefront that fetches data through API_URL and stays separate from the orders API and its database.",
+          "difference": "The storefront now holds a pg Pool and DATABASE_URL credentials and queries Postgres directly from a public, ingress-exposed app. This breaks the separation between the UI and the API."
+        }
+      ],
+      "ms": 17858,
+      "error": null
+    }
+  ]
+}

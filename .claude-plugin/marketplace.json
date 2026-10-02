@@ -10,7 +10,7 @@
       "name": "smartypants",
       "source": "./plugins/smartypants",
       "description": "Keeps a Mermaid-style system diagram and a compact memory of your architectural intent while an agent codes, goes deeper on any part on request, and flags where the code drifts from the intent.",
-      "version": "0.2.1",
+      "version": "0.3.0",
       "author": {
         "name": "Logan Robbins",
         "url": "https://github.com/logan-robbins"
@@ -25,6 +25,7 @@
         "intent",
         "drift",
         "hooks",
+        "claude",
         "meta",
         "jev"
       ],
