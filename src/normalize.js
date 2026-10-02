@@ -13,6 +13,7 @@ function canonicalEvent(name) {
     .toLowerCase();
   if (key === "userpromptsubmit" || key === "beforesubmitprompt") return "user";
   if (key === "posttooluse" || key === "afterfileedit") return "edit";
+  if (key === "stop" || key === "agentend" || key === "turnend" || key === "afteragentresponse") return "turn-end";
   return null;
 }
 
@@ -26,7 +27,29 @@ function userText(payload) {
   return "";
 }
 
+/**
+ * Codex `apply_patch` sends the patch text, not a path: "*** Begin Patch /
+ * *** Add File: <path> / +line ... / *** End Patch". The first file names the
+ * edit; the whole patch is the diff; added lines are the delivered contents.
+ */
+export function parseApplyPatch(text) {
+  const value = String(text || "");
+  if (!value.includes("*** Begin Patch")) return null;
+  const files = [...value.matchAll(/^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm)].map((m) => m[1].trim());
+  if (!files.length) return null;
+  const added = value
+    .split("\n")
+    .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
+    .map((line) => line.slice(1))
+    .join("\n");
+  return { path: files[0], files, contents: added, diff: value };
+}
+
 export function extractDelivered(input, toolName = "") {
+  const patch = parseApplyPatch(typeof input === "string" ? input : input?.command ?? input?.patch ?? input?.input);
+  if (patch) {
+    return { type: "edit", path: patch.path, contents: patch.contents, diff: patch.diff, toolName: String(toolName || "") };
+  }
   const source = input && typeof input === "object" ? input : {};
   const filePath = source.file_path || source.filePath || source.path || "";
   let contents = "";
@@ -75,12 +98,16 @@ export function normalizePayload(payload) {
   if (payload.type === "user" && typeof payload.text === "string" && !payload.hook_event_name && !payload.hookEventName) {
     return { type: "user", text: payload.text };
   }
+  if ((payload.type === "turn-end" || payload.type === "catchup") && !payload.hook_event_name && !payload.hookEventName) {
+    return { type: payload.type };
+  }
   if (payload.type === "edit" && !payload.hook_event_name && !payload.hookEventName) {
     return extractDelivered(payload, payload.toolName || payload.tool_name || "");
   }
 
   const kind = canonicalEvent(payload.hook_event_name || payload.hookEventName || payload.event || payload.type);
   if (kind === "user") return { type: "user", text: userText(payload) };
+  if (kind === "turn-end") return { type: "turn-end", session: String(payload.session_id || payload.sessionId || "") };
   if (kind === "edit") {
     const toolName = payload.tool_name || payload.toolName || payload.tool || "";
     if (toolName && !isEditTool(toolName)) return null;

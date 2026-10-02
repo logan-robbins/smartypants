@@ -17,3 +17,8 @@ export function designFile(root) {
 export function readBytes(file) {
   return fs.existsSync(file) ? fs.readFileSync(file) : null;
 }
+
+// Tests never call a provider: the selector falls back to local heuristics.
+process.env.SMARTYPANTS_DECIDER ??= "heuristic";
+// A live Meta key in the environment must not turn tests into paid calls.
+process.env.META_BASE_URL ??= "http://127.0.0.1:9";

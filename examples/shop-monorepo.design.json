@@ -1,0 +1,429 @@
+{
+  "version": 1,
+  "floor": "module",
+  "updatedAt": "2026-09-27T01:28:49.535Z",
+  "seeded": true,
+  "seededAt": "2026-09-27T01:18:34.787Z",
+  "level": "component",
+  "nodes": [
+    {
+      "id": "sys",
+      "name": "Shop System",
+      "kind": "system",
+      "parentId": null,
+      "what": "Ecommerce shop selling products with paid orders",
+      "why": "Baseline system from repo shop-tfz3 code and infra",
+      "shape": "service",
+      "blurb": "Online shop with async fulfillment",
+      "tier": "service",
+      "zone": "AWS cloud",
+      "flags": []
+    },
+    {
+      "id": "shopper",
+      "name": "Shopper Browser",
+      "kind": "component",
+      "parentId": "sys",
+      "what": "Browser that loads storefront and places orders",
+      "why": "Public caller outside the system",
+      "shape": "client",
+      "blurb": "Shoppers browsing and buying products",
+      "tier": "client",
+      "zone": "Public internet",
+      "flags": []
+    },
+    {
+      "id": "cdn",
+      "name": "Storefront CDN (CloudFront)",
+      "kind": "component",
+      "parentId": "sys",
+      "what": "CloudFront distribution caching web pages",
+      "why": "Serve shoppers fast at edge",
+      "shape": "gateway",
+      "blurb": "Caches storefront at edge",
+      "tier": "edge",
+      "zone": "Edge",
+      "flags": []
+    },
+    {
+      "id": "ingress",
+      "name": "Shop Ingress (NGINX)",
+      "kind": "component",
+      "parentId": "sys",
+      "what": "Ingress routing / to web and /api to orders-api",
+      "why": "Single public entry with network policy",
+      "shape": "gateway",
+      "blurb": "Routes shop.example.com traffic",
+      "tier": "edge",
+      "zone": "Edge",
+      "flags": []
+    },
+    {
+      "id": "web",
+      "name": "Shop Storefront (Next.js)",
+      "kind": "component",
+      "parentId": "sys",
+      "what": "Server-rendered Next.js listing fetching via API_URL",
+      "why": "Separate public UI from orders API",
+      "shape": "service",
+      "blurb": "Product storefront for shoppers",
+      "tier": "frontend",
+      "zone": "k8s ns shop",
+      "flags": [
+        {
+          "intent": "Shop Storefront fetching via API_URL and Separate public UI from orders API with read-through catalog cache",
+          "difference": "fetching via API_URL /products replaced by direct SELECT id, name FROM products with pg Pool, skipping cache and API boundary"
+        }
+      ]
+    },
+    {
+      "id": "api",
+      "name": "Orders API (Express)",
+      "kind": "component",
+      "parentId": "sys",
+      "what": "Serves GET /products and POST /orders with Stripe charge",
+      "why": "Ensure only paid orders persist and emit events",
+      "shape": "service",
+      "blurb": "Serves catalog, creates paid orders",
+      "tier": "api",
+      "zone": "k8s ns shop",
+      "flags": []
+    },
+    {
+      "id": "fulfillment",
+      "name": "Fulfillment Worker (Python)",
+      "kind": "component",
+      "parentId": "sys",
+      "what": "Polls orders table for placed status and packs invoices",
+      "why": "Fulfills orders without Kafka dependency",
+      "shape": "worker",
+      "blurb": "Packs placed orders by polling",
+      "tier": "worker",
+      "zone": "k8s ns shop",
+      "flags": []
+    },
+    {
+      "id": "kafka",
+      "name": "Order Event Stream (Kafka)",
+      "kind": "component",
+      "parentId": "sys",
+      "what": "Kafka/MSK topic orders.placed with orderId payloads",
+      "why": "Async handoff from API to fulfillment",
+      "shape": "queue",
+      "blurb": "Carries order placed events",
+      "tier": "messaging",
+      "zone": "VPC private subnet",
+      "flags": []
+    },
+    {
+      "id": "redis",
+      "name": "Catalog Cache (Redis)",
+      "kind": "component",
+      "parentId": "sys",
+      "what": "Redis read-through cache for GET products",
+      "why": "Lower Postgres load for catalog reads",
+      "shape": "cache",
+      "blurb": "Caches product reads",
+      "tier": "cache",
+      "zone": "VPC private subnet",
+      "flags": []
+    },
+    {
+      "id": "postgres",
+      "name": "Orders Database (Postgres)",
+      "kind": "component",
+      "parentId": "sys",
+      "what": "Postgres tables products and orders with status",
+      "why": "Durable source of truth for catalog and orders",
+      "shape": "store",
+      "blurb": "Stores products and orders",
+      "tier": "database",
+      "zone": "VPC private subnet",
+      "flags": []
+    },
+    {
+      "id": "s3",
+      "name": "Invoice Storage (S3)",
+      "kind": "component",
+      "parentId": "sys",
+      "what": "S3 bucket storing invoices/{orderId}.pdf objects",
+      "why": "Durable object store for generated invoices",
+      "shape": "store",
+      "blurb": "Holds invoice PDFs",
+      "tier": "storage",
+      "zone": "AWS cloud",
+      "flags": []
+    },
+    {
+      "id": "stripe",
+      "name": "Payment Provider (Stripe)",
+      "kind": "component",
+      "parentId": "sys",
+      "what": "External Stripe paymentIntents.create amount currency",
+      "why": "Gate order creation on successful payment",
+      "shape": "external",
+      "blurb": "Charges orders via payments",
+      "tier": "external",
+      "zone": "External",
+      "flags": []
+    },
+    {
+      "id": "recommendations",
+      "name": "Recommendations Service",
+      "kind": "component",
+      "parentId": "sys",
+      "what": "Serves product recommendations for storefront",
+      "why": "Personalizes shopping to increase orders",
+      "shape": "service",
+      "blurb": "Suggests products for shoppers",
+      "tier": "service",
+      "zone": "k8s ns shop",
+      "flags": []
+    },
+    {
+      "id": "product-list-page",
+      "name": "Product Listing Page",
+      "kind": "module",
+      "parentId": "web",
+      "what": "Renders product list page via SSR",
+      "why": "Gives shoppers fast SEO-friendly listing",
+      "shape": "service",
+      "blurb": "Server-rendered product list for shoppers",
+      "tier": "frontend",
+      "zone": "k8s ns shop",
+      "flags": []
+    },
+    {
+      "id": "catalog-data-loader",
+      "name": "Catalog Data Loader",
+      "kind": "module",
+      "parentId": "web",
+      "what": "Fetches /products from Orders API",
+      "why": "Keeps UI separate from catalog logic",
+      "shape": "service",
+      "blurb": "Fetches products via API_URL",
+      "tier": "frontend",
+      "zone": "k8s ns shop",
+      "flags": []
+    },
+    {
+      "id": "storefront-layout-shell",
+      "name": "Storefront Layout Shell",
+      "kind": "module",
+      "parentId": "web",
+      "what": "Provides shared header and layout",
+      "why": "Keeps storefront navigation consistent",
+      "shape": "service",
+      "blurb": "Renders header layout for shoppers",
+      "tier": "frontend",
+      "zone": "k8s ns shop",
+      "flags": []
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "fromId": "shopper",
+      "toId": "cdn",
+      "kind": "data",
+      "label": "HTTPS page, order requests"
+    },
+    {
+      "id": "c2",
+      "fromId": "cdn",
+      "toId": "ingress",
+      "kind": "data",
+      "label": "Forward cache miss"
+    },
+    {
+      "id": "c3",
+      "fromId": "ingress",
+      "toId": "web",
+      "kind": "control",
+      "label": "Route / to web"
+    },
+    {
+      "id": "c4",
+      "fromId": "ingress",
+      "toId": "api",
+      "kind": "control",
+      "label": "Route /api to orders-api"
+    },
+    {
+      "id": "c5",
+      "fromId": "web",
+      "toId": "api",
+      "kind": "data",
+      "label": "GET /products"
+    },
+    {
+      "id": "c6",
+      "fromId": "api",
+      "toId": "web",
+      "kind": "data",
+      "label": "Product list"
+    },
+    {
+      "id": "c7",
+      "fromId": "api",
+      "toId": "redis",
+      "kind": "data",
+      "label": "GET/SET products cache"
+    },
+    {
+      "id": "c8",
+      "fromId": "redis",
+      "toId": "api",
+      "kind": "data",
+      "label": "Cached products"
+    },
+    {
+      "id": "c9",
+      "fromId": "api",
+      "toId": "postgres",
+      "kind": "data",
+      "label": "SELECT products, INSERT orders"
+    },
+    {
+      "id": "c10",
+      "fromId": "postgres",
+      "toId": "api",
+      "kind": "data",
+      "label": "Rows, write ack"
+    },
+    {
+      "id": "c11",
+      "fromId": "api",
+      "toId": "stripe",
+      "kind": "data",
+      "label": "Create payment intent"
+    },
+    {
+      "id": "c12",
+      "fromId": "stripe",
+      "toId": "api",
+      "kind": "data",
+      "label": "Payment confirmed"
+    },
+    {
+      "id": "c13",
+      "fromId": "api",
+      "toId": "kafka",
+      "kind": "data",
+      "label": "Publish orders.placed"
+    },
+    {
+      "id": "c15",
+      "fromId": "fulfillment",
+      "toId": "postgres",
+      "kind": "data",
+      "label": "UPDATE orders packed"
+    },
+    {
+      "id": "c16",
+      "fromId": "postgres",
+      "toId": "fulfillment",
+      "kind": "data",
+      "label": "Update ack"
+    },
+    {
+      "id": "c17",
+      "fromId": "fulfillment",
+      "toId": "s3",
+      "kind": "data",
+      "label": "PUT invoice PDF"
+    },
+    {
+      "id": "c18",
+      "fromId": "web",
+      "toId": "ingress",
+      "kind": "data",
+      "label": "Rendered page"
+    },
+    {
+      "id": "c19",
+      "fromId": "ingress",
+      "toId": "cdn",
+      "kind": "data",
+      "label": "Forward response"
+    },
+    {
+      "id": "c20",
+      "fromId": "cdn",
+      "toId": "shopper",
+      "kind": "data",
+      "label": "Cached page, products"
+    },
+    {
+      "id": "c21",
+      "fromId": "fulfillment",
+      "toId": "postgres",
+      "kind": "data",
+      "label": "Poll SELECT status placed 1s"
+    },
+    {
+      "id": "c22",
+      "fromId": "postgres",
+      "toId": "fulfillment",
+      "kind": "data",
+      "label": "Placed order rows"
+    },
+    {
+      "id": "c23",
+      "fromId": "ingress",
+      "toId": "product-list-page",
+      "kind": "control",
+      "label": "Route / to listing page"
+    },
+    {
+      "id": "c24",
+      "fromId": "product-list-page",
+      "toId": "catalog-data-loader",
+      "kind": "control",
+      "label": "Load products server-side"
+    },
+    {
+      "id": "c25",
+      "fromId": "catalog-data-loader",
+      "toId": "api",
+      "kind": "data",
+      "label": "GET /products via API_URL"
+    },
+    {
+      "id": "c26",
+      "fromId": "api",
+      "toId": "catalog-data-loader",
+      "kind": "data",
+      "label": "Product list JSON"
+    },
+    {
+      "id": "c27",
+      "fromId": "catalog-data-loader",
+      "toId": "product-list-page",
+      "kind": "data",
+      "label": "Product data"
+    },
+    {
+      "id": "c28",
+      "fromId": "product-list-page",
+      "toId": "storefront-layout-shell",
+      "kind": "control",
+      "label": "Render inside layout"
+    },
+    {
+      "id": "c29",
+      "fromId": "storefront-layout-shell",
+      "toId": "product-list-page",
+      "kind": "data",
+      "label": "Layout wrapper"
+    },
+    {
+      "id": "c30",
+      "fromId": "product-list-page",
+      "toId": "ingress",
+      "kind": "data",
+      "label": "Rendered HTML page"
+    }
+  ],
+  "unmappedFlags": []
+}

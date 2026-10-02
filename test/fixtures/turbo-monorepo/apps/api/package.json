@@ -1,0 +1,1 @@
+{ "name": "@acme/api-server", "private": true, "scripts": { "start": "node src/server.js" }, "dependencies": { "express": "4.19.0", "ioredis": "5.0.0", "requests-lite": "1.0.0", "@acme/db": "workspace:*" } }

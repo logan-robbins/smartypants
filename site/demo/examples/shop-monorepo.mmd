@@ -1,0 +1,66 @@
+flowchart LR
+  subgraph sys_sys["Shop System"]
+    shopper(["Shopper Browser<br/><small>Shoppers browsing and buying products</small>"])
+    cdn[/"Storefront CDN (CloudFront)<br/><small>Caches storefront at edge</small>"\]
+    ingress[/"Shop Ingress (NGINX)<br/><small>Routes shop.example.com traffic</small>"\]
+    subgraph web_group["Shop Storefront (Next.js)"]
+      web("Shop Storefront (Next.js)<br/><small>Product storefront for shoppers</small>")
+      product_list_page("Product Listing Page<br/><small>Server-rendered product list for shoppers</small>")
+      catalog_data_loader("Catalog Data Loader<br/><small>Fetches products via API_URL</small>")
+      storefront_layout_shell("Storefront Layout Shell<br/><small>Renders header layout for shoppers</small>")
+    end
+    api("Orders API (Express)<br/><small>Serves catalog, creates paid orders</small>")
+    fulfillment[["Fulfillment Worker (Python)<br/><small>Packs placed orders by polling</small>"]]
+    kafka{{"Order Event Stream (Kafka)<br/><small>Carries order placed events</small>"}}
+    redis[("Catalog Cache (Redis)<br/><small>Caches product reads</small>")]
+    postgres[("Orders Database (Postgres)<br/><small>Stores products and orders</small>")]
+    s3[("Invoice Storage (S3)<br/><small>Holds invoice PDFs</small>")]
+    stripe[/"Payment Provider (Stripe)<br/><small>Charges orders via payments</small>"/]
+    recommendations("Recommendations Service<br/><small>Suggests products for shoppers</small>")
+  end
+  shopper -->|"HTTPS page, order requests"| cdn
+  cdn -->|"Forward cache miss"| ingress
+  ingress -.->|"Route / to web"| web
+  ingress -.->|"Route /api to orders-api"| api
+  web -->|"GET /products"| api
+  api -->|"Product list"| web
+  api -->|"GET/SET products cache"| redis
+  redis -->|"Cached products"| api
+  api -->|"SELECT products, INSERT orders"| postgres
+  postgres -->|"Rows, write ack"| api
+  api -->|"Create payment intent"| stripe
+  stripe -->|"Payment confirmed"| api
+  api -->|"Publish orders.placed"| kafka
+  fulfillment -->|"UPDATE orders packed"| postgres
+  postgres -->|"Update ack"| fulfillment
+  fulfillment -->|"PUT invoice PDF"| s3
+  web -->|"Rendered page"| ingress
+  ingress -->|"Forward response"| cdn
+  cdn -->|"Cached page, products"| shopper
+  fulfillment -->|"Poll SELECT status placed 1s"| postgres
+  postgres -->|"Placed order rows"| fulfillment
+  ingress -.->|"Route / to listing page"| product_list_page
+  product_list_page -.->|"Load products server-side"| catalog_data_loader
+  catalog_data_loader -->|"GET /products via API_URL"| api
+  api -->|"Product list JSON"| catalog_data_loader
+  catalog_data_loader -->|"Product data"| product_list_page
+  product_list_page -.->|"Render inside layout"| storefront_layout_shell
+  storefront_layout_shell -->|"Layout wrapper"| product_list_page
+  product_list_page -->|"Rendered HTML page"| ingress
+  classDef drift fill:#fff0f0,stroke:#d33,stroke-width:2px
+  class web drift
+  click shopper callback "Browser that loads storefront and places orders"
+  click cdn callback "CloudFront distribution caching web pages"
+  click ingress callback "Ingress routing / to web and /api to orders-api"
+  click web callback "Server-rendered Next.js listing fetching via API_URL"
+  click api callback "Serves GET /products and POST /orders with Stripe charge"
+  click fulfillment callback "Polls orders table for placed status and packs invoices"
+  click kafka callback "Kafka/MSK topic orders.placed with orderId payloads"
+  click redis callback "Redis read-through cache for GET products"
+  click postgres callback "Postgres tables products and orders with status"
+  click s3 callback "S3 bucket storing invoices/{orderId}.pdf objects"
+  click stripe callback "External Stripe paymentIntents.create amount currency"
+  click recommendations callback "Serves product recommendations for storefront"
+  click product_list_page callback "Renders product list page via SSR"
+  click catalog_data_loader callback "Fetches /products from Orders API"
+  click storefront_layout_shell callback "Provides shared header and layout"

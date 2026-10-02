@@ -1,0 +1,3 @@
+services:
+  sut:
+    image: acme/sut

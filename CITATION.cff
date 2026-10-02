@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use Smartypants in research, a product, or a write-up, please cite it."
+title: "Smartypants: a live architecture diagram and intent-drift check for coding agents"
+authors:
+  - family-names: Robbins
+    given-names: Logan
+repository-code: "https://github.com/logan-robbins/smartypants"
+url: "https://logan-robbins.github.io/smartypants/"
+license: Apache-2.0
+version: 0.2.0
+date-released: 2026-09-27
+keywords: [claude-code, codex, architecture-diagram, coding-agents, drift-detection]

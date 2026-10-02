@@ -1,205 +1,186 @@
 # Smartypants
 
-Keep a system diagram while an agent codes. Flag where the code leaves the request.
+**The architecture diagram that draws itself while your coding agent works — and tells you when
+the code wanders.**
 
-![Bitly-style URL shortener](diagram.png)
+Your agent forgets what you asked for. Smartypants doesn't. It hooks into Claude Code, Codex, Pi,
+Muse Code, and Grok Build, keeps one layered diagram of the system current on every turn, and
+flags the moment a diff leaves the design you described.
 
-The picture is a Bitly-style URL shortener. A person gets a short link. A click on that link is sent to the original page, and the owner can see that it was used.
+[**Live demo**](https://logan-robbins.github.io/smartypants/) · [Install](#install) · [How it compares](#how-it-compares) ·
+[Proof](#proof) · [What leaves your machine](#what-leaves-your-machine)
 
-The hook does nothing until `smartypants.config.json` is in the project root.
+![A design interview becoming a diagram, then a drift flag](docs/hero.gif)
 
-## Start
+- **Live, not a snapshot.** Prompts, edits, and the end of every agent turn update the diagram in
+  the background. Your agent never waits.
+- **Drift against what you said.** Decisions and constraints from the conversation are kept as
+  IntentCode (~200 tokens per design). At turn end, one batched check reads what changed in git;
+  code that breaks a decision, a constraint, or a boundary turns red.
+- **Catches up on existing repos.** From code plus compose, Kubernetes, Helm, and Terraform: real
+  service names, flows, and network boundaries, in about a minute for about a cent.
+- **Reads like a staff engineer drew it.** Users on top, storage at the bottom, the journey left
+  to right, boundaries as frames. Each box has a plain name and one line; click it for the **why**.
 
-1. Install the package in the project.
+## Install
 
 ```sh
 npm install github:logan-robbins/smartypants
+npx smartypants init        # hooks for every host + config; catches up if code exists
+export META_API_KEY=...     # the default builder (Meta Muse Spark)
+npx smartypants serve       # open the printed URL
 ```
 
-If the user supplied a local checkout, install that checkout instead, for example
-`npm install ../smartypants` from the project directory.
+Or as a plugin: `/plugin marketplace add logan-robbins/smartypants` then
+`/plugin install smartypants@smartypants` (Claude Code) ·
+`codex plugin marketplace add logan-robbins/smartypants` (Codex) ·
+`pi install git:github.com/logan-robbins/smartypants` (Pi) ·
+`npx skills add logan-robbins/smartypants` (any skills host).
 
-The package name is `@logan-robbins/smartypants`. The npm name `smartypants` belongs to a different library.
+**No key? See it first:** `npx smartypants demo youtube-top-k && npx smartypants serve`, or the
+[live demo](https://logan-robbins.github.io/smartypants/) (source in `site/`).
 
-2. For an agent working in this project, wire the config and host hooks. This writes
-`smartypants.config.json` when it is missing and adds the hook without removing other hooks.
+Then just work. Say *"design YouTube top-K"* and the diagram appears; say *"go deeper on the
+aggregator"* (or double-click it) to expand a box; let the agent code and watch for red.
 
-```sh
-npx smartypants init --flavor claude
+## How it compares
+
+| | **Smartypants** | Archify | drawio-skill | Whiteboard | GitDiagram · DeepWiki | ArchUnit · dep-cruiser |
+|---|---|---|---|---|---|---|
+| Updates by itself as the agent works | **every turn, via hooks** | on request | on request | on request | on request | in CI |
+| Knows what you asked for | **yes (IntentCode)** | chat context | no | decision log | no | rules you write |
+| Flags drift | **per turn, vs your intent** | before/after diff | diagram diff | no | no | rule violations |
+| Existing repo + Helm/k8s/compose/TF | **yes, background** | repo | code + IaC | repo | repo | code only |
+| Output | layered interactive canvas, Mermaid export | animated HTML | draw.io | desktop canvas | web diagram / wiki | test failures |
+
+Archify draws a great poster; Smartypants keeps the map and sounds the alarm. Details and
+sources: [docs/research/competitors.md](docs/research/competitors.md).
+
+## Proof
+
+Live runs with Typesafe Jev and Muse Spark ([Jev results](results/2026-09-27-jev/README.md) ·
+[earlier runs](results/2026-09-27-tiers/README.md)):
+
+| | result |
+|---|---|
+| "Is this turn worth remembering?" on 34 held-out turns × 3 | **102/102** with Jev + Muse Spark (23/34 with local rules alone) |
+| Drift verdicts on 10 held-out edits × 3 | **30/30, none missed** (Muse Spark alone 26/30, Jev alone 26/30) |
+| Turn-end review of labeled agent changes × 3 | **39/39 drift flags right, 0 false alarms**, 1.7 s per review (Muse Spark alone: 5.1 s) |
+| Per-turn decision | **~250 ms** with Jev first (~3 s with Muse Spark alone), at half the selector cost |
+| Five design interviews (32 turns, 10 edits) | triage 32/32, all 33 expected parts drawn, drift 10/10 and 9/10 across runs, **$0.015 total** |
+| Noise turns ("thanks", "run the tests") | **$0**, no model call |
+| Turn-end review of 3 changed files | 1 batched selector call; caught a frontend querying Postgres directly; added a service from a new k8s manifest; 23 s |
+| Catch-up on 10 open-source repos | 36–115 s, $0.001–0.011 each ([crawler notes](docs/crawl/)) |
+
+Caught up from code alone — GoogleCloudPlatform/microservices-demo (11 services, Istio gateway,
+AlloyDB, GCS), twenty, and immich:
+
+<p>
+<img src="docs/crawl/microservices-demo.png" width="32%" alt="microservices-demo caught up from code">
+<img src="docs/crawl/twenty.png" width="32%" alt="twenty caught up from code">
+<img src="docs/crawl/immich.png" width="32%" alt="immich caught up from code">
+</p>
+
+## The canvas
+
+| top to bottom | |
+|---|---|
+| Users and clients | who starts the journey |
+| Edge | CDN, WAF, load balancer, ingress, gateway |
+| Frontend → API → Services | third parties at the right edge |
+| Async | streams first, then the workers that consume them |
+| Data | caches beside the databases they front |
+| Storage | always the bottom row |
+
+Inside a row the journey runs left to right. Dashed frames are network and trust boundaries.
+Everything is clickable and draggable — boxes, subgraphs, arrows, frames, layer labels. A click
+leads with **why the part exists** (the requirement or trade-off that forces it), then what it
+does, deep-dive notes, flows, drift, and the intent recorded about it.
+
+![Click a box: why first](docs/panel.png)
+
+Keys: **F** fit · **T** tidy · **L** tiers/flow layout · **I** intent memory · **/** search ·
+double-click to go deeper.
+
+## What leaves your machine
+
+Nothing, in a project without `smartypants.config.json`. With the default `meta` builder:
+design turns, part names, changed-file diffs at turn end, and (for catch-up) key source files go
+to **api.meta.ai**. The default model, `muse-spark-1.3-contributor`, is Meta's discounted tier
+that **may be used for training**; set `"model": "muse-spark-1.3"` to opt out, or pick another
+builder (`claude`, `codex`, `grok`, `pi`, `muse`). With `TYPESAFE_API_KEY`, per-turn triage
+questions (turn text, part names) go to Typesafe (Jev). Keys are never written to the diagram,
+memory, or logs; the plugin stores them in your OS credential store.
+
+## Commands
+
+```
+smartypants catchup     build the diagram from existing code, in the background
+smartypants review      review what the working tree changed, now
+smartypants deeper X    system → components → modules → deep-dive notes
+smartypants intent      print the IntentCode memory
+smartypants drift       list where code left the intent
+smartypants mermaid     export Mermaid
+smartypants stats       turns skipped, calls, tokens, cost
+smartypants demo NAME   shop-monorepo · youtube-top-k · uber · news-feed · messenger · url-shortener
+smartypants reset       clear the diagram and memory
 ```
 
-Use `--seed` when the project already has code. Use `--flavor` `claude`, `codex`, `grok`, `muse`, or `pi`.
-If you are only watching a separate instance, create `smartypants.config.json` manually
-with `flavor`, `depth`, `seed`, and `watch` as shown below; no project hook is needed.
+Plugin commands mirror these: `/smartypants`, `/smartypants:deeper`, `:catchup`, `:review`,
+`:intent`, `:drift`, `:diagram`, `:mermaid`, `:reset-graph`.
 
-3. Edit `smartypants.config.json` if you need to change the starter.
+## Config
+
+`smartypants.config.json` is the on switch. `init` writes:
 
 ```json
-{
-  "flavor": "claude",
-  "depth": "module",
-  "seed": false,
-  "model": null,
-  "reasoningEffort": null
-}
+{ "flavor": "meta", "depth": "auto", "seed": false, "decider": "auto", "background": true, "review": "turn" }
 ```
 
-To watch a separate Claude Code or Codex instance, add `watch` with that instance's
-absolute home directory. Smartypants follows new user turns from its session JSONL
-files while the canvas server is running:
+| key | meaning |
+|---|---|
+| `flavor` | builder: `meta` (default), `claude`, `codex`, `grok`, `muse`, `pi` |
+| `model` | builder model; `muse-spark-1.3` = no training |
+| `depth` | `auto` (start from what you said, go finer as you do) or `system` / `component` / `module` |
+| `decider` | per-turn selector: `auto` (Jev, with Muse Spark re-checking answers under `escalateBelow`; then Muse Spark alone; then local rules), `jev`, `meta`, `heuristic` |
+| `escalateBelow` | Jev confidence under which Muse Spark gets a second look (default 0.6) |
+| `review` | `turn` (once per agent turn), `edit` (every edit), `both` |
+| `background` | hooks return immediately; a project worker does the work |
+| `seed` | existing codebase: catch up from code |
+| `autoDeepen` | expand a box on its own when detail piles up (default 3; `false` to disable) |
+| `envFile` | dotenv path for keys |
+| `watch` | diagram another Claude Code / Codex instance ([docs/WATCH.md](docs/WATCH.md)) |
 
-```json
-{
-  "flavor": "codex",
-  "depth": "module",
-  "seed": false,
-  "watch": {"host": "claude", "home": "/absolute/path/to/claude-home"}
-}
-```
+## Hosts
 
-Use `"host": "codex"` and the Codex home directory for a Codex instance. For a
-single session, use `"session": "/absolute/path/to/session.jsonl"` in place of
-`home`. `watch.host` selects the transcript format; `flavor` selects the model
-Smartypants uses to update the diagram. A home follows new session files after
-context resets. Existing
-transcript history is skipped the first time; subsequent server starts resume from
-offsets in `.smartypants/watch-state.json`. The watched instance needs no
-Smartypants hook, and the watch state stores offsets only, never transcript text.
+| host | hooks | notes |
+|---|---|---|
+| Claude Code | prompt, edit, `Stop` | project settings or the plugin |
+| Codex | prompt, `apply_patch`, `Stop` | approve the hooks once in Codex's hooks review |
+| Pi | `input`, `tool_result`, `agent_end` | project extension or `pi install`; Pi itself can run on Muse Spark |
+| Muse Code, Grok Build | prompt, edit | `.muse/hooks.json`, `.grok/hooks/smartypants.json` |
 
-To use API keys from a local dotenv file, set `"envFile": "../.env"` in
-`smartypants.config.json` (the path is relative to the project). Existing process
-environment variables take precedence. The file is read when a hook runs; keys
-are never copied into the diagram or ledger. `GROK_API_KEY` is accepted as an
-alias for `XAI_API_KEY`, and `ANTRHOPIC_API_KEY` for `ANTHROPIC_API_KEY`.
-When an agent runs from another directory, set `SMARTPANTS_ROOT` to the project path
-in its hook command. The hook writes the diagram in that project.
+## How it works
 
-- `flavor`: `claude`, `codex`, `grok`, `muse`, or `pi`. Use one. An unknown value does not call another.
-- `depth`: `module` (default), `component`, or `system`.
-- `seed`: `true` when the project already has code. The first turn draws that tree as the baseline. Later turns store only the delta. `false` when the design starts from the conversation.
-- `model`: optional model ID for the selected flavor.
-- `reasoningEffort`: optional reasoning effort for the Codex flavor: `none`, `low`, `medium`, `high`, `xhigh`, or `max`.
+A free local pass drops noise. Then Typesafe Jev answers small menus in about 200 ms — is this
+worth remembering, does it change the design, what level, which part, does this diff conform —
+and any answer it is less than 60% sure of goes to Muse Spark for a second opinion (every wrong
+Jev answer in our tests was under that line). Only then does the builder write a delta. Without
+a Typesafe key, Muse Spark answers the menus itself.
+Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/INTENTCODE.md](docs/INTENTCODE.md) ·
+[docs/PROMPTING.md](docs/PROMPTING.md) · go-to-market: [docs/GTM.md](docs/GTM.md).
 
-4. Install the SDK for that flavor.
-
-| flavor | install | key |
-| --- | --- | --- |
-| `claude` | `@anthropic-ai/claude-agent-sdk` | `ANTHROPIC_API_KEY` |
-| `codex` | `@openai/agents` | `OPENAI_API_KEY` |
-| `grok` | `openai`, base URL `https://api.x.ai/v1` | `XAI_API_KEY` |
-| `muse` | `@muse-code/sdk` plus a `muse` binary on `PATH` | |
-| `pi` | `@earendil-works/pi-coding-agent` | Pi's own login |
-
-5. `npx smartypants init` writes these host files. Run it again after you move `node_modules`. Codex hooks need the `codex_hooks` feature and do not run on Windows. Pi loads `.pi/extensions/smartypants/index.js`.
-
-| host | file |
-| --- | --- |
-| Claude Code | `.claude/settings.json` |
-| Codex | `.codex/hooks.json` |
-| Grok Build | `.grok/hooks/smartypants.json` |
-| Muse Code | `.muse/hooks.json` |
-| Pi | `.pi/extensions/smartypants/index.js` |
-
-6. Open the diagram.
+## Develop
 
 ```sh
-npx smartypants serve
+npm test                      # 86 tests, no network
+npm run eval                  # live interview transcripts on the Meta API (cents)
+npm run eval:triage           # held-out triage benchmark
+npm run eval:turnend          # turn-end review on labeled agent changes
+node scripts/build-site.mjs   # website demo into site/demo
 ```
 
-If port 4173 belongs to another project, choose a free port, for example
-`SMARTPANTS_PORT=4174 npx smartypants serve`. Open the URL printed by the server.
+## License
 
-Clear the diagram and start it over with `/reset-graph` or:
-
-```sh
-npx smartypants reset
-```
-
-Open the printed canvas URL. Drag a card to move that card. Drag empty space to pan. Scroll to zoom.
-
-An arrow points the way the data moves. A reply or a write-back is a second arrow pointing back at the caller. Ink arrows are data. Amber arrows are control.
-
-- The browser sends a long URL to Create link. Create link asks Code mint for a code, and the short code comes back.
-- Create link saves the code and the long URL in the link table. The table answers that it saved. Create link hands the short link back to the browser.
-- A click sends the short code to Redirect. Redirect asks the hot cache, and a hit comes back as the cached URL.
-- On a miss, Redirect reads the link table and the stored URL comes back. Redirect tells the cache to remember it.
-- Redirect sends the browser on to the original page, and sends the click to the click stream. The stream feeds Tallies.
-
-## Skill
-
-The skill in `plugins/smartypants` runs the start steps. `/smartypants reset` and `/reset-graph` clear the diagram and the gist ledger. They leave `smartypants.config.json`.
-
-Claude Code:
-
-```
-/plugin marketplace add logan-robbins/smartypants
-/plugin install smartypants@smartypants
-```
-
-Codex:
-
-```sh
-codex plugin marketplace add logan-robbins/smartypants
-codex plugin add smartypants@smartypants
-```
-
-For local plugin installation, pass the absolute checkout path to the marketplace
-`add` command instead of the GitHub name. The Claude and Codex plugin directories
-are under `plugins/smartypants` in that checkout.
-
-Grok Build:
-
-```sh
-grok plugin marketplace add logan-robbins/smartypants
-grok plugin install smartypants --trust
-```
-
-Cursor: submit https://github.com/logan-robbins/smartypants at https://cursor.com/marketplace/publish. The plugin directory is `plugins/smartypants`.
-
-Claude Code, Codex, and Grok Build install from this repository. Two directories still need a signed-in review:
-
-- Anthropic community catalog: https://platform.claude.com/plugins/submit
-- OpenAI directory for ChatGPT and Codex: https://platform.openai.com/plugins
-
-## Watching an hx Partner
-
-The hx Partner has a Claude home at `<hx-instance>/run/partner/home`. Point the
-working project's Smartypants config at that directory:
-
-```json
-{
-  "flavor": "codex",
-  "depth": "module",
-  "seed": false,
-  "watch": {"host":"claude","home":"/absolute/path/to/hx-instance/run/partner/home"}
-}
-```
-
-Restart the Smartypants server after editing the config. Tell the Partner the project
-path so it records the default work location. Tmux prompts and hx UI chat messages
-appear in the Partner transcript and reach the project diagram. Verify the Partner
-session has `main` and `companion` windows, both UI URLs respond, and the Smartypants
-server reports the watched home. A greeting can be observed while leaving the canvas
-empty because it provides no design information. Keep the hx instance outside the
-project when practical so a future `--seed` scan does not include harness files.
-
-## Levels
-
-- **system**: the whole application a person would name.
-- **component**: one job other parts can use without its internals. Not a file or a function.
-- **module**: one slice of that job, inside exactly one component. Above files, classes, functions, and endpoints.
-
-Each node has `what` and `why`. Both are required. They are not the same sentence.
-
-## Files
-
-- `smartypants.config.json` — the on switch.
-- `.smartypants/design.json` — the diagram.
-- `.smartypants/ledger.json` — gists only. Folded near 10000 tokens. Never a transcript.
-
-## Hook rules
-
-- Exit 0. Do not block or rewrite the user turn.
-- A builder failure leaves the previous design on disk.
-- The same result twice does not add a second copy of a node.
-- A drift flag states the intent and how the code differs. Store each divergence once. Keep a divergence that fits no node.
+[Apache-2.0](LICENSE). Use it, fork it, ship it; keep the [NOTICE](NOTICE) with any copy or
+derivative so the credit travels with it. Citing it: [CITATION.cff](CITATION.cff).

@@ -1,0 +1,58 @@
+flowchart LR
+  subgraph chat_system_sys["Chat System"]
+    mobile_app(["Chat App<br/><small>Sends and reads chats</small>"])
+    api_gateway[/"API Gateway<br/><small>Routes client API calls</small>"\]
+    realtime_gateway[/"Realtime Gateway<br/><small>Holds live socket connections</small>"\]
+    chat_service("Chat Service<br/><small>Sends 1:1 messages</small>")
+    group_service("Group Service<br/><small>Manages group membership</small>")
+    presence_service("Presence Service<br/><small>Tracks online status for friends</small>")
+    media_service("Media Service<br/><small>Handles image video uploads</small>")
+    message_bus{{"Message Bus (Kafka)<br/><small>Carries message events</small>"}}
+    subgraph message_store_group["Message Store (Cassandra)"]
+      message_store[("Message Store (Cassandra)<br/><small>Stores chats and groups</small>")]
+      msg_history[("Message History Table (Cassandra)<br/><small>Stores every message by id</small>")]
+      conv_timeline[("Conversation Timeline Index (Cassandra)<br/><small>Ordered messages per conversation</small>")]
+      group_membership[("Group Membership Table (Cassandra)<br/><small>Stores group members and roles</small>")]
+    end
+    media_storage[("Media Storage (S3)<br/><small>Stores photos and videos</small>")]
+    push_service[["Push Service<br/><small>Alerts offline users</small>"]]
+    push_provider[/"Push Provider<br/><small>Delivers mobile push alerts</small>"/]
+  end
+  mobile_app -->|"send/receive chat over TLS"| api_gateway
+  mobile_app -->|"realtime messages over socket"| realtime_gateway
+  api_gateway -.->|"route authenticated requests"| chat_service
+  api_gateway -.->|"route group operations"| group_service
+  chat_service -->|"persist messages"| message_store
+  message_store -->|"message history ack"| chat_service
+  chat_service -->|"publish message events"| message_bus
+  message_bus -->|"deliver message events"| realtime_gateway
+  realtime_gateway -->|"push live message"| mobile_app
+  group_service -->|"store membership"| message_store
+  chat_service -->|"upload media"| media_service
+  media_service -->|"store media blobs"| media_storage
+  chat_service -.->|"check presence"| presence_service
+  message_bus -->|"offline message events"| push_service
+  push_service -->|"send push alert"| push_provider
+  realtime_gateway -->|"publish online offline heartbeats"| presence_service
+  presence_service -->|"fan out presence updates to friends"| realtime_gateway
+  chat_service -->|"persist message row"| msg_history
+  chat_service -->|"append timeline entry"| conv_timeline
+  conv_timeline -->|"paged history result"| chat_service
+  group_service -->|"store membership rows"| group_membership
+  classDef drift fill:#fff0f0,stroke:#d33,stroke-width:2px
+  class chat_service drift
+  click mobile_app callback "Mobile and web chat client"
+  click api_gateway callback "Authenticates and routes API calls"
+  click realtime_gateway callback "Holds sockets and streams messages"
+  click chat_service callback "Handles sending and fetching messages"
+  click group_service callback "Manages groups and membership"
+  click presence_service callback "Ingests heartbeats and serves presence subscriptions"
+  click media_service callback "Handles image and video attachments"
+  click message_bus callback "Carries message events to deliverers"
+  click message_store callback "Stores messages and conversations durably"
+  click media_storage callback "Stores media blobs durably"
+  click push_service callback "Notifies offline users of messages"
+  click push_provider callback "Third-party mobile push delivery"
+  click msg_history callback "Stores one row per message keyed by message id"
+  click conv_timeline callback "Indexes message ids by conversation ordered by time"
+  click group_membership callback "Stores group members and roles by group id"

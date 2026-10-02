@@ -1,0 +1,5 @@
+sys|G bitly-like-shortener|N load-links-month 100M links/month|N load-redirects-month 10B redirects/month|N latency p99<50ms|D id-allocation pre-generated-key-ranges|F owner-click-counts
+click-stream|D async-stream-aggregation>sync-write-on-redirect
+link-table|D backend key-value-store
+redirector|N latency no-blocking-on-click-count|D caching read-through-cache|! intent:Redirect Service serves high-volume redirects low latency via read-through-cache code:han
+redirector>click-stream|E click-events

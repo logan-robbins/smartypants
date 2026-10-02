@@ -42,7 +42,7 @@ export async function invoke(request) {
   let text = "";
   for await (const message of query({
     prompt: request.prompt,
-    options: claudeQueryOptions(request.schema),
+    options: { ...claudeQueryOptions(request.schema), systemPrompt: request.instructions },
   })) {
     if (message && message.type === "result") {
       if (message.structured_output) structured = message.structured_output;

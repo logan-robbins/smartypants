@@ -1,0 +1,24 @@
+services:
+  api:
+    build: ./apps/api
+    ports: ["8080:8080"]
+    environment:
+      DATABASE_URL: postgres://shop:hunter2@db:5432/shop
+      DB_PASSWORD: hunter2
+    networks: [public, data]
+    depends_on: [db, redis]
+  web:
+    image: ghcr.io/acme/web:1.0
+    labels:
+      - traefik.http.routers.web.rule=Host(`shop.example.com`)
+    networks: [public]
+  db:
+    image: postgres:16
+    networks: [data]
+  redis:
+    image: redis:7
+    networks: [data]
+networks:
+  public: {}
+  data:
+    internal: true

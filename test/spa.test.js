@@ -174,3 +174,22 @@ test("page scripts load on a window global and the scene builder still draws the
   assert.equal(labels.includes(weeklyDrift.difference), true);
   assert.equal(labels.includes("Receipt intake"), true);
 });
+
+test("an open part's arrow is dropped once a child draws the same flow", () => {
+  const scene = buildScene({
+    nodes: [
+      { id: "sys", kind: "system", name: "Shortener" },
+      { id: "redirect", kind: "component", name: "Redirect Service", parentId: "sys", tier: "service" },
+      { id: "handler", kind: "module", name: "Handler", parentId: "redirect" },
+      { id: "cache", kind: "component", name: "Redirect Cache", parentId: "sys", tier: "cache" },
+      { id: "table", kind: "component", name: "Link Table", parentId: "sys", tier: "database" },
+    ],
+    connections: [
+      { id: "a", fromId: "redirect", toId: "cache", kind: "data", label: "Lookup long URL" },
+      { id: "b", fromId: "handler", toId: "cache", kind: "data", label: "Lookup long URL" },
+      { id: "c", fromId: "redirect", toId: "table", kind: "data", label: "Fetch on miss" },
+    ],
+  });
+  const ids = scene.edges.map((edge) => edge.id).sort();
+  assert.deepEqual(ids, ["b", "c"]);
+});

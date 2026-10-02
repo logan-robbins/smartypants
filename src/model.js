@@ -11,6 +11,72 @@ import {
 
 export const DESIGN_DIR = ".smartypants";
 export const DESIGN_FILE = "design.json";
+export const SHAPES = ["service", "store", "cache", "queue", "client", "gateway", "worker", "external"];
+const NOTE_CAP = 12;
+
+function readShape(value) {
+  const shape = String(value || "").trim().toLowerCase();
+  return SHAPES.includes(shape) ? shape : null;
+}
+
+function readNotes(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const raw of value) {
+    const note = String(raw || "").replace(/\s+/g, " ").trim().slice(0, 160);
+    if (!note || seen.has(note.toLowerCase())) continue;
+    seen.add(note.toLowerCase());
+    out.push(note);
+  }
+  return out.slice(-NOTE_CAP);
+}
+
+export const TIERS = ["client", "edge", "frontend", "api", "service", "worker", "messaging", "cache", "database", "storage", "external", "platform"];
+
+function readTier(value) {
+  const tier = String(value || "").trim().toLowerCase();
+  return TIERS.includes(tier) ? tier : null;
+}
+
+function readShort(value, words, chars) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  return text.split(" ").slice(0, words).join(" ").slice(0, chars);
+}
+
+/**
+ * A name a person can read: ids and file-ish names become words.
+ * "redirect-svc" -> "Redirect Service", "topkAPI" -> "Topk API".
+ */
+export function readableName(value) {
+  let name = String(value || "").replace(/\s+/g, " ").trim();
+  if (!name) return name;
+  // Only an id-like token is rewritten; a name with spaces is the user's wording.
+  if (/\s/.test(name) || !/[-_]|[a-z][A-Z]/.test(name) || /[.()/]/.test(name)) return name.slice(0, 60);
+  name = name.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[-_]+/g, " ");
+  const EXPAND = { svc: "Service", srv: "Service", db: "DB", api: "API", ui: "UI", mq: "Queue", cfg: "Config", mgr: "Manager", k8s: "K8s" };
+  return name
+    .split(" ")
+    .map((word) => EXPAND[word.toLowerCase()] || (word === word.toLowerCase() ? word.charAt(0).toUpperCase() + word.slice(1) : word))
+    .join(" ")
+    .slice(0, 60);
+}
+
+function nodeExtras(source) {
+  const tier = readTier(source.tier);
+  const zone = readShort(source.zone, 6, 40);
+  const blurb = readShort(source.blurb, 10, 70);
+  return {
+    ...(blurb ? { blurb } : {}),
+    ...(tier ? { tier } : {}),
+    ...(zone ? { zone } : {}),
+  };
+}
+
+function readLevel(value) {
+  return FLOORS.includes(value) ? value : null;
+}
 
 export function designPath(root) {
   return path.join(root, DESIGN_DIR, DESIGN_FILE);
@@ -38,6 +104,8 @@ export function loadDesign(root) {
       updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : undefined,
       ...(parsed.seeded === true ? { seeded: true } : {}),
       ...(typeof parsed.seededAt === "string" ? { seededAt: parsed.seededAt } : {}),
+      ...(readLevel(parsed.level) ? { level: parsed.level } : {}),
+      ...(Array.isArray(parsed.unmappedPositions) ? { unmappedPositions: parsed.unmappedPositions.filter((p) => Number.isFinite(p?.x) && Number.isFinite(p?.y)).map((p) => ({ id: String(p.id), x: p.x, y: p.y })) } : {}),
       nodes: parsed.nodes.map(cloneNode),
       connections: Array.isArray(parsed.connections) ? parsed.connections.map(cloneConnection) : [],
       unmappedFlags: Array.isArray(parsed.unmappedFlags) ? parsed.unmappedFlags.map(cloneFlag) : [],
@@ -71,6 +139,8 @@ function orderDesign(design) {
     ...(ordered.updatedAt ? { updatedAt: ordered.updatedAt } : {}),
     ...(design.seeded === true ? { seeded: true } : {}),
     ...(typeof design.seededAt === "string" ? { seededAt: design.seededAt } : {}),
+    ...(readLevel(design.level) ? { level: design.level } : {}),
+    ...(Array.isArray(design.unmappedPositions) && design.unmappedPositions.length ? { unmappedPositions: design.unmappedPositions } : {}),
     nodes: ordered.nodes,
     connections: ordered.connections,
     unmappedFlags: ordered.unmappedFlags,
@@ -80,6 +150,8 @@ function orderDesign(design) {
 export function carryDesignMeta(current, next) {
   if (current?.seeded === true) next.seeded = true;
   if (typeof current?.seededAt === "string") next.seededAt = current.seededAt;
+  if (readLevel(current?.level) && !readLevel(next.level)) next.level = current.level;
+  if (Array.isArray(current?.unmappedPositions) && !next.unmappedPositions) next.unmappedPositions = current.unmappedPositions;
   return next;
 }
 
@@ -108,6 +180,9 @@ function orderNode(node) {
     parentId: node.parentId ?? null,
     what: node.what,
     why: node.why,
+    ...(readShape(node.shape) ? { shape: node.shape } : {}),
+    ...nodeExtras(node),
+    ...(readNotes(node.notes).length ? { notes: readNotes(node.notes) } : {}),
     ...(position || {}),
     flags: (node.flags || []).map(orderFlag),
   };
@@ -160,6 +235,9 @@ function cloneNode(node) {
     parentId: node.parentId ? String(node.parentId) : null,
     what: String(node.what || ""),
     why: String(node.why || ""),
+    ...(readShape(node.shape) ? { shape: readShape(node.shape) } : {}),
+    ...nodeExtras(node),
+    ...(readNotes(node.notes).length ? { notes: readNotes(node.notes) } : {}),
     ...(position || {}),
     flags: Array.isArray(node.flags) ? node.flags.map(cloneFlag) : [],
   };
@@ -169,6 +247,11 @@ function cloneNode(node) {
 export function placeNode(design, id, x, y) {
   const current = design && Array.isArray(design.nodes) ? design : emptyDesign();
   if (!Number.isFinite(x) || !Number.isFinite(y)) return { design: current, changed: false };
+  if (String(id).startsWith("unmapped-")) {
+    const positions = (current.unmappedPositions || []).filter((item) => item.id !== id);
+    positions.push({ id: String(id), x, y });
+    return { design: { ...current, unmappedPositions: positions }, changed: true };
+  }
   const nodes = current.nodes.map(cloneNode);
   const node = nodes.find((item) => item.id === id);
   if (!node) return { design: current, changed: false };
@@ -225,11 +308,14 @@ function cleanNode(raw) {
   const kind = String(raw.kind || "").trim().toLowerCase();
   return {
     id: typeof raw.id === "string" ? raw.id.trim() : "",
-    name: String(raw.name || "").trim(),
+    name: readableName(raw.name),
     kind,
     parentId: kind === "system" || raw.parentId == null || raw.parentId === "" ? null : String(raw.parentId),
     what: String(raw.what).trim(),
     why: String(raw.why).trim(),
+    ...(readShape(raw.shape) ? { shape: readShape(raw.shape) } : {}),
+    ...nodeExtras(raw),
+    ...(readNotes(raw.notes).length ? { notes: readNotes(raw.notes) } : {}),
     flags: [],
   };
 }
@@ -237,6 +323,7 @@ function cleanNode(raw) {
 function snapshot(design) {
   return JSON.stringify({
     floor: design.floor,
+    level: design.level || null,
     nodes: (design.nodes || []).map((node) => ({
       id: node.id,
       name: node.name,
@@ -244,6 +331,11 @@ function snapshot(design) {
       parentId: node.parentId,
       what: node.what,
       why: node.why,
+      shape: node.shape || null,
+      blurb: node.blurb || null,
+      tier: node.tier || null,
+      zone: node.zone || null,
+      notes: node.notes || [],
       flags: (node.flags || []).map((flag) => ({
         intent: flag.intent,
         difference: flag.difference,
@@ -297,9 +389,14 @@ export function applyDesign(design, result, floor = DEFAULT_FLOOR) {
     (node) => node.kind === "module" && linksTo(node.parentId, knownComponents),
   );
   const kept = [...systems, ...components, ...modules];
-  if (kept.length === 0) return { design: current, changed: false };
+  const removeNodes = new Set((Array.isArray(result.removeNodeIds) ? result.removeNodeIds : []).map(String));
+  const removeConnections = new Set((Array.isArray(result.removeConnectionIds) ? result.removeConnectionIds : []).map(String));
+  const hasConnections = Array.isArray(result.connections) && result.connections.length > 0;
+  if (kept.length === 0 && removeNodes.size === 0 && removeConnections.size === 0 && !hasConnections) {
+    return { design: current, changed: false };
+  }
 
-  const nodes = existing;
+  let nodes = existing;
   for (const node of kept) {
     const match = findMatch(nodes, node);
     if (match) {
@@ -308,14 +405,35 @@ export function applyDesign(design, result, floor = DEFAULT_FLOOR) {
       match.parentId = node.parentId;
       match.what = node.what;
       match.why = node.why;
+      if (node.shape) match.shape = node.shape;
+      for (const key of ["blurb", "tier", "zone"]) if (node[key]) match[key] = node[key];
+      if (node.notes?.length) match.notes = readNotes([...(match.notes || []), ...node.notes]);
       continue;
     }
     node.id = mintId(node, nodes);
     nodes.push(node);
   }
 
-  const connections = (current.connections || []).map(cloneConnection);
+  if (removeNodes.size) {
+    // A removed boundary takes everything inside it.
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const node of nodes) {
+        if (!removeNodes.has(node.id) && node.parentId && removeNodes.has(node.parentId)) {
+          removeNodes.add(node.id);
+          grew = true;
+        }
+      }
+    }
+    nodes = nodes.filter((node) => !removeNodes.has(node.id));
+  }
+
+  let connections = (current.connections || []).map(cloneConnection);
   const knownIds = new Set(nodes.map((node) => node.id));
+  connections = connections.filter(
+    (item) => !removeConnections.has(item.id) && knownIds.has(item.fromId) && knownIds.has(item.toId),
+  );
   for (const raw of Array.isArray(result.connections) ? result.connections : []) {
     const connection = cloneConnection(raw);
     if (!connection.fromId || !connection.toId || connection.fromId === connection.toId) continue;

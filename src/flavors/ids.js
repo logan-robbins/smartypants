@@ -1,1 +1,1 @@
-export const FLAVOR_IDS = ["claude", "codex", "grok", "muse", "pi"];
+export const FLAVOR_IDS = ["meta", "claude", "codex", "grok", "muse", "pi"];

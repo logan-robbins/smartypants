@@ -1,0 +1,10 @@
+sys|G ranked-posts-from-friends-and-pages|N users-dau 500M dau|N users-friends 300 friends|N latency p99<200ms|D celebrity-1M-followers fanout-on-read>fanout-on-write
+feed-service|F serve-ranked-feed|E ranker-service>feed-service
+feed-service>graph-service|E celebrity-lookup
+feed-service>post-store|E celebrity-fetch-on-read
+graph-service|F friend-and-follow-edges
+media-store|D blob-behind-cdn>inline-in-post-store
+post-events|E fanout-worker>feed-cache
+post-service|F publish-posts
+ranker-service|F rank-candidates|Q model architecture-gbdt-vs-dnn-open|Q features real-time-vs-batch-feature-source-open
+sys-newsfeed|! intent:celebrity-1M-followers fanout-on-read over fanout-on-write code:fanout worker prepends ne

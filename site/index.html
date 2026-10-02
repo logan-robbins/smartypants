@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect x=%224%22 y=%223%22 width=%2224%22 height=%228%22 rx=%224%22 fill=%22%239370db%22/%3E%3Crect x=%224%22 y=%2213%22 width=%2210%22 height=%227%22 rx=%222%22 fill=%22%23ececff%22 stroke=%22%239370db%22/%3E%3Crect x=%2218%22 y=%2213%22 width=%2210%22 height=%227%22 rx=%222%22 fill=%22%23ececff%22 stroke=%22%239370db%22/%3E%3Cellipse cx=%2216%22 cy=%2225%22 rx=%228%22 ry=%224%22 fill=%22%23fff8dc%22 stroke=%22%23c9a227%22/%3E%3C/svg%3E" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Smartypants — a live architecture diagram for coding agents</title>
+  <meta name="description" content="Smartypants keeps a readable, layered architecture diagram of the system your coding agent is building, remembers your intent in a compact code, reviews every turn for drift, and catches up from existing code, Helm charts, and Terraform." />
+  <link rel="stylesheet" href="site.css" />
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="#">Smartypants</a>
+    <nav>
+      <a href="#demo">Demo</a>
+      <a href="#how">How it reads</a>
+      <a href="#features">What it does</a>
+      <a href="#install">Install</a>
+      <a href="#results">Results</a>
+      <a href="https://github.com/logan-robbins/smartypants">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-text">
+        <p class="kicker">For Claude Code, Codex, Pi, Muse Code, and Grok Build</p>
+        <h1>A live architecture diagram of the code your agent writes.</h1>
+        <p class="lede">Smartypants listens to the conversation and the working tree. It draws the system the way a staff engineer would on a whiteboard, remembers what you intended, and tells you the moment the code leaves it.</p>
+        <div class="cta">
+          <a class="button primary" href="#demo">Try the demo</a>
+          <a class="button" href="#install">Install in two commands</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="demo" class="demo">
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <div class="frame">
+        <iframe id="canvas" title="Smartypants canvas demo" src="demo/?example=shop-monorepo" loading="lazy"></iframe>
+      </div>
+      <p class="caption" id="caption">Click any box, arrow, boundary, or layer to read about it. Drag boxes, frames, and layers. Double-click a box to go deeper. Scroll to zoom.</p>
+    </section>
+
+    <section id="how" class="how">
+      <h2>How it reads</h2>
+      <p class="section-lede">One convention everywhere, so every diagram reads the same way.</p>
+      <div class="how-grid">
+        <ol class="layers">
+          <li><strong>Users and clients</strong><span>who starts the journey</span></li>
+          <li><strong>Edge</strong><span>CDN, WAF, load balancer, ingress, gateway</span></li>
+          <li><strong>Frontend</strong><span>above the API it calls</span></li>
+          <li><strong>API</strong><span>public APIs and backends-for-frontends</span></li>
+          <li><strong>Services</strong><span>domain logic; third parties at the right edge</span></li>
+          <li><strong>Async</strong><span>streams on the left, then their workers</span></li>
+          <li><strong>Data</strong><span>caches beside the databases they front</span></li>
+          <li><strong>Storage</strong><span>objects, files, and archives at the bottom</span></li>
+        </ol>
+        <div class="rules">
+          <p><strong>Top to bottom</strong> is the stack, from who calls to where data rests.</p>
+          <p><strong>Left to right</strong> is the journey inside a layer, as long as it needs to be.</p>
+          <p><strong>Dashed frames</strong> are network and trust boundaries — public internet, edge, cluster namespaces, private subnets — taken from your Kubernetes, Helm, compose, and Terraform files.</p>
+          <p><strong>Every box</strong> has a plain name and a one-line description. Click it for what, why, deep-dive notes, flows, drift, and the intent recorded about it.</p>
+          <p><strong>Arrows</strong> point the way data moves; a reply is its own arrow back to the caller. Solid is data, dashed is control.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="features">
+      <h2>What it does</h2>
+      <div class="grid">
+        <article>
+          <h3>Catches up from code</h3>
+          <p>Turn it on in an existing repo and it builds the whole diagram in the background: services, dependencies, routes, tables, topics, then the compose, Kubernetes, Helm, and Terraform that wire them, including ingress, network policies, namespaces, and subnets.</p>
+        </article>
+        <article>
+          <h3>Reviews every turn</h3>
+          <p>When the agent finishes a turn, it looks at what actually changed in git — dirty files, new commits, untracked files — and asks one batched question per file. Code that leaves the design is flagged in red; new services and infra changes redraw the diagram.</p>
+        </article>
+        <article>
+          <h3>Knows evolution from drift</h3>
+          <p>If <em>you</em> change a decision in chat, the design evolves and the old choice is remembered as excluded. If the <em>code</em> contradicts a decision, constraint, or boundary, that is drift.</p>
+        </article>
+        <article>
+          <h3>Goes deeper on request</h3>
+          <p>“Go deeper on the aggregator”, a double-click, or <code>smartypants deeper</code> expands a system into components, a component into modules, and a module into the data model, algorithm, and failure notes an interviewer would ask about.</p>
+        </article>
+        <article>
+          <h3>Remembers intent in a few hundred tokens</h3>
+          <p>IntentCode keeps what you meant as keyed atoms — <code>N redirect.latency p99&lt;50ms</code>, <code>D link-store dynamodb&gt;cassandra</code> — grouped by part, never a transcript. A whole design interview fits in about 200 tokens.</p>
+        </article>
+        <article>
+          <h3>Cheap by design</h3>
+          <p>A free local pass and a Jev-style selector decide what each turn is worth before any builder call. Greetings, “run the tests”, and doc edits cost nothing. The builder runs on Meta Muse Spark 1.3 in Contributor mode by default, and never blocks your agent.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="install" class="install">
+      <h2>Install</h2>
+      <div class="install-grid">
+        <div>
+          <h3>In a project</h3>
+<pre><code>npm install github:logan-robbins/smartypants
+npx smartypants init        # hooks, config, and catch-up if code exists
+export META_API_KEY=...     # Meta Model API key
+npx smartypants serve       # open the printed URL</code></pre>
+        </div>
+        <div>
+          <h3>As a plugin</h3>
+<pre><code># Claude Code
+/plugin marketplace add logan-robbins/smartypants
+/plugin install smartypants@smartypants
+
+# Codex
+codex plugin marketplace add logan-robbins/smartypants
+codex plugin add smartypants@smartypants
+
+# Pi
+pi install git:github.com/logan-robbins/smartypants</code></pre>
+        </div>
+      </div>
+      <p class="note">Commands: <code>deeper</code>, <code>catchup</code>, <code>review</code>, <code>intent</code>, <code>drift</code>, <code>mermaid</code>, <code>stats</code>, <code>reset</code>. Everything is inert without <code>smartypants.config.json</code>.</p>
+    </section>
+
+    <section id="results" class="results">
+      <h2>Measured, not promised</h2>
+      <p class="section-lede">Live runs on the Meta Model API with Muse Spark 1.3 Contributor, on five design-interview problems and a held-out set of turns and edits.</p>
+      <table>
+        <thead><tr><th></th><th>Jev-style selector</th><th>Local rules only</th></tr></thead>
+        <tbody>
+          <tr><td>Held-out turns handled correctly</td><td><strong>31/34</strong></td><td>18/34</td></tr>
+          <tr><td>“Worth remembering?” (keep vs skip)</td><td><strong>34/34</strong></td><td>23/34</td></tr>
+          <tr><td>Drift verdicts on held-out edits</td><td><strong>9/10</strong>, none missed</td><td>6/10</td></tr>
+          <tr><td>Interviews: triage · parts found · drift</td><td>32/32 · 33/33 · 9/10</td><td>32/32 · 33/33 · 9/10</td></tr>
+          <tr><td>Turn-end review of 3 changed files</td><td colspan="2">1 batched selector call, 1 drift flag, 1 new service from a k8s manifest, 23 s</td></tr>
+          <tr><td>Catch-up of a sample monorepo</td><td colspan="2">12 parts and 20 flows with zones from 3 code units and its infra, 4 calls, $0.003, about a minute</td></tr>
+        </tbody>
+      </table>
+      <p class="note">Details and raw runs: <a href="https://github.com/logan-robbins/smartypants/tree/main/results">results/</a>.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>Smartypants · <a href="https://github.com/logan-robbins/smartypants">github.com/logan-robbins/smartypants</a></p>
+  </footer>
+
+  <script>
+    (function () {
+      var frame = document.getElementById("canvas");
+      var tabs = document.getElementById("tabs");
+      var TITLES = {
+        "shop-monorepo": "Caught up from code",
+        "youtube-top-k": "YouTube Top-K",
+        uber: "Uber",
+        "news-feed": "News Feed",
+        messenger: "Messenger",
+        "url-shortener": "URL shortener",
+      };
+      fetch("demo/examples.json").then(function (r) { return r.json(); }).then(function (list) {
+        list.sort(function (a, b) { return (a.name === "shop-monorepo" ? -1 : 0) - (b.name === "shop-monorepo" ? -1 : 0); });
+        list.forEach(function (example, i) {
+          var button = document.createElement("button");
+          button.textContent = TITLES[example.name] || example.title;
+          button.setAttribute("role", "tab");
+          button.setAttribute("aria-selected", i === 0 ? "true" : "false");
+          button.addEventListener("click", function () {
+            frame.src = "demo/?example=" + example.name;
+            Array.prototype.forEach.call(tabs.children, function (b) { b.setAttribute("aria-selected", "false"); });
+            button.setAttribute("aria-selected", "true");
+          });
+          tabs.appendChild(button);
+        });
+      }).catch(function () {});
+    })();
+  </script>
+</body>
+</html>

@@ -120,3 +120,24 @@ test("the post-edit hook hands path and delivered contents to the configured fla
   assert.equal(edit.request.delivered.diff.includes("schedule(7)"), true);
   assert.equal(edit.request.flavor, "codex");
 });
+
+test("recording drift keeps the diagram's flows", async () => {
+  const { applyDesign: apply, emptyDesign: empty } = await import("../src/model.js");
+  const withFlows = {
+    ...ledgerResult,
+    connections: [{ id: "purchase-flow", fromId: "receipts", toId: "capture", kind: "data", label: "purchase record" }],
+  };
+  const design = apply(empty(), withFlows, "module").design;
+  const drifted = applyDrift(design, weeklyDrift);
+  assert.equal(drifted.changed, true);
+  assert.deepEqual(drifted.design.connections, design.connections);
+});
+
+test("a reworded repeat of a divergence does not stack a second flag", () => {
+  const design = applyDesign(emptyDesign(), ledgerResult, "module").design;
+  const first = applyDrift(design, { diverges: true, nodeId: "capture", intent: "Owns 1:1 threads, groups, members, roles - Gates who can send", difference: "no membership/role check before store.append and deliver; anyone can send to any conversation" });
+  const again = applyDrift(first.design, { diverges: true, nodeId: "capture", intent: "Owns 1:1 threads, groups, members, roles - Gates who can send", difference: "code sends without checking membership or roles before store.append; anyone can send to any conversation" });
+  assert.equal(again.changed, false);
+  const other = applyDrift(first.design, { diverges: true, nodeId: "capture", intent: "Purchases are recorded the day they happen", difference: "The code writes the purchase a week later" });
+  assert.equal(other.changed, true);
+});

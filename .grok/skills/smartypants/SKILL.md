@@ -1,44 +1,41 @@
 ---
 name: smartypants
-description: >
-  Turn on or update Smartypants, the hook that diagrams a system at
-  system, component, and module depth and flags code that leaves the
-  user's intent. Use when the user says smartypants, system diagram,
-  seed the design, intent drift, or runs /smartypants.
-  /smartypants reset clears the diagram.
+description: Keep a live, layered architecture diagram of this project while you code — drawn from the conversation, caught up from existing code and infra (Helm, k8s, compose, Terraform), reviewed for drift at the end of every turn. Use when the user says smartypants, architecture/system diagram, design interview, "go deeper on X", intent drift, or runs /smartypants.
 user-invocable: true
-argument-hint: reset
+argument-hint: "[open | deeper <part> | catchup | review | intent | drift | mermaid | reset]"
 ---
 
 # Smartypants
 
-Follow `README.md` in this repo for startup. Do the steps. Do not ask the user to run them.
+Set it up and run it yourself. If you cannot run commands here, give the user the exact
+commands below instead of drawing a diagram by hand.
 
-1. In the project, run `npm install github:logan-robbins/smartypants` if `@logan-robbins/smartypants` is not installed.
-2. Run `npx smartypants init --flavor <host>`. Add `--seed` only when the project already has code and `.smartypants/design.json` is not seeded. `flavor` is `claude`, `codex`, `grok`, `muse`, or `pi`.
-3. Leave an existing `smartypants.config.json` in place. Set `depth` to `module` unless the user names `component` or `system`.
-4. When the user wants to see the diagram, run `npx smartypants serve` and use http://127.0.0.1:4173.
+## Turn it on (no argument)
 
-## Reset the graph
+1. `npm install github:logan-robbins/smartypants` (skip if `@logan-robbins/smartypants` is installed;
+   use `npm install <path>` for a local checkout).
+2. `npx smartypants init` — writes `smartypants.config.json` and hooks for Claude Code, Codex, Pi,
+   Muse, and Grok without touching other hooks. On an existing codebase it also starts a background
+   catch-up that draws the whole system from the code. Keep an existing config.
+3. The default builder needs `META_API_KEY`; with `TYPESAFE_API_KEY` too, Jev makes the per-turn
+   calls and Muse Spark only double-checks unsure ones. If the user keeps keys in a dotenv file, set
+   `envFile` in the config. Never print, echo, or ask for key values in chat.
+4. `npx smartypants serve` in the background; give the user the URL it prints (it takes the next
+   free port if 4173 is busy; reuse a server already running for this project).
+5. Codex users must approve the Smartypants hooks once in Codex's startup hooks review.
 
-When the user runs `/smartypants reset` or `/reset-graph`, or asks to clear the diagram, run `npx smartypants reset` in the project root. That deletes `.smartypants/design.json` and `.smartypants/ledger.json`. Leave `smartypants.config.json`. Do not ask again after the slash command. Tell them the graph is empty and the next design turn draws it again.
+## Arguments
 
-## Write the diagram
+| argument | run | then |
+|---|---|---|
+| `open` | start or reuse `npx smartypants serve` | give the URL |
+| `deeper <part>` | `npx smartypants deeper "<part>"` | report the line it prints |
+| `catchup` | `npx smartypants catchup` | say it runs in the background; progress is on the canvas |
+| `review` | `npx smartypants review` | one line per diverging file |
+| `intent` | `npx smartypants intent` | show as a code block |
+| `drift` | `npx smartypants drift` | one line per flag: part, intended, actual |
+| `mermaid` | `npx smartypants mermaid` | show a ```mermaid block |
+| `reset` | `npx smartypants reset` | the next design turn redraws; do not ask to confirm |
 
-Use `applyDesign` and `saveDesign` from `src/model.js`. Do not hand-edit `.smartypants/design.json`.
-
-- **system**: the application a person would name.
-- **component**: one job other parts can use without its internals. Not a file or a function.
-- **module**: one slice of that job, inside exactly one component. Not a file, class, function, or endpoint.
-- Every node needs `what` and `why`. They must not be the same sentence.
-
-Record history with `rememberTurn` from `src/ledger.js`. Pass a short gist. Do not store a transcript.
-
-## Hook rules
-
-- Missing config: do nothing.
-- Unknown flavor: do not call another flavor.
-- Exit 0. Do not block or rewrite the user turn.
-- Builder failure: leave the previous design.
-- The same result twice: do not duplicate nodes.
-- Drift: one flag with the intent and how the code differs. Keep unmapped drift.
+In chat, "go deeper on the cache" works without a command. Do not edit project code for any of
+these.

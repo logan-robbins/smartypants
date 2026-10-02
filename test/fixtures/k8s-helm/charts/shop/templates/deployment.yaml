@@ -1,0 +1,16 @@
+{{- range $name, $svc := .Values.services }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "shop.fullname" $ }}-{{ $name }}
+  labels:
+    {{- include "shop.labels" $ | nindent 4 }}
+spec:
+  replicas: {{ $svc.replicaCount | default 1 }}
+  template:
+    spec:
+      containers:
+        - name: {{ $name }}
+          image: "{{ $svc.image.repository }}:{{ $svc.image.tag | default $.Chart.AppVersion }}"
+{{- end }}

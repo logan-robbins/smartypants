@@ -1,0 +1,13 @@
+sys|G request-match-track-charge ride|N interval 4s|N users-drivers-peak 5M drivers|N latency <2s
+driver-locations>surge-pricing|E supply-snapshot
+h3-geo-index|D h3-cell-sharding>single-index|! intent:Indexes live driver positions H3 cell enable fast nearby driver lookup code:Code bypasses
+matching-service|F nearby-driver match|! intent:Picks nearby driver each ride request core marketplace matchmaking code:Code does not per
+matching-service>driver-locations|E nearby-lookup
+matching-service>surge-pricing|E demand-signal
+payment-service|F end-of-trip charge
+rider-app>matching-service|E ride-request
+sequential-offer|F one-at-a-time ride offer|! intent:Queries nearby cells offers rides sequentially improve acceptance without spamming driver
+surge-pricing|N interval 1m|F per-H3-cell multiplier
+trip-service|F active-trip tracking
+trip-service>payment-service|E charge-at-end
+trip-service>surge-pricing|E fetch-multiplier

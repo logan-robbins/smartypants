@@ -1,0 +1,2 @@
+import { Worker } from "bullmq";
+new Worker("emails", async (job) => job.data);
