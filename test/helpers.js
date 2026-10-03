@@ -22,3 +22,5 @@ export function readBytes(file) {
 process.env.SMARTYPANTS_DECIDER ??= "heuristic";
 // A live Meta key in the environment must not turn tests into paid calls.
 process.env.META_BASE_URL ??= "http://127.0.0.1:9";
+// Nor may the host's Claude Code sign-in: the claude flavor finds no CLI and fails fast.
+process.env.SMARTYPANTS_CLAUDE_BIN ??= path.join(os.tmpdir(), "smartypants-no-claude-cli");

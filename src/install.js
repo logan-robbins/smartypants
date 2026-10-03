@@ -94,7 +94,7 @@ function starterConfig({ flavor, seed }) {
  * Leaves an existing config and any unrelated hooks in place.
  */
 export function installProject(root, options = {}) {
-  const flavor = options.flavor || "meta";
+  const flavor = options.flavor || "claude";
   // An existing codebase is caught up from its code in the background.
   const existing = options.seed ?? isExistingProject(root);
   if (!FLAVOR_IDS.includes(flavor)) {

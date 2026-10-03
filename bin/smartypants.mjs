@@ -30,7 +30,7 @@ function runBin(name, extra = []) {
 
 const COMMANDS = {
   init() {
-    const flavor = flag(args, "flavor") || "meta";
+    const flavor = flag(args, "flavor") || "claude";
     const seed = args.includes("--seed");
     if (!FLAVOR_IDS.includes(flavor)) {
       console.error(`smartypants: flavor must be one of ${FLAVOR_IDS.join(", ")}`);
@@ -40,6 +40,14 @@ const COMMANDS = {
     for (const file of result.wrote) console.log(`wrote ${file}`);
     for (const file of result.skipped) console.log(`kept ${file}`);
     console.log(`hook ${result.command}`);
+    if (flavor === "claude") {
+      console.log("model: Claude, through this machine's Claude Code (the same sign-in: ANTHROPIC_API_KEY, Bedrock/Vertex/Foundry, or `claude` login).");
+      console.log("       Set \"model\" in smartypants.config.json to pin one; otherwise Claude Code's default is used.");
+    }
+    if (!process.env.TYPESAFE_API_KEY) {
+      console.log("jev:   optional and recommended. Create a key at https://console.typesafe.ai/keys and export TYPESAFE_API_KEY;");
+      console.log("       Jev then answers the per-turn questions in ~200 ms and Claude only writes when there is work.");
+    }
     if (flavor === "meta") {
       console.log("data: design turns, changed files, and (on catch-up) key source files go to api.meta.ai.");
       console.log("      The default model muse-spark-1.3-contributor is discounted because Meta may train on that traffic;");

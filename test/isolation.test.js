@@ -4,7 +4,6 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { claudeQueryOptions } from "../src/flavors/claude.js";
 import { piAgentDir, piBuilderPlan } from "../src/flavors/pi.js";
 import { BUILDER_GUARD, handleHook, withBuilderGuard } from "../src/pipeline.js";
 import { designFile, readBytes, tempProject } from "./helpers.js";
@@ -27,21 +26,6 @@ function silence(fn) {
     })
     .then((value) => ({ value, lines }));
 }
-
-test("claude query options deny prompts and ship no tools", () => {
-  const schema = { type: "object", properties: { isDesign: { type: "boolean" } } };
-  const options = claudeQueryOptions(schema);
-  assert.equal(options.permissionMode, "dontAsk");
-  assert.equal(options.allowDangerouslySkipPermissions, undefined);
-  assert.equal(Object.hasOwn(options, "allowedTools"), false);
-  assert.equal(Object.hasOwn(options, "allowDangerouslySkipPermissions"), false);
-  assert.deepEqual(options.tools, []);
-  assert.deepEqual(options.settingSources, []);
-  assert.equal(options.maxTurns, 1);
-  assert.equal(options.outputFormat.type, "json_schema");
-  assert.equal(options.outputFormat.schema, schema);
-  assert.equal(JSON.stringify(options).includes("bypassPermissions"), false);
-});
 
 test("the pi builder loader does not discover project extensions", () => {
   const cwd = path.join(packageRoot, "ledger-workspace");

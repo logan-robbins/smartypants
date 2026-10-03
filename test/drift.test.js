@@ -91,7 +91,7 @@ test("the post-edit hook hands path and delivered contents to the configured fla
   assert.equal(result.request.flavor, "codex");
   assert.equal(result.request.kind, "drift");
   assert.equal(result.request.sdk.package, "@openai/agents");
-  assert.notEqual(result.request.sdk.package, "@anthropic-ai/claude-agent-sdk");
+  assert.notEqual(result.request.sdk.package, "claude-code-cli");
   assert.equal(result.request.delivered.path, "src/capture/receipts.ts");
   assert.equal(result.request.delivered.contents.includes("saveReceipt"), true);
   assert.equal(result.request.prompt.includes("src/capture/receipts.ts"), true);

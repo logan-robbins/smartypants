@@ -1,7 +1,7 @@
 {
   "name": "smartypants",
   "description": "Keeps a Mermaid-style system diagram and a compact memory of your architectural intent while an agent codes, goes deeper on any part on request, and flags where the code drifts from the intent.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "author": {
     "name": "Logan Robbins",
     "url": "https://github.com/logan-robbins"
@@ -17,20 +17,21 @@
     "intent",
     "drift",
     "hooks",
+    "claude",
     "meta",
     "jev"
   ],
   "userConfig": {
-    "meta_api_key": {
-      "type": "string",
-      "title": "Meta Model API key",
-      "description": "Used by the default builder (Muse Spark on api.meta.ai). Leave empty if META_API_KEY is already in your environment or you use another builder flavor.",
-      "sensitive": true
-    },
     "typesafe_api_key": {
       "type": "string",
-      "title": "Typesafe (Jev) API key (optional)",
-      "description": "Optional: Jev answers the per-turn triage questions. Without it, Muse Spark or local rules do.",
+      "title": "Typesafe (Jev) API key (optional, recommended)",
+      "description": "Jev answers the per-turn questions in ~0.2 s so Claude only runs when there is work. Create a key at https://console.typesafe.ai/keys. Without it, Claude answers them too.",
+      "sensitive": true
+    },
+    "meta_api_key": {
+      "type": "string",
+      "title": "Meta Model API key (only for the meta flavor)",
+      "description": "Only needed if smartypants.config.json sets \"flavor\": \"meta\" (Muse Spark on api.meta.ai). The default claude flavor uses this machine's Claude Code sign-in and needs no key here.",
       "sensitive": true
     }
   }

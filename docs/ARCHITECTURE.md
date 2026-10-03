@@ -12,16 +12,16 @@ flowchart LR
   host(["Claude Code / Codex / Pi / Muse / Grok"]) -->|"hook event"| dispatch{{"dispatch<br/>background queue"}}
   dispatch --> s0["stage 0: local salience<br/>free"]
   s0 -->|"noise, commands,<br/>numeric constraints"| memory[("intent.json<br/>IntentCode")]
-  s0 -->|"ambiguous"| s1["stage 1: Jev-protocol selector<br/>Jev → Muse Spark minimal → local"]
+  s0 -->|"ambiguous"| s1["stage 1: Jev-protocol selector<br/>Jev → builder model, low effort → local"]
   s1 -->|"skip"| stats[("stats.json")]
   s1 -->|"remember"| memory
-  s1 -->|"build / deepen / drift"| s2["stage 2: builder<br/>Muse Spark 1.3 Contributor"]
+  s1 -->|"build / deepen / drift"| s2["stage 2: builder<br/>Claude via the host claude CLI"]
   s2 -->|"delta"| design[("design.json")]
   s2 -->|"atoms"| memory
   design --> canvas(["Mermaid-style canvas"])
 ```
 
-## The Jev + Mercury pattern, with Meta
+## The Jev + Mercury pattern, with Claude
 
 WindTunnel's best configuration (`results/2026-09-18-jev-mercury`) splits an agent into a
 **selector** that only picks from a closed menu with a calibrated confidence (Jev), and a
@@ -34,13 +34,14 @@ Smartypants applies the same split to design memory:
 |---|---|
 | menu of page actions | menu per turn: `signal` (arch, constraint, detail, drift, noise), `impact` (none, annotate, extend, restructure), `level` (system, component, module), `target` (which node), `verdict` for edits (conforms, diverges, new-boundary, not-architectural) |
 | Jev chooses the action | `src/jev.js`: Typesafe Jev (`/v1/systemone`, `jev-latest`) when `TYPESAFE_API_KEY` is set |
-| Mercury writes the arguments | the builder flavor writes the delta; `meta` (Muse Spark 1.3 Contributor) by default |
+| Mercury writes the arguments | the builder flavor writes the delta; `claude` by default, through the host's own `claude` CLI and sign-in |
 | `minConfidence` abstains | an unsure "noise" is built anyway; only a confident skip skips |
 
-When no Jev key is present, `metaChooser` asks Muse Spark the **same menus** in one batched
-call at `reasoning_effort: minimal`, with a strict JSON schema whose answers are enum keys
-(`c0`, `c1`, …). Questions answered with confidence under 0.6 are re-asked at `low` effort,
-so extra reasoning is spent only where it is needed. Any selector failure falls through to the
+When no Jev key is present (or Jev is unreachable), the builder's own model answers the **same
+menus** in one batched call with a strict JSON schema whose answers are enum keys (`c0`, `c1`, …):
+`claudeChooser` asks Claude at `low` effort for the `claude` flavor, and `metaChooser` asks Muse
+Spark at `reasoning_effort: minimal` (re-asking questions under 0.6 confidence at `low`) when a
+Meta key is set for the other flavors. Any selector failure falls through to the
 next one; the local heuristic never fails, so a provider outage never blocks a turn.
 
 ## The four questions
@@ -161,9 +162,23 @@ template kinds, subcharts), and Terraform. `boundaries()` turns those into lines
   file; diverging files share one drift check; infrastructure changes and new boundaries share one
   design sync with a fresh scan. With `review: "turn"`, single edits are not checked on their own.
 
+## How the claude builder connects
+
+`src/claude.js` runs the host's Claude Code binary (`CLAUDE_CODE_EXECPATH` inside a Claude Code
+hook, `SMARTYPANTS_CLAUDE_BIN` if set, else `claude` on PATH) as
+`claude -p --output-format json --json-schema <schema> --system-prompt-file <tmp> --tools ""
+--setting-sources "" --strict-mcp-config --disable-slash-commands --no-session-persistence
+--permission-mode dontAsk`. The prompt goes on stdin. The child inherits the environment minus
+the parent-session markers (`CLAUDECODE`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_CODE_ENTRYPOINT`), so it
+authenticates the same way the host does: `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN`, Bedrock,
+Vertex, or Foundry switches, a gateway on `ANTHROPIC_BASE_URL`, or the stored login. With no
+settings sources the child loads no hooks or plugins, so it cannot re-enter Smartypants; it also
+has no tools, so it cannot touch the project. `structured_output`, `total_cost_usd`, and
+`modelUsage` from the JSON result feed `stats.json`.
+
 ## Background mode
 
-Muse Spark builder calls take 10–40 s. With `"background": true` (the default from `init`)
+Builder calls take 10–40 s. With `"background": true` (the default from `init`)
 the hook appends the event to `.smartypants/queue.jsonl`, spawns a detached worker, and exits
 at once. One worker per project drains the queue in order under `worker.lock`, so turns never
 race on `design.json`. The canvas server submits `go deeper` requests through the same queue.
