@@ -7,7 +7,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.mjs\"",
-            "timeout": 20
+            "timeout": 120
           }
         ]
       }
@@ -19,7 +19,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.mjs\"",
-            "timeout": 20
+            "timeout": 120
           }
         ]
       }
@@ -30,7 +30,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.mjs\"",
-            "timeout": 20
+            "timeout": 120
           }
         ]
       }

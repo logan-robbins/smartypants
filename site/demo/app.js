@@ -36,9 +36,18 @@
     return Promise.reject(new Error("static"));
   }
 
+  /** The canvas owns <body>; stylesheets a host page put there move to <head> first. */
+  function replaceBody(html) {
+    if (document.head && typeof document.body.querySelectorAll === "function") {
+      var sheets = document.body.querySelectorAll('link[rel="stylesheet"], style');
+      for (var i = 0; i < sheets.length; i += 1) document.head.appendChild(sheets[i]);
+    }
+    document.body.innerHTML = html;
+  }
+
   function showServeHelp() {
     if (typeof document === "undefined" || !document.body) return;
-    document.body.innerHTML = SERVE_HELP;
+    replaceBody(SERVE_HELP);
   }
 
   function esc(text) {
@@ -349,7 +358,7 @@
     }
     if (typeof fetch !== "function" || typeof SmartypantsScene === "undefined") return;
 
-    document.body.innerHTML = shell();
+    replaceBody(shell());
     var viewport = document.getElementById("viewport");
     var svg = document.getElementById("surface");
     if (!viewport || !svg || typeof viewport.addEventListener !== "function") return;

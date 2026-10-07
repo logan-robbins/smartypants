@@ -15,6 +15,7 @@ import { loadCatchup, pickUnits, unitFiles } from "../src/catchup.js";
 import { installProject, isExistingProject } from "../src/install.js";
 import { applyDesign, emptyDesign, loadDesign, saveDesign } from "../src/model.js";
 import { handleHook } from "../src/pipeline.js";
+import { loadStats } from "../src/stats.js";
 import { boundaries, listFiles, renderScan, scanProject } from "../src/scan.js";
 
 const fixtures = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
@@ -361,4 +362,49 @@ test("init treats an infrastructure-only repository as existing, and a near-empt
   const empty = fs.mkdtempSync(path.join(os.tmpdir(), "sp-crawl-empty-"));
   fs.writeFileSync(path.join(empty, "index.js"), "console.log(1);\n");
   assert.equal(installProject(empty, { flavor: "meta" }).existing, false);
+});
+
+test("catch-up: parts left outside the system boundary still land; an empty drawing is a failure", async () => {
+  const root = project();
+  const outside = (id, name, tier) => node(id, name, { parentId: "", tier });
+  await withMeta((body) => {
+    if (isSynthesis(body)) return { isDesign: true, nodes: [system, node("api", "Orders API"), outside("users", "Shoppers", "client"), outside("stripe", "Stripe", "external")], connections: [{ id: "u-a", fromId: "users", toId: "api", kind: "data", label: "orders" }, { id: "a-s", fromId: "api", toId: "stripe", kind: "data", label: "charges" }], removeNodeIds: [], removeConnectionIds: [], intent: [] };
+    return unitNote("Orders API");
+  }, async () => {
+    const result = await quiet(() => handleHook({ cwd: root, event: { type: "catchup" }, timeoutMs: 20000 }));
+    assert.equal(result.error, null);
+    const design = loadDesign(root);
+    assert.deepEqual(design.nodes.map((n) => n.name).sort(), ["Orders API", "Shop", "Shoppers", "Stripe"]);
+    assert.equal(design.connections.length, 2);
+  });
+
+  const empty = project();
+  await withMeta((body) => {
+    if (isSynthesis(body)) return { isDesign: true, nodes: [system, node("api", "Orders API", { what: "Takes orders", why: "takes orders" })].map((n) => ({ ...n, why: n.what })), connections: [], removeNodeIds: [], removeConnectionIds: [], intent: [] };
+    return unitNote("Orders API");
+  }, async () => {
+    const result = await quiet(() => handleHook({ cwd: empty, event: { type: "catchup" }, timeoutMs: 20000 }));
+    assert.match(result.error, /none could be placed .*2× missing or identical what\/why/);
+    assert.equal(fs.existsSync(path.join(empty, ".smartypants", "catchup-rejected.json")), true);
+    const state = loadCatchup(empty);
+    assert.equal(state.state, "failed");
+    assert.ok(state.cost > 0, "what the units cost is still recorded");
+    assert.equal(loadStats(empty).calls.builder > 0, true);
+  });
+});
+
+test("catch-up: a drawing with no system part gets one named after the project", async () => {
+  const root = project();
+  await withMeta((body) => {
+    if (isSynthesis(body)) return { isDesign: true, nodes: [node("api", "Orders API", { parentId: "" }), node("web", "Shop Web", { parentId: "", tier: "frontend" })], connections: [{ id: "w-a", fromId: "web", toId: "api", kind: "data", label: "orders" }], removeNodeIds: [], removeConnectionIds: [], intent: [] };
+    return unitNote("Orders API");
+  }, async () => {
+    const result = await quiet(() => handleHook({ cwd: root, event: { type: "catchup" }, timeoutMs: 20000 }));
+    assert.equal(result.error, null);
+    const design = loadDesign(root);
+    const sys = design.nodes.find((n) => n.kind === "system");
+    assert.ok(sys, "a system part was added");
+    assert.deepEqual(design.nodes.filter((n) => n.kind === "component").map((n) => n.parentId), [sys.id, sys.id]);
+    assert.equal(design.connections.length, 1);
+  });
 });

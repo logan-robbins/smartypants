@@ -1,7 +1,7 @@
 import path from "node:path";
 import { readConfig } from "./config.js";
 import { autoDeepenTarget, deeperFloor, nextLevel } from "./deeper.js";
-import { catchupOwnsSeed, runCatchup, saveCatchup } from "./catchup.js";
+import { catchupOwnsSeed, loadCatchup, runCatchup, saveCatchup } from "./catchup.js";
 import { applyDrift } from "./drift.js";
 import { loadEnvFile } from "./env.js";
 import { adapterFor } from "./flavors/index.js";
@@ -16,7 +16,8 @@ import { TAXONOMY, floorRank } from "./taxonomy.js";
 import { triageEdit, triageTurn } from "./triage.js";
 import { driftEvidence, recordReviewed, reviewTurn, syncEvidence } from "./turnend.js";
 
-const DEFAULT_TIMEOUT_MS = 12000;
+/** Same budget as the background worker: a Claude design turn takes ~15 s. */
+const DEFAULT_TIMEOUT_MS = 90000;
 
 /** Set on the builder process so a hook it fires (Muse command, Pi extension) returns. */
 export const BUILDER_GUARD = "SMARTYPANTS_BUILDING";
@@ -76,6 +77,8 @@ function floorFor(config, design, decision, target) {
 
 async function runBuilder(adapter, request, timeoutMs) {
   return withBuilderGuard(() => {
+    // Adapters that run a child process stop it at the same deadline.
+    request.timeoutMs ??= timeoutMs;
     const pending = Promise.resolve().then(() => adapter.invoke(request));
     pending.catch(() => {});
     return withTimeout(pending, timeoutMs);
@@ -280,10 +283,15 @@ async function runCatchupEvent({ cwd, config, adapter, started, timeoutMs }) {
   console.error(`smartypants flavor=${config.flavor} kind=catchup`);
   try {
     const result = await runCatchup({ root: cwd, config, adapter, withGuard: withBuilderGuard, timeoutMs: Math.max(timeoutMs, 120000) });
-    recordTurn(cwd, { kind: "catchup", action: "catchup", reason: "code", via: "local", selector: [], builder: { cost: result.state.cost || 0 }, ms: Date.now() - started });
+    const total = (key) => (result.usage || []).reduce((sum, u) => sum + (u[key] || 0), 0);
+    const builder = { inputTokens: total("inputTokens"), outputTokens: total("outputTokens"), reasoningTokens: total("reasoningTokens"), cost: result.state.cost || 0 };
+    recordTurn(cwd, { kind: "catchup", action: "catchup", reason: "code", via: "local", selector: [], builder, builderCalls: (result.usage || []).length || 1, ms: Date.now() - started });
     return { exitCode: 0, inert: false, adapterInvoked: true, request: null, error: null, designChanged: true, catchup: result.state };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    // Units read before the failure were still paid for.
+    const spent = loadCatchup(cwd);
+    if (spent?.cost) recordTurn(cwd, { kind: "catchup", action: "catchup", reason: "failed", via: "local", selector: [], builder: { cost: spent.cost }, builderCalls: spent.calls || 1, ms: Date.now() - started });
     saveCatchup(cwd, { state: "failed", error: message, message: `Catch-up failed: ${message}` });
     console.error(`smartypants: catch-up failed (${message})`);
     return { exitCode: 0, inert: false, adapterInvoked: true, request: null, error: message, designChanged: false };

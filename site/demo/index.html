@@ -18,7 +18,7 @@
           var toast = document.getElementById("toast");
           if (!toast) return;
           toast.textContent = url.indexOf("/deeper") === 0
-            ? "In your project this asks Muse Spark to expand the part. The demo is read-only."
+            ? "In your project this asks Claude to expand the part. The demo is read-only."
             : "In your project this runs in the background. The demo is read-only.";
           toast.hidden = false;
           setTimeout(function () { toast.hidden = true; }, 3200);

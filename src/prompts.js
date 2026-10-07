@@ -72,6 +72,7 @@ const NODE_RULES = [
   "Each node needs a short what and a short why, in simple words this project would actually use.",
   "what says what that part does. why is the reason it exists as its own box: the requirement, constraint, or tradeoff that forces it, with the numbers or guarantees from <intent> when they apply (why a cache: 'redirect p99 under 50ms at 10k qps; the table alone is ~20ms'). Say what breaks without it. Both are required and never the same sentence.",
   "A component belongs to one system. A module belongs to exactly one component.",
+  "Callers and third-party services drawn outside the boundary are still components of the system: set their parentId to the system id and show they are outside with zone.",
   "Set grain to the same value as kind for a real node. If you notice something is only a file, class, function, endpoint, or type, set grain to that and it will be dropped.",
 ].join("\n");
 
@@ -104,6 +105,7 @@ export function seedInstructions(floor, taxonomy = TAXONOMY) {
     SHAPE_RULES,
     NODE_RULES,
     "Seeding returns every baseline node and flow. removeNodeIds and removeConnectionIds stay empty.",
+    "Seeding always returns exactly one system node (kind system, parentId empty) for the whole project, and every component's parentId is that system's id.",
     INTENT_RULES,
     "Return JSON only, matching the schema.",
     floorRules(floor),

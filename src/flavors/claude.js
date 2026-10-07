@@ -29,6 +29,7 @@ export async function invoke(request) {
     model: request.model || process.env.SMARTYPANTS_CLAUDE_MODEL || null,
     effort: request.reasoningEffort || EFFORT_BY_KIND[request.kind] || (request.kind?.startsWith("catchup") ? "medium" : "low"),
     cwd: request.cwd || process.cwd(),
+    ...(request.timeoutMs ? { timeoutMs: request.timeoutMs } : {}),
   });
   request.usage = { ...result.usage, cost: result.cost, elapsedMs: result.elapsedMs, model: result.model };
   return parseModelPayload(result.json);

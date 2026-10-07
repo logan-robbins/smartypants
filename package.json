@@ -1,6 +1,6 @@
 {
   "name": "@logan-robbins/smartypants",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "type": "module",
   "description": "Live Mermaid-style system diagram, compact IntentCode memory, and intent-drift flags for coding agents. Claude decides and writes through your Claude Code sign-in (Sonnet 5.5 decides by default; Typesafe Jev optional).",
   "repository": {

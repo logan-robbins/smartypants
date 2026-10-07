@@ -22,7 +22,7 @@ import path from "node:path";
 import { rememberAtoms, loadIntent, saveIntent, INTENT_TOKEN_BUDGET } from "./intent.js";
 import { applyDesign, loadDesign, markSeeded, readableName, saveDesign, DESIGN_DIR } from "./model.js";
 import { isAux, isManifest, isScannable, isTestFile, listFiles, rankUnits, renderScan, RUNTIME_ROLES, scanProject } from "./scan.js";
-import { slug, TAXONOMY } from "./taxonomy.js";
+import { hasDistinctWhatWhy, isStorableNode, slug, TAXONOMY } from "./taxonomy.js";
 
 export const CATCHUP_FILE = "catchup.json";
 export const MAX_UNITS = 10;
@@ -247,6 +247,41 @@ async function pool(items, limit, work) {
   return results;
 }
 
+/**
+ * A drawing with parts but no system has nothing to hang them on. Name one after
+ * the project (its root manifest, else its folder) and put the loose parts under it.
+ */
+export function withSystem(parsed, before, scan, root) {
+  const nodes = Array.isArray(parsed?.nodes) ? parsed.nodes : [];
+  const isSystem = (node) => String(node?.kind || "").trim().toLowerCase() === "system";
+  if (!nodes.length || nodes.some(isSystem) || (before?.nodes || []).some(isSystem)) return parsed;
+  const rootUnit = (scan?.units || []).find((unit) => unit.path === ".");
+  const raw = String(rootUnit?.name || path.basename(root) || "Project").replace(/^@[^/]+\//, "");
+  const name = raw === raw.toLowerCase() ? raw.replace(/(^|[-_ ])([a-z])/g, (_, sep, ch) => `${sep}${ch.toUpperCase()}`) : raw;
+  const id = slug(name) || "project";
+  const system = { id, name, kind: "system", grain: "system", parentId: "", shape: "service", what: `The ${name} project as deployed`, why: "One boundary around everything this repository runs", blurb: "", tier: "service", zone: "", notes: [] };
+  const known = new Set(nodes.map((node) => String(node?.id || "")));
+  return {
+    ...parsed,
+    nodes: [system, ...nodes.map((node) => (String(node?.kind || "").trim().toLowerCase() === "component" && !known.has(String(node.parentId || "")) ? { ...node, parentId: id } : node))],
+  };
+}
+
+/** Why parts of a builder result would not land, counted by reason. */
+export function refusals(parsed, floor) {
+  const counts = {};
+  const bump = (reason) => (counts[reason] = (counts[reason] || 0) + 1);
+  const nodes = Array.isArray(parsed?.nodes) ? parsed.nodes : [];
+  const systems = nodes.filter((node) => String(node?.kind || "").trim().toLowerCase() === "system" && hasDistinctWhatWhy(node) && isStorableNode(node, floor));
+  for (const node of nodes) {
+    if (!node || typeof node.name !== "string" || !node.name.trim()) bump("no name");
+    else if (!hasDistinctWhatWhy(node)) bump("missing or identical what/why");
+    else if (!isStorableNode(node, floor)) bump(`kind "${node.kind}"/grain "${node.grain || ""}" not allowed at ${floor}`);
+  }
+  if (!systems.length) bump("no usable system part to hang the rest on");
+  return Object.entries(counts).map(([reason, n]) => `${n}× ${reason}`).join(", ") || "parents did not resolve";
+}
+
 function withTimeout(promise, ms, message) {
   let timer;
   return Promise.race([
@@ -362,6 +397,7 @@ async function catchup({ root, config, adapter, timeoutMs = 180000 }) {
       ].join("\n"),
     });
     try {
+      request.timeoutMs ??= unitTimeout;
       const result = await withTimeout(Promise.resolve().then(() => adapter.invoke(request)), unitTimeout, `reading ${unit.path} timed out`);
       if (!result || typeof result !== "object" || typeof result.name !== "string") throw new Error("reader returned no unit description");
       status[index] = { ...status[index], status: "read", name: result.name };
@@ -401,6 +437,7 @@ async function catchup({ root, config, adapter, timeoutMs = 180000 }) {
   request.reasoningEffort = config.reasoningEffort || "medium";
   let parsed;
   try {
+    request.timeoutMs ??= timeoutMs;
     parsed = await withTimeout(Promise.resolve().then(() => adapter.invoke(request)), timeoutMs, "catch-up synthesis timed out");
     if (!parsed || parsed.isDesign !== true || !Array.isArray(parsed.nodes) || !parsed.nodes.length) throw new Error("the builder returned no diagram");
   } catch (error) {
@@ -412,9 +449,15 @@ async function catchup({ root, config, adapter, timeoutMs = 180000 }) {
   }
   if (request.usage) usage.push(request.usage);
 
-  const applied = applyDesign(before, parsed, floor);
+  const applied = applyDesign(before, withSystem(parsed, before, scan, root), floor);
   const mark = touched(applied.design, parsed);
   let design = dropStale(applied.design, carried, mark.nodes, mark.flows);
+  if (!design.nodes.length) {
+    // An empty diagram is a failed catch-up, not a finished one. Keep what was refused and say why.
+    saveCatchup(root, { cost: usage.reduce((sum, u) => sum + (u.cost || 0), 0), calls: usage.length, seconds: Math.round((Date.now() - started) / 1000) });
+    fs.writeFileSync(path.join(root, DESIGN_DIR, "catchup-rejected.json"), `${JSON.stringify(parsed, null, 2)}\n`);
+    throw new Error(`the builder returned ${parsed.nodes.length} parts, but none could be placed on the diagram (${refusals(parsed, floor)}; see ${DESIGN_DIR}/catchup-rejected.json)`);
+  }
   design = markSeeded(design).design;
   if (config.auto) design = { ...design, level: floor };
   saveDesign(root, design);

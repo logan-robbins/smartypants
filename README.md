@@ -18,7 +18,8 @@ flags the moment a diff leaves the design you described.
   IntentCode (~200 tokens per design). At turn end, one batched check reads what changed in git;
   code that breaks a decision, a constraint, or a boundary turns red.
 - **Catches up on existing repos.** From code plus compose, Kubernetes, Helm, and Terraform: real
-  service names, flows, and network boundaries, in about a minute for about a cent.
+  service names, flows, and network boundaries, in about a minute (LiteLLM, 13k files: 72 s and
+  about $1 with Claude Code's default model, $0.21–0.52 with Sonnet 5.5).
 - **Reads like a staff engineer drew it.** Users on top, storage at the bottom, the journey left
   to right, boundaries as frames. Each box has a plain name and one line; click it for the **why**.
 
@@ -91,7 +92,8 @@ Live runs, Claude Sonnet 5.5 deciding and Claude writing ([results](results/2026
 | Per-turn decision | Sonnet 5.5 high ~3 s, ~$0.003–0.01; Jev ~0.2 s |
 | Five design interviews (32 turns, 10 edits), Muse Spark writing | triage 32/32, all 33 expected parts drawn, drift 10/10, $0.015 total |
 | Noise turns ("thanks", "run the tests") | **$0**, no model call |
-| Catch-up on 10 open-source repos | 36–115 s, $0.001–0.011 each ([crawler notes](docs/crawl/)) |
+| Catch-up of LiteLLM (12,996 files, 10 code units) | 21 parts, 31 flows in 72 s; $1.02 with Opus 5.5 (Claude Code's default), $0.21–0.52 with `"model": "claude-sonnet-5-5"` |
+| Catch-up on 10 open-source repos, Muse Spark writing | 36–115 s, $0.001–0.011 each ([crawler notes](docs/crawl/)) |
 
 Caught up from code alone — GoogleCloudPlatform/microservices-demo (11 services, Istio gateway,
 AlloyDB, GCS), twenty, and immich:

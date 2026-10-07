@@ -8,13 +8,14 @@ import * as claudeFlavor from "../src/flavors/claude.js";
 import { createChooser } from "../src/jev.js";
 import { readConfig } from "../src/config.js";
 import { installProject } from "../src/install.js";
+import { recordTurn, loadStats } from "../src/stats.js";
 import { tempProject } from "./helpers.js";
 
 /**
  * A stand-in for the Claude Code CLI. It records its argv, stdin, and env,
  * and answers every schema property with the first enum value it allows.
  */
-function fakeClaude({ fail = null } = {}) {
+function fakeClaude({ fail = null, delayMs = 0 } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "smartypants-fake-claude-"));
   const bin = path.join(dir, "claude");
   const log = path.join(dir, "calls.jsonl");
@@ -25,14 +26,14 @@ const fs = require("node:fs");
 const args = process.argv.slice(2);
 let input = "";
 process.stdin.on("data", (c) => (input += c));
-process.stdin.on("end", () => {
+process.stdin.on("end", () => setTimeout(() => {
   const at = (flag) => args[args.indexOf(flag) + 1];
   const schema = JSON.parse(at("--json-schema"));
   fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args, input, system: fs.readFileSync(at("--system-prompt-file"), "utf8"), claudecode: process.env.CLAUDECODE ?? null, key: process.env.ANTHROPIC_API_KEY ?? null }) + "\\n");
   ${fail ? `process.stdout.write(JSON.stringify({ type: "result", subtype: "success", is_error: true, result: ${JSON.stringify(fail)} })); process.exit(1);` : ""}
   const answer = (s) => s.enum ? s.enum[0] : s.type === "number" ? 0.9 : s.type === "boolean" ? false : s.type === "array" ? [] : s.type === "object" ? Object.fromEntries(Object.entries(s.properties || {}).map(([k, v]) => [k, answer(v)])) : "x";
   process.stdout.write(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "", structured_output: answer(schema), total_cost_usd: 0.001, usage: { input_tokens: 10, cache_read_input_tokens: 5, output_tokens: 3 }, modelUsage: { "claude-test": {} } }));
-});
+}, ${delayMs}));
 `,
   );
   fs.chmodSync(bin, 0o755);
@@ -173,4 +174,38 @@ test("init defaults to the claude builder", () => {
   assert.equal(config.deciderEffort, "high");
   const bad = tempProject({ flavor: "claude", deciderEffort: "turbo" });
   assert.equal(readConfig(bad).reason, "invalid-decider-effort");
+});
+
+test("a builder deadline stops the claude child instead of leaving it running", async () => {
+  const fake = fakeClaude({ delayMs: 5000 });
+  const started = Date.now();
+  await assert.rejects(
+    claudeJson({ system: "s", user: "u", schema: { type: "object" }, env: { ...process.env, SMARTYPANTS_CLAUDE_BIN: fake.bin }, timeoutMs: 300 }),
+    /timed out/,
+  );
+  assert.ok(Date.now() - started < 3000);
+  const previous = process.env.SMARTYPANTS_CLAUDE_BIN;
+  process.env.SMARTYPANTS_CLAUDE_BIN = fake.bin;
+  try {
+    await assert.rejects(claudeFlavor.invoke({ kind: "design", instructions: "i", prompt: "p", schema: { type: "object" }, timeoutMs: 300 }), /timed out/);
+  } finally {
+    if (previous === undefined) delete process.env.SMARTYPANTS_CLAUDE_BIN;
+    else process.env.SMARTYPANTS_CLAUDE_BIN = previous;
+  }
+});
+
+test("hooks give a foreground Claude turn room to finish", () => {
+  const root = tempProject();
+  installProject(root);
+  const settings = JSON.parse(fs.readFileSync(path.join(root, ".claude/settings.json"), "utf8"));
+  for (const event of ["UserPromptSubmit", "PostToolUse", "Stop"]) assert.equal(settings.hooks[event][0].hooks[0].timeout, 120);
+  const plugin = JSON.parse(fs.readFileSync(new URL("../plugins/smartypants/hooks/hooks.json", import.meta.url), "utf8"));
+  for (const event of Object.values(plugin.hooks)) assert.equal(event[0].hooks[0].timeout, 120);
+});
+
+test("a catch-up records every builder call and its tokens", () => {
+  const root = tempProject();
+  recordTurn(root, { kind: "catchup", action: "catchup", reason: "code", via: "local", selector: [], builder: { inputTokens: 900, outputTokens: 80, reasoningTokens: 0, cost: 1.02 }, builderCalls: 11 });
+  const stats = loadStats(root);
+  assert.deepEqual([stats.calls.builder, stats.tokens.input, stats.tokens.output, stats.cost], [11, 900, 80, 1.02]);
 });
