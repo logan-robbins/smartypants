@@ -14,7 +14,7 @@
  *   runs at minimal effort; the builder only runs when the selector says the
  *   turn changes the design).
  */
-import { DRIFT_SCHEMA, DESIGN_SCHEMA } from "./schema.js";
+import { DEEPER_CODE_SCHEMA, DRIFT_SCHEMA, DESIGN_SCHEMA } from "./schema.js";
 import { TAXONOMY } from "./taxonomy.js";
 
 const ARCHITECTURE_RULES = [
@@ -72,6 +72,7 @@ const NODE_RULES = [
   "Each node needs a short what and a short why, in simple words this project would actually use.",
   "what says what that part does. why is the reason it exists as its own box: the requirement, constraint, or tradeoff that forces it, with the numbers or guarantees from <intent> when they apply (why a cache: 'redirect p99 under 50ms at 10k qps; the table alone is ~20ms'). Say what breaks without it. Both are required and never the same sentence.",
   "A component belongs to one system. A module belongs to exactly one component.",
+  "Callers and third-party services drawn outside the boundary are still components of the system: set their parentId to the system id and show they are outside with zone.",
   "Set grain to the same value as kind for a real node. If you notice something is only a file, class, function, endpoint, or type, set grain to that and it will be dropped.",
 ].join("\n");
 
@@ -104,19 +105,29 @@ export function seedInstructions(floor, taxonomy = TAXONOMY) {
     SHAPE_RULES,
     NODE_RULES,
     "Seeding returns every baseline node and flow. removeNodeIds and removeConnectionIds stay empty.",
+    "Seeding always returns exactly one system node (kind system, parentId empty) for the whole project, and every component's parentId is that system's id.",
     INTENT_RULES,
     "Return JSON only, matching the schema.",
     floorRules(floor),
   ].join("\n");
 }
 
-export function deeperInstructions(floor, taxonomy = TAXONOMY) {
+export function deeperInstructions(floor, taxonomy = TAXONOMY, { code = false } = {}) {
+  const grounding = code
+    ? [
+        "This project already exists. The answer is in its code, not in a textbook design.",
+        "<code_evidence> lists the files that match the request, ranked, with outlines of the top ones. Start there, and when you can read files (Read, Grep, Glob), open them and follow imports until you know how it actually works. Do not stop at file names.",
+        "Draw what the code does: the real modules, stores, caches, and flows, named the way the code names them. Put each new module under the drawn component that owns that code, which may not be the node in <deeper>; the code's location decides.",
+        "Then compare with <graph>. Where the drawn diagram disagrees with the code (a part in the wrong place, a missing or wrong flow, a wrong what, why, or technology), fix it in this delta and record each fix in corrections, citing the file.",
+        "Every note cites the file it came from in parentheses, and stays under 200 characters including the citation. Mark anything you could not confirm in the code as a Q atom; never present a guess as fact.",
+      ]
+    : ["Ground the expansion in <intent> and <turn>. Where they are silent, use the standard design an experienced engineer would choose for this system, and mark such assumptions as Q atoms."];
   return [
     "You are the smartypants design builder, going one level deeper on the node named in <deeper>.",
     "system target: return its components. component target: return its modules (parentId is the target). module target: return the target node itself with notes.",
     "notes are 3 to 7 terse facts an interviewer would probe: data model and keys, algorithm or data structure, partitioning and replication, hot-path latency, failure handling, capacity math. No prose, no filler words.",
     "Add the flows between the new children and existing nodes. Keep everything else unchanged.",
-    "Ground the expansion in <intent> and <turn>. Where they are silent, use the standard design an experienced engineer would choose for this system, and mark such assumptions as Q atoms.",
+    ...grounding,
     ARCHITECTURE_RULES,
     taxonomy,
     SHAPE_RULES,
@@ -202,6 +213,7 @@ export function buildFlavorRequest({
   intent = "",
   target = null,
   owners = [],
+  code = "",
 }) {
   const kind = seed ? "seed" : event.type === "edit" ? "drift" : event.type === "deeper" ? "deepen" : "design";
   const instructions =
@@ -210,7 +222,7 @@ export function buildFlavorRequest({
       : kind === "seed"
         ? seedInstructions(floor, taxonomy)
         : kind === "deepen"
-          ? deeperInstructions(floor, taxonomy)
+          ? deeperInstructions(floor, taxonomy, { code: Boolean(code) })
           : designInstructions(floor, taxonomy);
   const focus = kind === "drift" && owners.length ? relevantIds(design, owners) : null;
   const graph = compactGraph(design, { withWhy: kind === "drift", only: focus && focus.size ? focus : undefined });
@@ -231,6 +243,7 @@ export function buildFlavorRequest({
     kind === "deepen" && target
       ? `<deeper>\n${target.id}|${target.kind}|${target.name}|${target.what}|${target.why}${target.notes?.length ? `\nnotes: ${target.notes.join("; ")}` : ""}\n</deeper>`
       : "",
+    kind === "deepen" && code ? `<code_evidence>\n${code}\n</code_evidence>` : "",
     kind === "seed" || kind === "design" || kind === "deepen" ? `<turn>\n${event.text || ""}\n</turn>` : "",
   ]
     .filter((part) => part !== "")
@@ -248,7 +261,8 @@ export function buildFlavorRequest({
     ledger: Array.isArray(ledger) ? ledger.filter(Boolean) : [],
     intent: intent || "",
     target: target ? target.id : null,
-    schema: kind === "drift" ? DRIFT_SCHEMA : DESIGN_SCHEMA,
+    schema: kind === "drift" ? DRIFT_SCHEMA : kind === "deepen" && code ? DEEPER_CODE_SCHEMA : DESIGN_SCHEMA,
+    code: kind === "deepen" && code ? true : false,
     model: model || null,
     reasoningEffort: reasoningEffort || null,
     cwd: cwd || null,

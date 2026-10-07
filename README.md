@@ -18,7 +18,8 @@ flags the moment a diff leaves the design you described.
   IntentCode (~200 tokens per design). At turn end, one batched check reads what changed in git;
   code that breaks a decision, a constraint, or a boundary turns red.
 - **Catches up on existing repos.** From code plus compose, Kubernetes, Helm, and Terraform: real
-  service names, flows, and network boundaries, in about a minute for about a cent.
+  service names, flows, and network boundaries, in about a minute (LiteLLM, 13k files: 72 s and
+  about $1 with Claude Code's default model, $0.21–0.52 with Sonnet 5.5).
 - **Reads like a staff engineer drew it.** Users on top, storage at the bottom, the journey left
   to right, boundaries as frames. Each box has a plain name and one line; click it for the **why**.
 
@@ -64,6 +65,12 @@ Or as a plugin: `/plugin marketplace add logan-robbins/smartypants` then
 Then just work. Say *"design YouTube top-K"* and the diagram appears; say *"go deeper on the
 aggregator"* (or double-click it) to expand a box; let the agent code and watch for red.
 
+**On a project with code, going deeper reads the code.** Ask *"go deeper on how the MCP
+credentials are managed"* and Smartypants finds the matching files, lets Claude read them
+(read-only: Read, Grep, Glob), draws the real modules with each note citing its file, and
+corrects the diagram wherever it disagreed with the code. The corrections print and are saved to
+`.smartypants/deeper.json`. On LiteLLM this took 75–94 s and $0.43–0.53.
+
 ## How it compares
 
 | | **Smartypants** | Archify | drawio-skill | Whiteboard | GitDiagram · DeepWiki | ArchUnit · dep-cruiser |
@@ -91,7 +98,8 @@ Live runs, Claude Sonnet 5.5 deciding and Claude writing ([results](results/2026
 | Per-turn decision | Sonnet 5.5 high ~3 s, ~$0.003–0.01; Jev ~0.2 s |
 | Five design interviews (32 turns, 10 edits), Muse Spark writing | triage 32/32, all 33 expected parts drawn, drift 10/10, $0.015 total |
 | Noise turns ("thanks", "run the tests") | **$0**, no model call |
-| Catch-up on 10 open-source repos | 36–115 s, $0.001–0.011 each ([crawler notes](docs/crawl/)) |
+| Catch-up of LiteLLM (12,996 files, 10 code units) | 21 parts, 31 flows in 72 s; $1.02 with Opus 5.5 (Claude Code's default), $0.21–0.52 with `"model": "claude-sonnet-5-5"` |
+| Catch-up on 10 open-source repos, Muse Spark writing | 36–115 s, $0.001–0.011 each ([crawler notes](docs/crawl/)) |
 
 Caught up from code alone — GoogleCloudPlatform/microservices-demo (11 services, Istio gateway,
 AlloyDB, GCS), twenty, and immich:
@@ -139,7 +147,7 @@ or logs; the plugin stores the ones you enter in your OS credential store.
 ```
 smartypants catchup     build the diagram from existing code, in the background
 smartypants review      review what the working tree changed, now
-smartypants deeper X    system → components → modules → deep-dive notes
+smartypants deeper X    system → components → modules → deep-dive notes, read from the code
 smartypants intent      print the IntentCode memory
 smartypants drift       list where code left the intent
 smartypants mermaid     export Mermaid

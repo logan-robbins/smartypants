@@ -233,4 +233,18 @@ test("the tiered layout puts callers on top, data at the bottom, and third parti
   assert.notEqual(down.x1, up.x2, "request and reply use separate ports");
   assert.ok(at.api.blurb.length > 0 && at.api.blurb.split(" ").length <= 9);
   assert.equal(readableName("orders-svc"), "Orders Service");
+  assert.equal(readableName("topkAPI"), "Topk API");
+  for (const product of ["LiteLLM", "OpenAI", "FastAPI", "PostgreSQL", "GitHub"]) assert.equal(readableName(product), product);
+});
+
+test("a part with no parent joins the only system; with two systems it is not guessed", () => {
+  const sys = (id, name) => ({ id, name, kind: "system", parentId: "", what: `${name} runs`, why: `${name} is needed` });
+  const part = (id, name, parentId) => ({ id, name, kind: "component", parentId, what: `${name} works`, why: `${name} is used` });
+  const one = applyDesign(emptyDesign("component"), { isDesign: true, nodes: [sys("shop", "Shop"), part("users", "Shoppers", ""), part("pay", "Stripe", null)] }, "component").design;
+  assert.deepEqual(one.nodes.map((n) => [n.name, n.parentId]), [["Shop", null], ["Shoppers", "shop"], ["Stripe", "shop"]]);
+  // A later turn that names no system still lands under the one already drawn.
+  const later = applyDesign(one, { isDesign: true, nodes: [part("mail", "Email Provider", "")] }, "component").design;
+  assert.equal(later.nodes.find((n) => n.name === "Email Provider").parentId, "shop");
+  const two = applyDesign(emptyDesign("component"), { isDesign: true, nodes: [sys("a", "Alpha"), sys("b", "Beta"), part("x", "Loose", "")] }, "component").design;
+  assert.equal(two.nodes.some((n) => n.name === "Loose"), false);
 });

@@ -56,18 +56,21 @@ function hasSmartypantsHook(doc) {
   return JSON.stringify(doc?.hooks || {}).includes("smartypants-hook");
 }
 
+/** In background mode the hook returns at once; this only bounds a foreground Claude turn. */
+const HOOK_TIMEOUT_S = 120;
+
 function addHook(doc, event, command, matcher) {
   doc.hooks ||= {};
   doc.hooks[event] ||= [];
   if (event === "PostToolUse") {
     doc.hooks[event].push({
       matcher,
-      hooks: [{ type: "command", command, timeout: 20 }],
+      hooks: [{ type: "command", command, timeout: HOOK_TIMEOUT_S }],
     });
     return;
   }
   doc.hooks[event].push({
-    hooks: [{ type: "command", command, timeout: 20 }],
+    hooks: [{ type: "command", command, timeout: HOOK_TIMEOUT_S }],
   });
 }
 

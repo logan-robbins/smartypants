@@ -26,7 +26,7 @@ export function loadStats(root) {
   }
 }
 
-/** entry: { kind, action, reason, via, selector: [usage], builder: usage|null, gained: n, ms } */
+/** entry: { kind, action, reason, via, selector: [usage], builder: usage|null, builderCalls?: n, gained: n, ms } */
 export function recordTurn(root, entry) {
   const stats = loadStats(root);
   stats.turns += 1;
@@ -42,7 +42,7 @@ export function recordTurn(root, entry) {
   for (const usage of entry.selector || []) stats.selectorCost += usage.cost || 0;
   if (entry.builder) stats.builderCost += entry.builder.cost || 0;
   stats.calls.selector += (entry.selector || []).length;
-  stats.calls.builder += entry.builder ? 1 : 0;
+  stats.calls.builder += entry.builder ? entry.builderCalls || 1 : 0;
   stats.recent = [...stats.recent, {
     at: new Date().toISOString(),
     kind: entry.kind,

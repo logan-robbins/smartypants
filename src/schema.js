@@ -90,6 +90,20 @@ export const DESIGN_SCHEMA = {
   required: ["isDesign", "nodes", "connections", "removeNodeIds", "removeConnectionIds", "intent"],
 };
 
+/** Going deeper on code that exists: the delta plus where the drawn diagram disagreed with the code. */
+export const DEEPER_CODE_SCHEMA = {
+  ...DESIGN_SCHEMA,
+  properties: {
+    ...DESIGN_SCHEMA.properties,
+    corrections: {
+      type: "array",
+      items: { type: "string" },
+      description: "Each place the diagram drawn before this turn disagreed with the code, and what the code shows instead, citing the file: 'MCP credentials are not stored on MCP Servers; the proxy keeps them encrypted in Postgres (litellm/proxy/_experimental/mcp_server/db.py)'. Empty when the diagram matched.",
+    },
+  },
+  required: [...DESIGN_SCHEMA.required, "corrections"],
+};
+
 export const DRIFT_SCHEMA = {
   type: "object",
   additionalProperties: false,

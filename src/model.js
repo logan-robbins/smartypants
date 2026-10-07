@@ -19,12 +19,27 @@ function readShape(value) {
   return SHAPES.includes(shape) ? shape : null;
 }
 
+export const NOTE_CHARS = 220;
+
+/** Shorten a note at a word boundary, keeping a trailing "(file)" citation whole. */
+export function clipNote(text, limit = NOTE_CHARS) {
+  const note = String(text || "").replace(/\s+/g, " ").trim();
+  if (note.length <= limit) return note;
+  const cite = note.match(/\s*(\([^()]{1,120}\))$/);
+  const tail = cite ? ` ${cite[1]}` : "";
+  const body = cite ? note.slice(0, cite.index) : note;
+  const room = Math.max(20, limit - tail.length - 1);
+  const cut = body.slice(0, room);
+  const word = cut.lastIndexOf(" ") > room * 0.6 ? cut.slice(0, cut.lastIndexOf(" ")) : cut;
+  return `${word.replace(/[\s,;:.]+$/, "")}…${tail}`;
+}
+
 function readNotes(value) {
   if (!Array.isArray(value)) return [];
   const seen = new Set();
   const out = [];
   for (const raw of value) {
-    const note = String(raw || "").replace(/\s+/g, " ").trim().slice(0, 160);
+    const note = clipNote(raw);
     if (!note || seen.has(note.toLowerCase())) continue;
     seen.add(note.toLowerCase());
     out.push(note);
@@ -54,6 +69,8 @@ export function readableName(value) {
   if (!name) return name;
   // Only an id-like token is rewritten; a name with spaces is the user's wording.
   if (/\s/.test(name) || !/[-_]|[a-z][A-Z]/.test(name) || /[.()/]/.test(name)) return name.slice(0, 60);
+  // A capitalized word with no separators is a product name (LiteLLM, OpenAI, FastAPI), not an id.
+  if (/^[A-Z]/.test(name) && !/[-_]/.test(name)) return name.slice(0, 60);
   name = name.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[-_]+/g, " ");
   const EXPAND = { svc: "Service", srv: "Service", db: "DB", api: "API", ui: "UI", mq: "Queue", cfg: "Config", mgr: "Manager", k8s: "K8s" };
   return name
@@ -378,6 +395,15 @@ export function applyDesign(design, result, floor = DEFAULT_FLOOR) {
 
   const systems = incoming.filter((node) => node.kind === "system");
   const knownSystems = [...existing.filter((node) => node.kind === "system"), ...systems];
+  // Models often leave users and third parties outside the system boundary with no
+  // parent. With one system there is only one place they can belong.
+  const distinctSystems = [...new Map(knownSystems.map((node) => [slug(node.name), node])).values()];
+  if (distinctSystems.length === 1) {
+    const only = distinctSystems[0];
+    for (const node of incoming) {
+      if (node.kind === "component" && !linksTo(node.parentId, knownSystems)) node.parentId = only.id || slug(only.name);
+    }
+  }
   const components = incoming.filter(
     (node) => node.kind === "component" && linksTo(node.parentId, knownSystems),
   );

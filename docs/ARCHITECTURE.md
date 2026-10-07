@@ -118,6 +118,15 @@ When 60% of the boxes at the current level are expanded, the global level moves 
   score reaches `autoDeepen` (default 3), Smartypants expands it after the turn. One node per
   turn, and never a node that already has children (or notes, for a module).
 
+**From code.** When the project has code (it was caught up, or has enough source files), a deepen
+request first ranks the files whose paths and contents carry the request's terms
+(`src/evidence.js`; `git grep` when available) and sends the ranked list plus outlines of the top
+files as `<code_evidence>`. The Claude builder also gets read-only `Read`, `Grep`, and `Glob`
+(never anything that writes), up to 40 turns and high effort, with a 300 s budget. It must draw
+what the code does, put each module under the component that owns that code, cite a file in every
+note, and compare with the drawn diagram: each disagreement is fixed in the same delta and listed
+in `corrections`, which the CLI prints and `.smartypants/deeper.json` keeps.
+
 A system expands into components, a component into modules, and a module into terse
 deep-dive `notes` (data model, algorithm, partitioning, failure handling, capacity math) that
 the canvas shows under "read more".

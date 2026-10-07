@@ -94,7 +94,14 @@ const COMMANDS = {
     const result = await handleHook({ cwd: root, event: { type: "deeper", target }, timeoutMs: 120000 });
     if (result.inert) console.log("smartypants is off here (no smartypants.config.json)");
     else if (result.error) console.log(`could not go deeper: ${result.error}`);
-    else console.log(result.designChanged ? `went deeper on ${result.triage?.target || target}` : "nothing new to add");
+    else {
+      console.log(result.designChanged ? `went deeper on ${result.triage?.target || target}` : "nothing new to add");
+      if (result.codeFiles?.length) console.log(`read the code: ${result.codeFiles.length} matching files, starting at ${result.codeFiles[0]}`);
+      if (result.corrections?.length) {
+        console.log("the diagram disagreed with the code; corrected:");
+        for (const line of result.corrections) console.log(`  - ${line}`);
+      } else if (result.codeFiles?.length) console.log("the diagram matched the code");
+    }
     process.exit(0);
   },
   mermaid() {
