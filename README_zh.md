@@ -30,10 +30,13 @@ npx smartypants serve       # 打开输出的地址
 所以 Claude Code 能用的方式都能直接用，无需额外 key：`ANTHROPIC_API_KEY`、Bedrock / Vertex / Foundry、`ANTHROPIC_BASE_URL` 网关，
 或 `claude` 登录。没有 Claude Code 的宿主可用 `init --flavor codex|pi|grok|meta`。
 
-**加上 Jev（可选，推荐）。** Jev 约 0.2 秒回答每轮的小问题，成本不到一美分的零头，只有需要写入时才调用 Claude：
+**判断与写入。** 每轮的小问题（是否值得记住、这次改动是否符合设计）默认由 Claude Sonnet 5.5（high effort）回答，
+这是我们测得最准确的设置（每次约 3 秒、$0.003–0.01）；需要写入时由 Claude Code 当前登录的默认模型写图和偏移说明（可用 `"model"` 固定）。
+
+**替代方案：Typesafe Jev 负责判断。** 每次约 0.2 秒、成本不到一美分的零头；写入仍由 Claude 完成，Jev 不可用时 Claude 自己判断。
 在 [console.typesafe.ai/keys](https://console.typesafe.ai/keys) 登录并创建 API key，在启动代理的 shell 中
-`export TYPESAFE_API_KEY=...`（或写入 dotenv 并设置 `"envFile"`，或填入 Claude Code 插件的 “Typesafe (Jev) API key” 设置），然后重启代理会话。
-没有它时这些问题也由 Claude 回答（每次约 3 秒、1–2 美分）。
+`export TYPESAFE_API_KEY=...`（或写入 dotenv 并设置 `"envFile"`，或填入 Claude Code 插件的 “Typesafe (Jev) API key” 设置），
+在 `smartypants.config.json` 中设置 `"decider": "jev"`，然后重启代理会话。
 
 插件：`/plugin marketplace add logan-robbins/smartypants` 然后 `/plugin install smartypants@smartypants`（Claude Code）·
 `codex plugin marketplace add logan-robbins/smartypants`（Codex）· `pi install git:github.com/logan-robbins/smartypants`（Pi）·

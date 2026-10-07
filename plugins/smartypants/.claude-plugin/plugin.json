@@ -1,7 +1,7 @@
 {
   "name": "smartypants",
   "description": "Keeps a Mermaid-style system diagram and a compact memory of your architectural intent while an agent codes, goes deeper on any part on request, and flags where the code drifts from the intent.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": {
     "name": "Logan Robbins",
     "url": "https://github.com/logan-robbins"
@@ -24,8 +24,8 @@
   "userConfig": {
     "typesafe_api_key": {
       "type": "string",
-      "title": "Typesafe (Jev) API key (optional, recommended)",
-      "description": "Jev answers the per-turn questions in ~0.2 s so Claude only runs when there is work. Create a key at https://console.typesafe.ai/keys. Without it, Claude answers them too.",
+      "title": "Typesafe (Jev) API key (optional alternative)",
+      "description": "Only used with \"decider\": \"jev\" in smartypants.config.json: Jev answers the per-turn questions in ~0.2 s instead of Claude Sonnet 5.5. Create a key at https://console.typesafe.ai/keys.",
       "sensitive": true
     },
     "meta_api_key": {

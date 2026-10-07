@@ -11,20 +11,21 @@
  *   choose(state, { id: { question, options: [{ value, label }], fallback } })
  *     -> { id: { value, confidence } }
  *
+ * - claude: Claude Sonnet 5.5 at high effort by default (`deciderModel`,
+ *   `deciderEffort`), through the host's Claude Code CLI and its sign-in.
  * - jev: Typesafe's Jev (`/v1/systemone`, `jev-latest`), TYPESAFE_API_KEY.
- * - claude: the same menus answered by Claude at low effort, through the
- *   host's Claude Code CLI and its sign-in.
  * - meta: the same menus answered by Muse Spark at minimal reasoning effort,
  *   escalating to low effort only for questions under the confidence floor.
  * - heuristic: each question's local `fallback`, no network.
  *
- * `auto` asks Jev, and only when there is no Jev key or Jev is unreachable
- * does the builder's own model (Claude or Muse Spark) answer the menus.
+ * `auto` with the claude builder asks Claude Sonnet 5.5. Jev is the
+ * alternative: `"decider": "jev"` asks Jev first, and Claude answers only when
+ * Jev is unreachable. Other builders keep Jev, then Muse Spark.
  *
  * The selector never writes and the writer never re-picks: as in WindTunnel
- * (Jev selects actions; Mercury writes arguments and the final answer), Jev
- * decides what happens and the builder (Claude by default) writes the delta or
- * the drift note. An unsure pick is resolved toward doing the work (triage builds
+ * (Jev selects actions; Mercury writes arguments and the final answer), the
+ * selector decides what happens and the builder (Claude by default) writes the
+ * delta or the drift note. An unsure pick is resolved toward doing the work (triage builds
  * unless a skip is confident; review sends unsure files to the drift writer),
  * and the writer's output is what lands, so it can still find no change.
  */
@@ -34,7 +35,10 @@ import { META_MODEL, metaJson, metaKey } from "./meta.js";
 export const JEV_URL = "https://api.typesafe.ai/v1/systemone";
 export const JEV_MODEL = "jev-latest";
 export const JEV_REQUEST_CHAR_LIMIT = 100000;
-export const DECIDERS = ["auto", "jev", "claude", "meta", "heuristic"];
+export const DECIDERS = ["auto", "claude", "jev", "meta", "heuristic"];
+/** Measured on the held-out triage set: Sonnet 5.5 at high matched xhigh (32/34) for less. */
+export const CLAUDE_DECIDER_MODEL = "claude-sonnet-5-5";
+export const CLAUDE_DECIDER_EFFORT = "high";
 
 const SELECT_SYSTEM = [
   "You are System One, a fast selector for a live architecture diagram.",
@@ -144,7 +148,7 @@ export function metaChooser({ env = process.env, model = META_MODEL, escalateBel
   };
 }
 
-export function claudeChooser({ env = process.env, model = null, cwd, record } = {}) {
+export function claudeChooser({ env = process.env, model = CLAUDE_DECIDER_MODEL, effort = CLAUDE_DECIDER_EFFORT, cwd, record } = {}) {
   return {
     via: "claude",
     async choose(state, questions) {
@@ -153,9 +157,9 @@ export function claudeChooser({ env = process.env, model = null, cwd, record } =
         user: JSON.stringify({ state, questions: menus(questions) }),
         schema: answerSchema(questions),
         model,
-        effort: "low",
+        effort,
         env,
-        timeoutMs: 60000,
+        timeoutMs: 120000,
         ...(cwd ? { cwd } : {}),
       });
       record?.({ via: "claude", model: result.model, ...result.usage, cost: result.cost, elapsedMs: result.elapsedMs });
@@ -167,25 +171,32 @@ export function claudeChooser({ env = process.env, model = null, cwd, record } =
 }
 
 /**
- * Pick a selector chain for the config. `auto` prefers Jev, then the
- * builder's own model (Claude for the claude flavor, Muse Spark when a Meta
- * key is set), then the heuristic. A failing selector falls through to the next one so a hook
- * never blocks on a provider outage.
+ * Pick a selector chain for the config. With the claude builder, `auto` asks
+ * Claude Sonnet 5.5; `jev` asks Jev, then Claude. Other builders keep Jev,
+ * then Muse Spark. The heuristic always ends the chain, and a failing selector
+ * falls through to the next one so a hook never blocks on a provider outage.
  */
 export function createChooser(config = {}, { env = process.env, fetchCall, record } = {}) {
   const wanted = env.SMARTYPANTS_DECIDER || config.decider || "auto";
   const chain = [];
   const jev = () => env.TYPESAFE_API_KEY && chain.push(jevChooser({ env, fetchCall, record }));
   const meta = () => metaKey(env) && chain.push(metaChooser({ env, model: config.deciderModel || META_MODEL, fetchCall, record }));
-  const claude = () => chain.push(claudeChooser({ env, model: config.deciderModel || config.model || null, cwd: config.cwd, record }));
-  if (wanted === "jev") jev();
-  else if (wanted === "claude") claude();
+  const claude = () =>
+    chain.push(claudeChooser({ env, model: config.deciderModel || CLAUDE_DECIDER_MODEL, effort: config.deciderEffort || CLAUDE_DECIDER_EFFORT, cwd: config.cwd, record }));
+  const claudeBuilder = (config.flavor || "claude") === "claude";
+  if (wanted === "claude") claude();
   else if (wanted === "meta") meta();
-  else if (wanted === "auto") {
-    // Jev selects; the builder's model answers the menus only if Jev is unavailable.
+  else if (wanted === "jev") {
+    // The alternative: Jev selects; the builder's model answers only if Jev is unreachable.
     jev();
-    if ((config.flavor || "claude") === "claude") claude();
+    if (claudeBuilder) claude();
     else meta();
+  } else if (wanted === "auto") {
+    if (claudeBuilder) claude();
+    else {
+      jev();
+      meta();
+    }
   }
   chain.push(heuristicChooser());
   return {

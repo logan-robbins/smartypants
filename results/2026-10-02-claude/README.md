@@ -1,5 +1,9 @@
 # Claude as the default builder, Jev selecting
 
+> **Selector default changed in [2026-10-07-sonnet-decider](../2026-10-07-sonnet-decider/README.md):**
+> Claude Sonnet 5.5 at high effort now answers the per-turn menus by default; Jev is the
+> alternative (`"decider": "jev"`). The builder results below still hold.
+
 Date: 2026-10-02. The builder (the writer) is Claude, called through the host's own Claude Code
 CLI in headless mode (`claude -p`, no tools, no settings, no MCP, no saved session), so it signs in
 the way that Claude Code does. No model was pinned, so Claude Code's default for the session's sign-in

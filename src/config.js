@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { FLAVOR_IDS } from "./flavors/ids.js";
+import { CLAUDE_EFFORTS } from "./claude.js";
 import { DECIDERS } from "./jev.js";
 import { FLOORS, normalizeFloor } from "./taxonomy.js";
 
@@ -51,6 +52,9 @@ export function readConfig(root) {
   if (raw.decider != null && !DECIDERS.includes(raw.decider)) {
     return { present: true, config: null, reason: "invalid-decider" };
   }
+  if (raw.deciderEffort != null && !CLAUDE_EFFORTS.includes(raw.deciderEffort)) {
+    return { present: true, config: null, reason: "invalid-decider-effort" };
+  }
   if (raw.autoDeepen != null && raw.autoDeepen !== false && !(Number.isInteger(raw.autoDeepen) && raw.autoDeepen > 0)) {
     return { present: true, config: null, reason: "invalid-auto-deepen" };
   }
@@ -76,6 +80,7 @@ export function readConfig(root) {
       auto: raw.depth === "auto",
       decider: raw.decider || "auto",
       deciderModel: typeof raw.deciderModel === "string" && raw.deciderModel.trim() ? raw.deciderModel.trim() : null,
+      deciderEffort: raw.deciderEffort ?? null,
       autoDeepen: raw.autoDeepen === false ? false : raw.autoDeepen || 3,
       background: raw.background === true,
       review: raw.review || "both",

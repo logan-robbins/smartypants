@@ -82,6 +82,7 @@ function starterConfig({ flavor, seed }) {
     depth: "auto",
     seed: Boolean(seed),
     decider: "auto",
+    ...(flavor === "claude" ? { deciderModel: "claude-sonnet-5-5", deciderEffort: "high" } : {}),
     background: true,
     review: "turn",
     model: null,
