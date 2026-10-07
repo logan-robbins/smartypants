@@ -4,7 +4,7 @@
  * Compares the free local stage alone ("heuristic") with the Jev-protocol
  * selector on Muse Spark ("meta") and, when TYPESAFE_API_KEY is set, real Jev.
  *
- *   node eval/triage.mjs [--deciders heuristic,meta,jev] [--out results/<dir>]
+ *   node eval/triage.mjs [--deciders heuristic,claude,meta,jev] [--decider-model M] [--decider-effort E] [--out results/<dir>]
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -20,6 +20,8 @@ const opt = (name, fallback) => {
   return i === -1 ? fallback : args[i + 1];
 };
 const deciders = opt("deciders", "heuristic,meta,jev").split(",");
+const deciderModel = opt("decider-model", null);
+const deciderEffort = opt("decider-effort", null);
 const out = path.resolve(pkg, opt("out", `results/${new Date().toISOString().slice(0, 10)}-meta-jev`));
 const holdout = JSON.parse(fs.readFileSync(path.join(pkg, "examples/triage-holdout.json"), "utf8"));
 
@@ -39,8 +41,8 @@ for (const decider of deciders) {
     continue;
   }
   const usage = [];
-  const chooser = createChooser({ decider }, { env: { ...process.env, SMARTYPANTS_DECIDER: decider }, record: (u) => usage.push(u) });
-  const row = { decider, turns: 0, exact: 0, keepOk: 0, falseSkip: 0, falseKeep: 0, edits: 0, editOk: 0, missedDrift: 0, builderAvoided: 0, selectorCalls: 0, cost: 0, ms: 0 };
+  const chooser = createChooser({ decider, deciderModel, deciderEffort }, { env: { ...process.env, SMARTYPANTS_DECIDER: decider }, record: (u) => usage.push(u) });
+  const row = { decider: [decider, deciderModel, deciderEffort].filter(Boolean).join(" "), turns: 0, exact: 0, keepOk: 0, falseSkip: 0, falseKeep: 0, edits: 0, editOk: 0, missedDrift: 0, builderAvoided: 0, selectorCalls: 0, cost: 0, ms: 0 };
   const quiet = console.error;
   console.error = () => {};
   const tasks = holdout.turns.map(async (turn) => {

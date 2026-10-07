@@ -91,7 +91,7 @@
         </article>
         <article>
           <h3>Cheap by design</h3>
-          <p>Two models, two jobs: <strong>Jev selects, Claude writes.</strong> A free local pass drops noise, Typesafe Jev decides in about 200&nbsp;ms what a turn is worth and which part it touches, and Claude, through your own Claude Code sign-in, writes the diagram update or drift note only when there is work. Greetings, “run the tests”, and doc edits cost nothing, and your agent never waits.</p>
+          <p>Two jobs: <strong>one model decides, Claude writes.</strong> A free local pass drops noise, Claude Sonnet 5.5 (or Typesafe Jev, if you prefer) decides what a turn is worth and which part it touches, and Claude, through your own Claude Code sign-in, writes the diagram update or drift note only when there is work. Greetings, “run the tests”, and doc edits cost nothing, and your agent never waits.</p>
         </article>
       </div>
     </section>
@@ -103,8 +103,8 @@
           <h3>In a project</h3>
 <pre><code>npm install -D @logan-robbins/smartypants
 npx smartypants init        # hooks, config, and catch-up if code exists
-# Claude writes the diagram through your Claude Code sign-in: no key needed
-export TYPESAFE_API_KEY=... # optional: Jev picks in ~200 ms (console.typesafe.ai/keys)
+# Claude decides and writes through your Claude Code sign-in: no key needed
+# alternative: "decider": "jev" + TYPESAFE_API_KEY (console.typesafe.ai/keys)
 npx smartypants serve       # open the printed URL</code></pre>
         </div>
         <div>
@@ -126,13 +126,13 @@ pi install git:github.com/logan-robbins/smartypants</code></pre>
 
     <section id="results" class="results">
       <h2>Measured, not promised</h2>
-      <p class="section-lede">Live runs: Typesafe Jev selecting and Claude writing, on labeled agent changes to a real repo and held-out design turns.</p>
+      <p class="section-lede">Live runs: Claude writing, with Claude Sonnet 5.5 (default) or Typesafe Jev deciding, on labeled agent changes to a real repo and held-out design turns.</p>
       <table>
-        <thead><tr><th></th><th>Jev + Claude</th><th>Claude alone</th></tr></thead>
+        <thead><tr><th></th><th>Sonnet 5.5 decides (default)</th><th>Jev decides</th></tr></thead>
         <tbody>
-          <tr><td>End-of-turn drift review, 22 labeled turns</td><td><strong>22/22</strong>, none missed, no false alarms, 7.3&nbsp;s</td><td>22/22, 9.7&nbsp;s</td></tr>
-          <tr><td>“Worth remembering?” on held-out turns</td><td>none worth keeping dropped</td><td>34/34 (local rules alone: 23/34)</td></tr>
-          <tr><td>Per-turn decision</td><td><strong>~0.2&nbsp;s</strong>, a fraction of a cent</td><td>~2.9&nbsp;s, ~1.5¢</td></tr>
+          <tr><td>End-of-turn drift review, 22 labeled turns</td><td><strong>22/22</strong>, none missed, no false alarms, 10.2&nbsp;s</td><td>22/22, 7.3&nbsp;s</td></tr>
+          <tr><td>Held-out triage, 34 turns</td><td><strong>32/34</strong>, none worth keeping dropped</td><td>29/34, none worth keeping dropped</td></tr>
+          <tr><td>Per-turn decision</td><td>~3&nbsp;s, ~$0.003–0.01</td><td><strong>~0.2&nbsp;s</strong>, a fraction of a cent</td></tr>
           <tr><td>Catch-up of an existing repo</td><td colspan="2">real service names, flows, and network boundaries from code plus compose, k8s, Helm, Terraform; 36–115&nbsp;s and about a cent on 10 open-source repos</td></tr>
         </tbody>
       </table>

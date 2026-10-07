@@ -12,7 +12,7 @@ flowchart LR
   host(["Claude Code / Codex / Pi / Muse / Grok"]) -->|"hook event"| dispatch{{"dispatch<br/>background queue"}}
   dispatch --> s0["stage 0: local salience<br/>free"]
   s0 -->|"noise, commands,<br/>numeric constraints"| memory[("intent.json<br/>IntentCode")]
-  s0 -->|"ambiguous"| s1["stage 1: Jev-protocol selector<br/>Jev → builder model, low effort → local"]
+  s0 -->|"ambiguous"| s1["stage 1: Jev-protocol selector<br/>Claude Sonnet 5.5, high effort → local<br/>(alternative: Jev → Claude → local)"]
   s1 -->|"skip"| stats[("stats.json")]
   s1 -->|"remember"| memory
   s1 -->|"build / deepen / drift"| s2["stage 2: builder<br/>Claude via the host claude CLI"]
@@ -21,7 +21,7 @@ flowchart LR
   design --> canvas(["Mermaid-style canvas"])
 ```
 
-## The Jev + Mercury pattern, with Claude
+## The selector + writer pattern, with Claude
 
 WindTunnel's best configuration (`results/2026-09-18-jev-mercury`) splits an agent into a
 **selector** that only picks from a closed menu with a calibrated confidence (Jev), and a
@@ -33,16 +33,26 @@ Smartypants applies the same split to design memory:
 | WindTunnel | Smartypants |
 |---|---|
 | menu of page actions | menu per turn: `signal` (arch, constraint, detail, drift, noise), `impact` (none, annotate, extend, restructure), `level` (system, component, module), `target` (which node), `verdict` for edits (conforms, diverges, new-boundary, not-architectural) |
-| Jev chooses the action | `src/jev.js`: Typesafe Jev (`/v1/systemone`, `jev-latest`) when `TYPESAFE_API_KEY` is set |
+| Jev chooses the action | `src/jev.js`: Claude Sonnet 5.5 at high effort by default (`deciderModel`, `deciderEffort`); Typesafe Jev (`/v1/systemone`, `jev-latest`) as the alternative with `"decider": "jev"` and `TYPESAFE_API_KEY` |
 | Mercury writes the arguments | the builder flavor writes the delta; `claude` by default, through the host's own `claude` CLI and sign-in |
 | `minConfidence` abstains | an unsure "noise" is built anyway; only a confident skip skips |
 
-When no Jev key is present (or Jev is unreachable), the builder's own model answers the **same
-menus** in one batched call with a strict JSON schema whose answers are enum keys (`c0`, `c1`, …):
-`claudeChooser` asks Claude at `low` effort for the `claude` flavor, and `metaChooser` asks Muse
-Spark at `reasoning_effort: minimal` (re-asking questions under 0.6 confidence at `low`) when a
-Meta key is set for the other flavors. Any selector failure falls through to the
-next one; the local heuristic never fails, so a provider outage never blocks a turn.
+Every selector answers the **same menus** in one batched call, with a strict JSON schema whose
+answers are enum keys (`c0`, `c1`, …). The chain per `decider`:
+
+| `decider` | claude builder | other builders |
+|---|---|---|
+| `auto` (default) | Claude Sonnet 5.5, high → local | Jev → Muse Spark → local |
+| `jev` | Jev → Claude Sonnet 5.5 → local | Jev → Muse Spark → local |
+| `claude` | Claude Sonnet 5.5 → local | same |
+| `meta` | Muse Spark → local | same |
+| `heuristic` | local | local |
+
+`claudeChooser` runs the host `claude` CLI like the builder does (below). Sonnet 5.5 at `high`
+was chosen on the held-out triage set: `low` 30/34, `high` 32/34, `xhigh` 32/34 at higher cost
+(`results/2026-10-07-sonnet-decider`). `metaChooser` asks Muse Spark at `reasoning_effort:
+minimal`, re-asking questions under 0.6 confidence at `low`. Any selector failure falls through
+to the next one; the local heuristic never fails, so a provider outage never blocks a turn.
 
 ## The four questions
 

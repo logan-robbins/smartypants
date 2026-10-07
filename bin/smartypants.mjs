@@ -44,9 +44,10 @@ const COMMANDS = {
       console.log("model: Claude, through this machine's Claude Code (the same sign-in: ANTHROPIC_API_KEY, Bedrock/Vertex/Foundry, or `claude` login).");
       console.log("       Set \"model\" in smartypants.config.json to pin one; otherwise Claude Code's default is used.");
     }
-    if (!process.env.TYPESAFE_API_KEY) {
-      console.log("jev:   optional and recommended. Create a key at https://console.typesafe.ai/keys and export TYPESAFE_API_KEY;");
-      console.log("       Jev then answers the per-turn questions in ~200 ms and Claude only writes when there is work.");
+    if (flavor === "claude") {
+      console.log("decisions: Claude Sonnet 5.5 at high effort answers the per-turn questions (deciderModel, deciderEffort).");
+      console.log("           Alternative: Typesafe Jev. Create a key at https://console.typesafe.ai/keys, export TYPESAFE_API_KEY,");
+      console.log('           and set "decider": "jev" (~0.2 s per decision; Claude answers if Jev is unreachable).');
     }
     if (flavor === "meta") {
       console.log("data: design turns, changed files, and (on catch-up) key source files go to api.meta.ai.");

@@ -31,17 +31,22 @@ commands below instead of drawing a diagram by hand.
    Any harness can keep the `claude` default if Claude Code is installed and signed in on this
    machine. Check with `claude --version`; if it is missing, use the row for your harness. If the
    hook later logs `Not logged in`, the user runs `claude` once and signs in, or exports
-   `ANTHROPIC_API_KEY`. `"model"` in the config pins a Claude model; otherwise Claude Code's
-   default for that sign-in is used.
-3. Tell the user about Jev (optional, recommended). Jev answers the small per-turn questions (is
-   this turn worth remembering, does this diff conform) in about 0.2 s for a fraction of a cent, so
-   Claude only runs when there is something to write. Without a key, Claude answers those questions
-   too (about 3 s and 1–2 cents each). To get a key:
+   `ANTHROPIC_API_KEY`.
+
+   With the `claude` builder, two Claude roles are configured in `smartypants.config.json`:
+   - decisions (the small per-turn questions: worth remembering? does this diff conform?):
+     `"deciderModel": "claude-sonnet-5-5"`, `"deciderEffort": "high"`, written by `init`. This is
+     the most accurate setting measured; do not lower the effort to save cost unless the user asks.
+   - writing (diagram updates, drift notes): `"model"`; unset means Claude Code's default for
+     that sign-in.
+3. Mention Typesafe Jev as the alternative for decisions: ~0.2 s and a fraction of a cent per
+   decision instead of ~3 s and ~$0.003–0.01 with Sonnet 5.5; Claude still writes, and decides
+   itself if Jev is unreachable. Only if the user wants it:
    1. Sign in at https://console.typesafe.ai/keys and create an API key.
    2. Make it visible to the hook as `TYPESAFE_API_KEY`: export it in the shell profile that
       starts the agent, put it in a dotenv file and set `"envFile"` in `smartypants.config.json`,
       or (Claude Code plugin) enter it in the plugin's "Typesafe (Jev) API key" setting.
-   3. Restart the agent session so the hook sees it.
+   3. Set `"decider": "jev"` in `smartypants.config.json` and restart the agent session.
 
    Never print, echo, or ask for key values in chat.
 4. `npx smartypants serve` in the background; give the user the URL it prints (it takes the next

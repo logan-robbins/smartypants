@@ -118,7 +118,7 @@ test("the claude builder writes through the host CLI and reports usage", async (
   }
 });
 
-test("claude flavor, auto: Jev selects; Claude answers the menus only without Jev", async () => {
+test("claude flavor: Sonnet 5.5 at high effort decides by default; Jev is the opt-in alternative", async () => {
   const fake = fakeClaude();
   const questions = {
     signal: { question: "q", options: [{ value: "noise" }, { value: "arch" }] },
@@ -127,23 +127,33 @@ test("claude flavor, auto: Jev selects; Claude answers the menus only without Je
   const jevUp = async () => new Response(JSON.stringify({ model: "jev-1.13.0", answers: { signal: { choice: "c1", confidence: 0.97 }, impact: { choice: "c1", confidence: 0.8 } } }));
   const env = { ...process.env, SMARTYPANTS_DECIDER: "", SMARTYPANTS_CLAUDE_BIN: fake.bin, TYPESAFE_API_KEY: "t", META_API_KEY: "m" };
 
-  const withJev = await createChooser({ decider: "auto", flavor: "claude" }, { env, fetchCall: jevUp }).choose({}, questions);
+  const byDefault = await createChooser({ decider: "auto", flavor: "claude" }, { env, fetchCall: jevUp }).choose({}, questions);
+  assert.equal(byDefault.via, "claude", "a Jev key alone does not switch the default");
+  const [call] = fake.calls();
+  assert.deepEqual([call.args[call.args.indexOf("--model") + 1], call.args[call.args.indexOf("--effort") + 1]], ["claude-sonnet-5-5", "high"]);
+  const pinned = await createChooser({ decider: "auto", flavor: "claude", deciderModel: "claude-opus-5-5", deciderEffort: "xhigh" }, { env }).choose({}, questions);
+  assert.equal(pinned.via, "claude");
+  const last = fake.calls().at(-1);
+  assert.deepEqual([last.args[last.args.indexOf("--model") + 1], last.args[last.args.indexOf("--effort") + 1]], ["claude-opus-5-5", "xhigh"]);
+
+  const calls = fake.calls().length;
+  const withJev = await createChooser({ decider: "jev", flavor: "claude" }, { env, fetchCall: jevUp }).choose({}, questions);
   assert.equal(withJev.via, "jev");
-  assert.equal(fake.calls().length, 0);
+  assert.equal(fake.calls().length, calls, "Jev answered, so Claude was not asked");
 
   const original = console.error;
   console.error = () => {};
   try {
     const down = async () => new Response("down", { status: 503 });
-    const failover = await createChooser({ decider: "auto", flavor: "claude" }, { env, fetchCall: down }).choose({}, questions);
-    assert.equal(failover.via, "claude", "the builder's own model answers, not Muse Spark");
+    const failover = await createChooser({ decider: "jev", flavor: "claude" }, { env, fetchCall: down }).choose({}, questions);
+    assert.equal(failover.via, "claude", "Jev down: Claude answers, not Muse Spark");
     assert.equal(failover.answers.signal.value, "noise");
   } finally {
     console.error = original;
   }
 
-  const noJev = createChooser({ decider: "auto", flavor: "claude" }, { env: { ...env, TYPESAFE_API_KEY: "" } });
-  assert.equal(noJev.via, "claude");
+  const noJev = createChooser({ decider: "jev", flavor: "claude" }, { env: { ...env, TYPESAFE_API_KEY: "" } });
+  assert.equal(noJev.via, "claude", "decider jev without a key still decides with Claude");
   const broken = createChooser({ decider: "auto", flavor: "claude" }, { env: { ...env, TYPESAFE_API_KEY: "", SMARTYPANTS_CLAUDE_BIN: path.join(os.tmpdir(), "no-such-claude") } });
   console.error = () => {};
   try {
@@ -159,4 +169,8 @@ test("init defaults to the claude builder", () => {
   const { config } = readConfig(root);
   assert.equal(config.flavor, "claude");
   assert.equal(config.decider, "auto");
+  assert.equal(config.deciderModel, "claude-sonnet-5-5");
+  assert.equal(config.deciderEffort, "high");
+  const bad = tempProject({ flavor: "claude", deciderEffort: "turbo" });
+  assert.equal(readConfig(bad).reason, "invalid-decider-effort");
 });

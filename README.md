@@ -33,19 +33,24 @@ npx smartypants serve       # open the printed URL
 **The model is Claude, signed in the way your Claude Code already is.** Smartypants runs this
 machine's `claude` CLI headless (tool-less, settings-less, one answer per call), so whatever
 Claude Code uses works with no extra key: `ANTHROPIC_API_KEY`, Bedrock / Vertex / Foundry, a
-gateway on `ANTHROPIC_BASE_URL`, or your `claude` login. Pin a model with `"model"` in the config.
+gateway on `ANTHROPIC_BASE_URL`, or your `claude` login. Two roles:
+
+- **Decisions:** Claude Sonnet 5.5 at high effort answers the small per-turn questions (is this
+  worth remembering, does this diff conform). ~3 s and ~$0.003–0.01 each, and the most accurate
+  setting we measured ([results](results/2026-10-07-sonnet-decider/README.md)).
+- **Writing:** Claude Code's default model for your sign-in writes the diagram and drift notes,
+  only when a decision says there is work. Pin it with `"model"`.
+
 On another harness without Claude Code, pick its builder with `init --flavor codex|pi|grok|meta`
 ([Config](#config)).
 
-**Add Jev (optional, recommended).** Jev answers the small per-turn questions in ~0.2 s for a
-fraction of a cent, so Claude only runs when there is something to write:
+**Alternative: Typesafe Jev for the decisions.** ~0.2 s per decision for a fraction of a cent;
+Claude still writes, and answers the decisions itself if Jev is unreachable:
 
 1. Sign in at [console.typesafe.ai/keys](https://console.typesafe.ai/keys) and create an API key.
 2. `export TYPESAFE_API_KEY=...` in the shell that starts your agent (or put it in a dotenv file
    and set `"envFile"`, or enter it in the Claude Code plugin's "Typesafe (Jev) API key" setting).
-3. Restart the agent session.
-
-Without it, Claude answers those questions too (~3 s and 1–2 cents each).
+3. Set `"decider": "jev"` in `smartypants.config.json` and restart the agent session.
 
 Or as a plugin: `/plugin marketplace add logan-robbins/smartypants` then
 `/plugin install smartypants@smartypants` (Claude Code) ·
@@ -74,15 +79,16 @@ sources: [docs/research/competitors.md](docs/research/competitors.md).
 
 ## Proof
 
-Live runs, Jev selecting and Claude writing ([results](results/2026-10-02-claude/README.md) ·
+Live runs, Claude Sonnet 5.5 deciding and Claude writing ([results](results/2026-10-07-sonnet-decider/README.md) ·
+[Jev deciding](results/2026-10-02-claude/README.md) ·
 [with Muse Spark writing](results/2026-10-02-jev-muse/README.md) ·
 [selector benchmarks](results/2026-09-27-jev/README.md)):
 
 | | result |
 |---|---|
-| Stop-hook review of labeled agent changes × 2, end to end | **22/22 drift flags right, 0 missed, 0 false alarms**, 7.3 s per turn (Claude selecting too: 22/22, 9.7 s) |
-| "Is this turn worth remembering?" on 34 held-out turns | **no turn worth keeping was dropped** by Jev (0 false skips over 3 reps) or by Claude (34/34); local rules alone get 23/34 |
-| Per-turn decision | **~0.2 s** with Jev; ~2.9 s and ~1.5¢ when Claude answers the same menus |
+| Stop-hook review of labeled agent changes × 2, end to end | **22/22 drift flags right, 0 missed, 0 false alarms**, 10.2 s per turn (Jev deciding: 22/22, 7.3 s) |
+| Held-out triage, 34 turns + 10 edits | Sonnet 5.5 high: **32/34 exact, 34/34 keep-vs-skip, 9/10 drift verdicts, 0 missed** (Jev: 29/34 per rep; local rules alone 18/34) |
+| Per-turn decision | Sonnet 5.5 high ~3 s, ~$0.003–0.01; Jev ~0.2 s |
 | Five design interviews (32 turns, 10 edits), Muse Spark writing | triage 32/32, all 33 expected parts drawn, drift 10/10, $0.015 total |
 | Noise turns ("thanks", "run the tests") | **$0**, no model call |
 | Catch-up on 10 open-source repos | 36–115 s, $0.001–0.011 each ([crawler notes](docs/crawl/)) |
@@ -122,7 +128,7 @@ double-click to go deeper.
 Nothing, in a project without `smartypants.config.json`. With the default `claude` builder:
 design turns, part names, changed-file diffs at turn end, and (for catch-up) key source files go
 to Claude through your own Claude Code, under the same account, provider, and data terms it
-already uses. Smartypants never reads or stores a Claude credential. With `TYPESAFE_API_KEY`,
+already uses. Smartypants never reads or stores a Claude credential. With `"decider": "jev"`,
 per-turn triage questions (turn text, part names) go to Typesafe (Jev). With the `meta` builder
 they go to **api.meta.ai**, whose default `muse-spark-1.3-contributor` tier **may be used for
 training** (`"model": "muse-spark-1.3"` opts out). Keys are never written to the diagram, memory,
@@ -150,7 +156,7 @@ Plugin commands mirror these: `/smartypants`, `/smartypants:deeper`, `:catchup`,
 `smartypants.config.json` is the on switch. `init` writes:
 
 ```json
-{ "flavor": "claude", "depth": "auto", "seed": false, "decider": "auto", "background": true, "review": "turn" }
+{ "flavor": "claude", "depth": "auto", "seed": false, "decider": "auto", "deciderModel": "claude-sonnet-5-5", "deciderEffort": "high", "background": true, "review": "turn" }
 ```
 
 | key | meaning |
@@ -158,7 +164,9 @@ Plugin commands mirror these: `/smartypants`, `/smartypants:deeper`, `:catchup`,
 | `flavor` | builder: `claude` (default; this machine's Claude Code and its sign-in), `codex` (`OPENAI_API_KEY`), `pi`, `grok` (`XAI_API_KEY`), `meta` (Muse Spark, `META_API_KEY`), `muse` |
 | `model` | builder model; unset = Claude Code's default for your sign-in (e.g. `claude-opus-5-5`, or an alias like `sonnet`) |
 | `depth` | `auto` (start from what you said, go finer as you do) or `system` / `component` / `module` |
-| `decider` | who answers the per-turn menus: `auto` (Jev; the builder's own model only if there is no Jev key or Jev is unreachable; then local rules), `jev`, `claude`, `meta`, `heuristic` |
+| `decider` | who answers the per-turn menus: `auto` (with the claude builder: Claude, then local rules), `jev` (Typesafe Jev with `TYPESAFE_API_KEY`; Claude if Jev is unreachable), `claude`, `meta`, `heuristic` |
+| `deciderModel` | the Claude model for those menus; default `claude-sonnet-5-5` |
+| `deciderEffort` | `low` · `medium` · `high` (default) · `xhigh` · `max` |
 | `review` | `turn` (once per agent turn), `edit` (every edit), `both` |
 | `background` | hooks return immediately; a project worker does the work |
 | `seed` | existing codebase: catch up from code |
@@ -177,13 +185,13 @@ Plugin commands mirror these: `/smartypants`, `/smartypants:deeper`, `:catchup`,
 
 ## How it works
 
-Two models, two jobs, the way WindTunnel pairs Jev with Mercury: **Jev selects, Claude
-writes.** A free local pass drops noise. Typesafe Jev then answers small closed menus in about
-200 ms — is this worth remembering, does it change the design, at what level, which part, does
-this diff conform. Claude runs only when Jev says there is work, and writes it: the diagram
-delta, the drift note, the IntentCode. An unsure pick leans toward doing the work, and the writer
-decides what actually lands, so a borderline file costs one write rather than a missed drift.
-Without a Typesafe key, Claude answers the menus too.
+Two jobs, the way WindTunnel pairs a selector (Jev) with a writer (Mercury): **one model decides,
+Claude writes.** A free local pass drops noise. The selector, Claude Sonnet 5.5 at high effort
+by default or Typesafe Jev as the alternative, then answers small closed menus: is this worth
+remembering, does it change the design, at what level, which part, does this diff conform. The
+writer runs only when the selector says there is work, and writes it: the diagram delta, the
+drift note, the IntentCode. An unsure pick leans toward doing the work, and the writer decides
+what actually lands, so a borderline file costs one write rather than a missed drift.
 Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/INTENTCODE.md](docs/INTENTCODE.md) ·
 [docs/PROMPTING.md](docs/PROMPTING.md) · go-to-market: [docs/GTM.md](docs/GTM.md).
 
