@@ -19,12 +19,27 @@ function readShape(value) {
   return SHAPES.includes(shape) ? shape : null;
 }
 
+export const NOTE_CHARS = 220;
+
+/** Shorten a note at a word boundary, keeping a trailing "(file)" citation whole. */
+export function clipNote(text, limit = NOTE_CHARS) {
+  const note = String(text || "").replace(/\s+/g, " ").trim();
+  if (note.length <= limit) return note;
+  const cite = note.match(/\s*(\([^()]{1,120}\))$/);
+  const tail = cite ? ` ${cite[1]}` : "";
+  const body = cite ? note.slice(0, cite.index) : note;
+  const room = Math.max(20, limit - tail.length - 1);
+  const cut = body.slice(0, room);
+  const word = cut.lastIndexOf(" ") > room * 0.6 ? cut.slice(0, cut.lastIndexOf(" ")) : cut;
+  return `${word.replace(/[\s,;:.]+$/, "")}…${tail}`;
+}
+
 function readNotes(value) {
   if (!Array.isArray(value)) return [];
   const seen = new Set();
   const out = [];
   for (const raw of value) {
-    const note = String(raw || "").replace(/\s+/g, " ").trim().slice(0, 160);
+    const note = clipNote(raw);
     if (!note || seen.has(note.toLowerCase())) continue;
     seen.add(note.toLowerCase());
     out.push(note);

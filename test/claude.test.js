@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -9,13 +10,16 @@ import { createChooser } from "../src/jev.js";
 import { readConfig } from "../src/config.js";
 import { installProject } from "../src/install.js";
 import { recordTurn, loadStats } from "../src/stats.js";
+import { codeEvidence, searchTerms } from "../src/evidence.js";
+import { clipNote, loadDesign, markSeeded, NOTE_CHARS, saveDesign } from "../src/model.js";
+import { handleHook } from "../src/pipeline.js";
 import { tempProject } from "./helpers.js";
 
 /**
  * A stand-in for the Claude Code CLI. It records its argv, stdin, and env,
  * and answers every schema property with the first enum value it allows.
  */
-function fakeClaude({ fail = null, delayMs = 0 } = {}) {
+function fakeClaude({ fail = null, delayMs = 0, respond = null } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "smartypants-fake-claude-"));
   const bin = path.join(dir, "claude");
   const log = path.join(dir, "calls.jsonl");
@@ -31,6 +35,7 @@ process.stdin.on("end", () => setTimeout(() => {
   const schema = JSON.parse(at("--json-schema"));
   fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args, input, system: fs.readFileSync(at("--system-prompt-file"), "utf8"), claudecode: process.env.CLAUDECODE ?? null, key: process.env.ANTHROPIC_API_KEY ?? null }) + "\\n");
   ${fail ? `process.stdout.write(JSON.stringify({ type: "result", subtype: "success", is_error: true, result: ${JSON.stringify(fail)} })); process.exit(1);` : ""}
+  ${respond ? `process.stdout.write(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "", structured_output: ${JSON.stringify(respond)}, total_cost_usd: 0.01, usage: {}, modelUsage: { "claude-test": {} } })); return;` : ""}
   const answer = (s) => s.enum ? s.enum[0] : s.type === "number" ? 0.9 : s.type === "boolean" ? false : s.type === "array" ? [] : s.type === "object" ? Object.fromEntries(Object.entries(s.properties || {}).map(([k, v]) => [k, answer(v)])) : "x";
   process.stdout.write(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "", structured_output: answer(schema), total_cost_usd: 0.001, usage: { input_tokens: 10, cache_read_input_tokens: 5, output_tokens: 3 }, modelUsage: { "claude-test": {} } }));
 }, ${delayMs}));
@@ -208,4 +213,98 @@ test("a catch-up records every builder call and its tokens", () => {
   recordTurn(root, { kind: "catchup", action: "catchup", reason: "code", via: "local", selector: [], builder: { inputTokens: 900, outputTokens: 80, reasoningTokens: 0, cost: 1.02 }, builderCalls: 11 });
   const stats = loadStats(root);
   assert.deepEqual([stats.calls.builder, stats.tokens.input, stats.tokens.output, stats.cost], [11, 900, 80, 1.02]);
+});
+
+/** A small git project whose credential code lives under a "vault" folder. */
+function codeProject() {
+  const root = tempProject({ flavor: "claude", depth: "auto", decider: "heuristic", timeoutMs: 20000 });
+  const put = (file, text) => {
+    fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+    fs.writeFileSync(path.join(root, file), text);
+  };
+  put("api/server.py", '"""HTTP API."""\nimport vault\n\ndef handle(request):\n    return vault.resolve(request.user)\n');
+  put("api/vault/credentials.py", '"""Credential store: encrypts MCP credentials with the salt key."""\nimport os\n\nclass CredentialStore:\n    def resolve(self, user):\n        return os.environ["SALT_KEY"]\n');
+  put("web/app.js", "export function render() { return 'hello'; }\n");
+  put("README.md", "# demo\n");
+  execFileSync("git", ["init", "-q"], { cwd: root });
+  execFileSync("git", ["add", "-A"], { cwd: root });
+  return root;
+}
+
+test("code evidence ranks the files that carry the request's terms and outlines them", () => {
+  const root = codeProject();
+  const terms = searchTerms("go deeper on how the MCP credentials are managed", "API Service");
+  assert.deepEqual(terms.primary, ["mcp", "credential"]);
+  const ev = codeEvidence(root, { phrase: "how the MCP credentials are managed", target: { name: "API Service" } });
+  assert.equal(ev.files[0], "api/vault/credentials.py");
+  assert.match(ev.text, /--- api\/vault\/credentials\.py\n1: """Credential store/);
+  assert.match(ev.text, /4: class CredentialStore:/);
+  assert.equal(ev.files.includes("web/app.js"), false);
+  assert.equal(codeEvidence(root, { phrase: "kafka partitions" }).text, "");
+});
+
+test("only read-only tools ever reach the claude CLI", () => {
+  const args = claudeArgs({ schema: {}, systemFile: "s", tools: ["Read", "Grep", "Glob", "Write", "Bash", "Edit"] });
+  const value = (flag) => args[args.indexOf(flag) + 1];
+  assert.equal(value("--tools"), "Read,Grep,Glob");
+  assert.equal(value("--allowedTools"), "Read,Grep,Glob");
+  assert.equal(value("--max-turns"), "40");
+  assert.equal(value("--permission-mode"), "dontAsk");
+  assert.equal(claudeArgs({ schema: {}, systemFile: "s" })[claudeArgs({ schema: {}, systemFile: "s" }).indexOf("--tools") + 1], "");
+});
+
+test("a deeper request with code evidence asks for code-grounded parts and corrections", () => {
+  const design = { version: 1, floor: "component", nodes: [{ id: "api", name: "API Service", kind: "component", parentId: "sys", what: "Serves", why: "Needed" }], connections: [] };
+  const withCode = claudeFlavor.buildRequest({ event: { type: "deeper", text: "go deeper on credentials" }, design, floor: "module", target: design.nodes[0], code: "--- api/vault/credentials.py\n4: class CredentialStore:" });
+  assert.equal(withCode.code, true);
+  assert.ok(withCode.schema.required.includes("corrections"));
+  assert.match(withCode.instructions, /The answer is in its code/);
+  assert.match(withCode.prompt, /<code_evidence>\n--- api\/vault\/credentials\.py/);
+  const without = claudeFlavor.buildRequest({ event: { type: "deeper", text: "go deeper" }, design, floor: "module", target: design.nodes[0] });
+  assert.equal(without.code, false);
+  assert.equal(without.schema.required.includes("corrections"), false);
+  assert.match(without.instructions, /standard design an experienced engineer/);
+});
+
+test("going deeper on existing code reads it, corrects the diagram, and reports the corrections", async () => {
+  const root = codeProject();
+  saveDesign(root, markSeeded({ version: 1, floor: "component", level: "component", nodes: [
+    { id: "sys", name: "Demo", kind: "system", parentId: null, what: "Demo app", why: "Example", flags: [] },
+    { id: "api", name: "API Service", kind: "component", parentId: "sys", what: "Serves HTTP", why: "One door", flags: [] },
+  ], connections: [], unmappedFlags: [] }).design);
+  const respond = {
+    isDesign: true,
+    nodes: [{ id: "store", name: "Credential Store", blurb: "Encrypted creds", tier: "service", zone: "", kind: "module", grain: "module", parentId: "api", shape: "store", what: "Encrypts MCP credentials", why: "Secrets never sit in plain text", notes: ["Key comes from SALT_KEY (api/vault/credentials.py)"] }],
+    connections: [], removeNodeIds: [], removeConnectionIds: [], intent: [],
+    corrections: ["Credentials live in the API process, not an external vault (api/vault/credentials.py)"],
+  };
+  const fake = fakeClaude({ respond });
+  const previous = process.env.SMARTYPANTS_CLAUDE_BIN;
+  process.env.SMARTYPANTS_CLAUDE_BIN = fake.bin;
+  const original = console.error;
+  console.error = () => {};
+  try {
+    const result = await handleHook({ cwd: root, event: { type: "deeper", target: "how the MCP credentials are managed" }, timeoutMs: 20000 });
+    assert.equal(result.error, null);
+    assert.deepEqual(result.corrections, respond.corrections);
+    assert.equal(result.codeFiles[0], "api/vault/credentials.py");
+    const [call] = fake.calls();
+    assert.equal(call.args[call.args.indexOf("--tools") + 1], "Read,Grep,Glob");
+    assert.match(call.input, /<code_evidence>/);
+    const report = JSON.parse(fs.readFileSync(path.join(root, ".smartypants", "deeper.json"), "utf8"));
+    assert.deepEqual(report.corrections, respond.corrections);
+    assert.equal(loadDesign(root).nodes.find((n) => n.id === "store").notes[0], "Key comes from SALT_KEY (api/vault/credentials.py)");
+  } finally {
+    console.error = original;
+    if (previous === undefined) delete process.env.SMARTYPANTS_CLAUDE_BIN;
+    else process.env.SMARTYPANTS_CLAUDE_BIN = previous;
+  }
+});
+
+test("a long note keeps its file citation", () => {
+  const note = `${"word ".repeat(60)}(litellm/proxy/_experimental/mcp_server/outbound_credentials/resolver.py)`;
+  const clipped = clipNote(note);
+  assert.ok(clipped.length <= NOTE_CHARS);
+  assert.ok(clipped.endsWith("(litellm/proxy/_experimental/mcp_server/outbound_credentials/resolver.py)"));
+  assert.match(clipped, /word… \(/);
 });

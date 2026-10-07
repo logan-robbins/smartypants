@@ -1,4 +1,4 @@
-import { claudeJson } from "../claude.js";
+import { READ_ONLY_TOOLS, claudeJson } from "../claude.js";
 import { buildFlavorRequest } from "../prompts.js";
 import { parseModelPayload } from "../parse.js";
 
@@ -27,7 +27,9 @@ export async function invoke(request) {
     user: request.prompt,
     schema: request.schema,
     model: request.model || process.env.SMARTYPANTS_CLAUDE_MODEL || null,
-    effort: request.reasoningEffort || EFFORT_BY_KIND[request.kind] || (request.kind?.startsWith("catchup") ? "medium" : "low"),
+    // Going deeper on existing code reads it: high effort, read-only tools, run from the project root.
+    effort: request.reasoningEffort || (request.code ? "high" : EFFORT_BY_KIND[request.kind] || (request.kind?.startsWith("catchup") ? "medium" : "low")),
+    tools: request.code ? READ_ONLY_TOOLS : [],
     cwd: request.cwd || process.cwd(),
     ...(request.timeoutMs ? { timeoutMs: request.timeoutMs } : {}),
   });

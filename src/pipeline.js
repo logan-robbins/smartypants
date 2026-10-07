@@ -1,6 +1,9 @@
+import fs from "node:fs";
 import path from "node:path";
 import { readConfig } from "./config.js";
 import { autoDeepenTarget, deeperFloor, nextLevel } from "./deeper.js";
+import { codeEvidence } from "./evidence.js";
+import { isExistingProject } from "./install.js";
 import { catchupOwnsSeed, loadCatchup, runCatchup, saveCatchup } from "./catchup.js";
 import { applyDrift } from "./drift.js";
 import { loadEnvFile } from "./env.js";
@@ -8,7 +11,7 @@ import { adapterFor } from "./flavors/index.js";
 import { heuristicAtoms, loadIntent, INTENT_TOKEN_BUDGET, rememberAtoms, renderIntent, saveIntent } from "./intent.js";
 import { createChooser } from "./jev.js";
 import { loadLedger, projectSketch, seedPending } from "./ledger.js";
-import { applyDesign, canvasModel, loadDesign, markSeeded, saveDesign } from "./model.js";
+import { applyDesign, canvasModel, DESIGN_DIR, loadDesign, markSeeded, saveDesign } from "./model.js";
 import { normalizeStdin } from "./normalize.js";
 import { matchNode } from "./salience.js";
 import { recordTurn } from "./stats.js";
@@ -18,6 +21,9 @@ import { driftEvidence, recordReviewed, reviewTurn, syncEvidence } from "./turne
 
 /** Same budget as the background worker: a Claude design turn takes ~15 s. */
 const DEFAULT_TIMEOUT_MS = 90000;
+/** Going deeper on existing code reads files before it answers. */
+export const DEEPER_CODE_TIMEOUT_MS = 300000;
+export const DEEPER_REPORT = "deeper.json";
 
 /** Set on the builder process so a hook it fires (Muse command, Pi extension) returns. */
 export const BUILDER_GUARD = "SMARTYPANTS_BUILDING";
@@ -191,6 +197,18 @@ export async function handleHook(options = {}) {
     decision.reason = `${decision.reason}+no-local-atoms`;
   }
 
+  // Going deeper on a project that has code reads the code, then compares it with the diagram.
+  let code = null;
+  if (kind === "deepen" && (design.seeded || isExistingProject(cwd))) {
+    try {
+      code = codeEvidence(cwd, { phrase: event.text || event.target || target?.name || "", target });
+      console.error(`smartypants: deeper reads code: ${code.files.length} matching files${code.files[0] ? `, top ${code.files[0]}` : ""}`);
+    } catch (error) {
+      console.error(`smartypants: code search failed (${error instanceof Error ? error.message : String(error)})`);
+    }
+  }
+  // From code, the code decides where a part belongs, so module-level parts may land under any component.
+  const writeFloor = code?.text ? "module" : floor;
   const sketch = seeding ? projectSketch(cwd) : "";
   const legacy = loadLedger(cwd).entries.map((entry) => entry.gist);
   const subjects = kind === "drift" && decision.owners?.length ? decision.owners : undefined;
@@ -198,7 +216,7 @@ export async function handleHook(options = {}) {
     config,
     event: kind === "deepen" ? { type: "deeper", text: event.text || `go deeper on ${target?.name || event.target}` } : event,
     design: canvasModel(design, config.depth),
-    floor,
+    floor: writeFloor,
     taxonomy: TAXONOMY,
     cwd,
     seed: seeding,
@@ -207,11 +225,12 @@ export async function handleHook(options = {}) {
     intent: writerIntent(intent, subjects),
     target,
     owners: decision.owners || [],
+    code: code?.text || "",
   });
 
   let parsed;
   try {
-    parsed = await runBuilder(adapter, request, timeoutMs);
+    parsed = await runBuilder(adapter, request, request.code ? Math.max(timeoutMs, DEEPER_CODE_TIMEOUT_MS) : timeoutMs);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`smartypants: ${message}`);
@@ -220,7 +239,7 @@ export async function handleHook(options = {}) {
 
   try {
     const fresh = loadDesign(cwd);
-    let applied = request.kind === "drift" ? applyDrift(fresh, parsed) : applyDesign(fresh, parsed, floor);
+    let applied = request.kind === "drift" ? applyDrift(fresh, parsed) : applyDesign(fresh, parsed, writeFloor);
     if (request.kind === "seed" && (parsed?.flags || parsed?.diverges === true)) {
       const drifted = applyDrift(applied.design, parsed);
       if (drifted.changed) applied = { design: drifted.design, changed: true };
@@ -255,6 +274,14 @@ export async function handleHook(options = {}) {
     }
 
     const result = { adapterInvoked: true, request, error: null, designChanged: applied.changed };
+    if (request.code) {
+      result.corrections = (Array.isArray(parsed?.corrections) ? parsed.corrections : []).map(String).filter(Boolean);
+      result.codeFiles = code.files;
+      const report = { at: new Date().toISOString(), target: target?.id || null, ask: event.text || event.target || "", corrections: result.corrections, files: code.files.slice(0, 20) };
+      fs.mkdirSync(path.join(cwd, DESIGN_DIR), { recursive: true });
+      fs.writeFileSync(path.join(cwd, DESIGN_DIR, DEEPER_REPORT), `${JSON.stringify(report, null, 2)}\n`);
+      for (const line of result.corrections) console.error(`smartypants: corrected from code: ${line}`);
+    }
     const remaining = timeoutMs - (Date.now() - started);
     if (
       config.autoDeepen &&

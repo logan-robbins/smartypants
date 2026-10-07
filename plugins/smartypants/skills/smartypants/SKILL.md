@@ -58,7 +58,7 @@ commands below instead of drawing a diagram by hand.
 | argument | run | then |
 |---|---|---|
 | `open` | start or reuse `npx smartypants serve` | give the URL |
-| `deeper <part>` | `npx smartypants deeper "<part>"` | report the line it prints |
+| `deeper <part>` | `npx smartypants deeper "<part>"` | report what it went deeper on and each correction it prints (where the diagram disagreed with the code) |
 | `catchup` | `npx smartypants catchup` | say it runs in the background; progress is on the canvas |
 | `review` | `npx smartypants review` | one line per diverging file |
 | `intent` | `npx smartypants intent` | show as a code block |

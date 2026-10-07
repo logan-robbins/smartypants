@@ -8,14 +8,20 @@
  * Bedrock / Vertex / Foundry through their CLAUDE_CODE_USE_* switches, a
  * gateway on ANTHROPIC_BASE_URL, or the stored `claude` login.
  *
- * Every call is one structured answer with no tools, no settings, no MCP, no
- * skills, and no saved session, so it cannot edit the project or fire this
- * project's hooks again.
+ * Every call is one structured answer with no settings, no MCP, no skills, and
+ * no saved session, so it cannot fire this project's hooks again. It has no
+ * tools, except that going deeper on existing code may Read, Grep, and Glob;
+ * nothing can write to the project.
  */
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+
+/** The only tools a call may get: reading the project, never changing it. */
+export const READ_ONLY_TOOLS = ["Read", "Grep", "Glob"];
+/** Enough turns to search, open a dozen files, and answer. */
+export const EXPLORE_TURNS = 40;
 
 /** Effort levels the Claude Code CLI accepts. */
 export const CLAUDE_EFFORTS = ["low", "medium", "high", "xhigh", "max"];
@@ -36,21 +42,23 @@ export function claudeEffort(value) {
 }
 
 /** CLI flags for one isolated, structured, tool-less answer. */
-export function claudeArgs({ schema, systemFile, model, effort }) {
+export function claudeArgs({ schema, systemFile, model, effort, tools = [] }) {
+  const allowed = tools.filter((tool) => READ_ONLY_TOOLS.includes(tool));
   const args = [
     "-p",
     "--output-format", "json",
     "--json-schema", JSON.stringify(schema),
     "--system-prompt-file", systemFile,
-    "--tools", "",
+    "--tools", allowed.join(","),
     "--setting-sources", "",
     "--strict-mcp-config",
     "--disable-slash-commands",
     "--no-session-persistence",
     "--permission-mode", "dontAsk",
     // Structured output is returned through a tool round trip, so one answer is two turns.
-    "--max-turns", "2",
+    "--max-turns", allowed.length ? String(EXPLORE_TURNS) : "2",
   ];
+  if (allowed.length) args.push("--allowedTools", allowed.join(","));
   if (model) args.push("--model", model);
   const level = claudeEffort(effort);
   if (level) args.push("--effort", level);
@@ -99,6 +107,7 @@ export async function claudeJson({
   cwd = process.cwd(),
   env = process.env,
   timeoutMs = 120000,
+  tools = [],
   spawnCall = spawn,
 }) {
   const started = Date.now();
@@ -107,7 +116,7 @@ export async function claudeJson({
   fs.writeFileSync(systemFile, system);
   try {
     const stdout = await new Promise((resolve, reject) => {
-      const child = spawnCall(claudeBin(env), claudeArgs({ schema, systemFile, model, effort }), {
+      const child = spawnCall(claudeBin(env), claudeArgs({ schema, systemFile, model, effort, tools }), {
         cwd,
         env: claudeEnv(env),
         stdio: ["pipe", "pipe", "pipe"],

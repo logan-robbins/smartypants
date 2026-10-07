@@ -65,6 +65,12 @@ Or as a plugin: `/plugin marketplace add logan-robbins/smartypants` then
 Then just work. Say *"design YouTube top-K"* and the diagram appears; say *"go deeper on the
 aggregator"* (or double-click it) to expand a box; let the agent code and watch for red.
 
+**On a project with code, going deeper reads the code.** Ask *"go deeper on how the MCP
+credentials are managed"* and Smartypants finds the matching files, lets Claude read them
+(read-only: Read, Grep, Glob), draws the real modules with each note citing its file, and
+corrects the diagram wherever it disagreed with the code. The corrections print and are saved to
+`.smartypants/deeper.json`. On LiteLLM this took 75–94 s and $0.43–0.53.
+
 ## How it compares
 
 | | **Smartypants** | Archify | drawio-skill | Whiteboard | GitDiagram · DeepWiki | ArchUnit · dep-cruiser |
@@ -141,7 +147,7 @@ or logs; the plugin stores the ones you enter in your OS credential store.
 ```
 smartypants catchup     build the diagram from existing code, in the background
 smartypants review      review what the working tree changed, now
-smartypants deeper X    system → components → modules → deep-dive notes
+smartypants deeper X    system → components → modules → deep-dive notes, read from the code
 smartypants intent      print the IntentCode memory
 smartypants drift       list where code left the intent
 smartypants mermaid     export Mermaid
