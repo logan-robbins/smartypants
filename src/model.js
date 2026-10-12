@@ -275,17 +275,34 @@ export function placeNode(design, id, x, y) {
   if (node.x === x && node.y === y) return { design: current, changed: false };
   node.x = x;
   node.y = y;
-  return {
-    design: carryDesignMeta(current, {
-      version: 1,
-      floor: current.floor,
-      ...(current.updatedAt ? { updatedAt: current.updatedAt } : {}),
-      nodes,
-      connections: (current.connections || []).map(cloneConnection),
-      unmappedFlags: (current.unmappedFlags || []).map(cloneFlag),
-    }),
-    changed: true,
-  };
+  return { design: withNodes(current, nodes), changed: true };
+}
+
+/** Forget where a card was dragged, so the layout places it again. */
+export function releaseNode(design, id) {
+  const current = design && Array.isArray(design.nodes) ? design : emptyDesign();
+  if (String(id).startsWith("unmapped-")) {
+    const kept = (current.unmappedPositions || []).filter((item) => item.id !== id);
+    if (kept.length === (current.unmappedPositions || []).length) return { design: current, changed: false };
+    return { design: { ...current, unmappedPositions: kept }, changed: true };
+  }
+  const nodes = current.nodes.map(cloneNode);
+  const node = nodes.find((item) => item.id === id);
+  if (!node || (node.x === undefined && node.y === undefined)) return { design: current, changed: false };
+  delete node.x;
+  delete node.y;
+  return { design: withNodes(current, nodes), changed: true };
+}
+
+function withNodes(current, nodes) {
+  return carryDesignMeta(current, {
+    version: 1,
+    floor: current.floor,
+    ...(current.updatedAt ? { updatedAt: current.updatedAt } : {}),
+    nodes,
+    connections: (current.connections || []).map(cloneConnection),
+    unmappedFlags: (current.unmappedFlags || []).map(cloneFlag),
+  });
 }
 
 function identity(node) {

@@ -129,7 +129,7 @@ does, deep-dive notes, flows, drift, and the intent recorded about it.
 ![Click a box: why first](docs/panel.png)
 
 Keys: **F** fit · **T** tidy · **L** tiers/flow layout · **I** intent memory · **/** search ·
-double-click to go deeper.
+**⌘/Ctrl+Z** undo a move or a tidy (add **Shift** to redo) · double-click to go deeper.
 
 ## What leaves your machine
 

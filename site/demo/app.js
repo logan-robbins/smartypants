@@ -109,7 +109,8 @@
 
   function nodeSvg(node, state) {
     var classes = "node shape-" + esc(node.shape) + " kind-" + esc(node.kind) + " tier-" + esc(node.tier || "service") +
-      (node.header ? " is-header" : "") + (node.flagged ? " is-drift" : "") + (state.selected ? " is-selected" : "") + (state.fresh ? " is-fresh" : "");
+      (node.header ? " is-header" : "") + (node.flagged ? " is-drift" : "") + (state.selected ? " is-selected" : "") + (state.fresh ? " is-fresh" : "") +
+      (state.dragged ? " is-dragged" : "") + (state.blocked ? " is-blocked" : "");
     var w = node.w;
     var h = node.h;
     var lines = lineSet(node);
@@ -383,11 +384,12 @@
     var scene = { nodes: [], edges: [], groups: [], bounds: { x: 0, y: 0, w: 0, h: 0 } };
     var collapsed = store("smartypants:collapsed") || [];
     var layoutMode = store("smartypants:layout") || "tiers";
-    var tidied = false;
     var selected = null;
     var fitted = false;
     var drag = null;
     var held = {};
+    var trail = SmartypantsHistory.createHistory();
+    var saving = 0;
     var lastPayload = "";
     var knownIds = null;
     var fresh = {};
@@ -567,6 +569,70 @@
       return (model.nodes || []).filter(function (node) { return node.id === id; })[0] || null;
     }
 
+    // ---- Where cards sit (drag, undo, redo) ----------------------------------------
+    //
+    // A spot is { x, y }, or null when the layout places the card. The server's copy
+    // of a spot is model.nodes[].x/y (model.unmappedPositions for drift cards); `held`
+    // carries a drag until it is saved.
+
+    function spotRecord(id) {
+      if (id.indexOf("unmapped-") === 0) return (model.unmappedPositions || []).filter(function (item) { return item.id === id; })[0] || null;
+      return sourceById(id);
+    }
+
+    function savedSpot(id) {
+      var item = spotRecord(id);
+      return item && typeof item.x === "number" && typeof item.y === "number" ? { x: item.x, y: item.y } : null;
+    }
+
+    function spotOf(id) {
+      return held[id] || savedSpot(id);
+    }
+
+    function setSpot(id, spot) {
+      if (spot) held[id] = { x: spot.x, y: spot.y };
+      else delete held[id];
+      if (id.indexOf("unmapped-") === 0) {
+        model.unmappedPositions = (model.unmappedPositions || []).filter(function (item) { return item.id !== id; });
+        if (spot) model.unmappedPositions.push({ id: id, x: spot.x, y: spot.y });
+        return;
+      }
+      var node = sourceById(id);
+      if (!node) return;
+      if (spot) { node.x = spot.x; node.y = spot.y; } else { delete node.x; delete node.y; }
+    }
+
+    function pinnedSpots() {
+      var pins = {};
+      (model.nodes || []).forEach(function (node) { var spot = savedSpot(node.id); if (spot) pins[node.id] = spot; });
+      (model.unmappedPositions || []).forEach(function (item) { pins[item.id] = { x: item.x, y: item.y }; });
+      Object.keys(held).forEach(function (id) { pins[id] = held[id]; });
+      return pins;
+    }
+
+    /** Saves positions; the poll waits so it cannot repaint over a save in flight. */
+    function savePositions(body) {
+      saving += 1;
+      return api("/positions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+        .catch(function () {})
+        .then(function () { saving -= 1; });
+    }
+
+    function undoOrRedo(verb) {
+      var step = verb === "undo" ? trail.undo() : trail.redo();
+      if (!step) return flash("Nothing to " + verb);
+      step.moves.forEach(function (move) { setSpot(move.id, move.spot); });
+      rebuild();
+      var first = step.moves.map(function (move) { return nodeById(move.id); }).filter(Boolean)[0];
+      reveal(first);
+      flash((verb === "undo" ? "Undid " : "Redid ") + step.label);
+      return savePositions({
+        moves: step.moves.map(function (move) {
+          return move.spot ? { id: move.id, x: move.spot.x, y: move.spot.y } : { id: move.id, unset: true };
+        }),
+      });
+    }
+
     function titleFor(group) {
       var owner = sourceById(group.id);
       return owner ? owner.name : "";
@@ -598,7 +664,8 @@
       layerLabels.innerHTML = (scene.zones || []).map(zoneLabelSvg).join("") +
         edges.map(function (edge, i) { return edgeLabelSvg(edge, related[i]); }).join("");
       layerNodes.innerHTML = (scene.nodes || []).map(function (node) {
-        return nodeSvg(node, { selected: node.id === selected, fresh: fresh[node.id] });
+        var lifted = Boolean(drag && drag.moved && drag.start && drag.start[node.id]);
+        return nodeSvg(node, { selected: node.id === selected, fresh: fresh[node.id], dragged: lifted, blocked: lifted && drag.blocked });
       }).join("");
       viewport.classList.toggle("has-selection", Boolean(selected) && Object.keys(related).length > 0);
       if (selected) {
@@ -705,9 +772,6 @@
         node.y = held[node.id].y;
       });
       if (layoutMode === "flow") visible.direction = "LR";
-      if (tidied && root.SMARTYPANTS_STATIC) {
-        visible.nodes = visible.nodes.map(function (node) { var copy = Object.assign({}, node); delete copy.x; delete copy.y; return copy; });
-      }
       scene = SmartypantsScene.buildScene(visible);
       empty.hidden = scene.nodes.length > 0;
       paint();
@@ -751,7 +815,7 @@
           return response.text();
         })
         .then(function (text) {
-          if (drag || text === lastPayload) return;
+          if (drag || saving || text === lastPayload) return;
           lastPayload = text;
           intentCache = null;
           render(JSON.parse(text));
@@ -1047,13 +1111,16 @@
       hideTip();
       var hit = targetOf(event);
       var start = {};
+      var before = {};
       (hit ? hit.members : []).forEach(function (id) {
         var node = nodeById(id);
-        if (node) start[id] = { x: node.x, y: node.y };
+        if (!node) return;
+        start[id] = { x: node.x, y: node.y };
+        before[id] = spotOf(id);
       });
       var point = toWorld(event);
       drag = hit
-        ? { kind: "target", target: hit, id: event.pointerId, start: start, px: point.x, py: point.y, sx: event.clientX, sy: event.clientY, moved: false }
+        ? { kind: "target", target: hit, id: event.pointerId, start: start, before: before, px: point.x, py: point.y, sx: event.clientX, sy: event.clientY, moved: false }
         : { kind: "pan", id: event.pointerId, x: event.clientX, y: event.clientY, camX: camera.x, camY: camera.y, moved: false };
       viewport.classList.add(hit && hit.members.length ? "is-moving" : "is-panning");
       viewport.setPointerCapture(event.pointerId);
@@ -1080,6 +1147,7 @@
           SmartypantsScene.moveNode(scene, id, to.x, to.y, i < ids.length - 1);
           held[id] = to;
         });
+        drag.blocked = SmartypantsScene.blocked(scene, ids);
         paint();
         return;
       }
@@ -1113,16 +1181,19 @@
         else if (hit.kind === "lane") openLane(hit.id);
         return;
       }
-      var moves = Object.keys(finished.start).map(function (id) {
+      var ids = Object.keys(finished.start);
+      if (!ids.length) return;
+      SmartypantsScene.settle(scene, ids);
+      var placed = ids.map(function (id) {
         var node = nodeById(id);
-        return node ? { id: id, x: node.x, y: node.y } : null;
+        return node ? { id: id, from: finished.before[id], to: { x: node.x, y: node.y } } : null;
       }).filter(Boolean);
-      if (!moves.length) return;
-      api("/positions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(moves.length === 1 ? moves[0] : { moves: moves }),
-      }).catch(function () {});
+      var home = placed.every(function (move) { return SmartypantsHistory.same(move.to, finished.start[move.id]); });
+      placed.forEach(function (move) { if (home) setSpot(move.id, move.from); else setSpot(move.id, move.to); });
+      paint();
+      if (home) return;
+      trail.record({ label: "move", moves: placed });
+      savePositions({ moves: placed.map(function (move) { return { id: move.id, x: move.to.x, y: move.to.y }; }) });
     }
 
     function openEdge(index) {
@@ -1231,12 +1302,13 @@
     document.getElementById("zoom-out").addEventListener("click", function () { zoomAt(1 / 1.2); });
     document.getElementById("fit").addEventListener("click", fit);
     function tidy() {
-      held = {};
-      tidied = true;
-      api("/positions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reset: true }) })
-        .then(function () { lastPayload = ""; return load(); })
-        .then(function () { fit(); flash("Laid out again"); })
-        .catch(function () {});
+      var pins = pinnedSpots();
+      trail.record({ label: "layout", moves: Object.keys(pins).map(function (id) { return { id: id, from: pins[id], to: null }; }) });
+      Object.keys(pins).forEach(function (id) { setSpot(id, null); });
+      rebuild();
+      fit();
+      flash("Laid out again");
+      savePositions({ reset: true });
     }
     document.getElementById("tidy").addEventListener("click", tidy);
     document.getElementById("expand-all").addEventListener("click", function () {
@@ -1291,6 +1363,13 @@
 
     document.addEventListener("keydown", function (event) {
       if (event.target === search) return;
+      var key = String(event.key).toLowerCase();
+      var chord = (event.metaKey || event.ctrlKey) && !event.altKey;
+      if (chord && (key === "z" || (key === "y" && event.ctrlKey))) {
+        event.preventDefault();
+        if (!drag) undoOrRedo(key === "y" || event.shiftKey ? "redo" : "undo");
+        return;
+      }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (event.key === "/") { event.preventDefault(); search.focus(); return; }
       if (event.key === "Escape") return closePanel();

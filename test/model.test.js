@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
-import { applyDesign, canvasModel, designPath, emptyDesign, loadDesign, saveDesign } from "../src/model.js";
+import { applyDesign, canvasModel, designPath, emptyDesign, loadDesign, placeNode, releaseNode, saveDesign } from "../src/model.js";
 import {
   COMPONENT_DEFINITION,
   DEFAULT_FLOOR,
@@ -126,4 +126,39 @@ test("a coarser floor omits finer nodes from the canvas model", () => {
     written.design.nodes.map((node) => node.kind),
     ["system"],
   );
+});
+
+test("releasing a dragged card forgets its spot and survives a save", () => {
+  const root = tempProject();
+  const base = applyDesign(emptyDesign(), ledgerResult, "module").design;
+  const placed = placeNode(base, "capture", 320, 640);
+  assert.equal(placed.changed, true);
+  const unplaced = releaseNode(placed.design, "capture");
+  assert.equal(unplaced.changed, true);
+  saveDesign(root, unplaced.design);
+  const card = loadDesign(root).nodes.find((node) => node.id === "capture");
+  assert.equal(card.x, undefined);
+  assert.equal(card.y, undefined);
+  assert.equal(card.what, "Records a purchase the moment someone pays");
+  assert.equal(releaseNode(unplaced.design, "capture").changed, false);
+  assert.equal(releaseNode(unplaced.design, "no-such-card").changed, false);
+});
+
+test("releasing leaves every other dragged card where it is", () => {
+  const base = applyDesign(emptyDesign(), ledgerResult, "module").design;
+  const both = placeNode(placeNode(base, "capture", 1, 2).design, "receipts", 3, 4).design;
+  const next = releaseNode(both, "capture").design;
+  const echo = next.nodes.find((node) => node.id === "receipts");
+  assert.equal(echo.x, 3);
+  assert.equal(echo.y, 4);
+  assert.equal(both.nodes.find((node) => node.id === "capture").x, 1);
+});
+
+test("releasing an unmapped card removes only its saved spot", () => {
+  const base = applyDesign(emptyDesign(), ledgerResult, "module").design;
+  const placed = placeNode(placeNode(base, "unmapped-a", 5, 6).design, "unmapped-b", 7, 8).design;
+  const released = releaseNode(placed, "unmapped-a");
+  assert.equal(released.changed, true);
+  assert.deepEqual(released.design.unmappedPositions, [{ id: "unmapped-b", x: 7, y: 8 }]);
+  assert.equal(releaseNode(released.design, "unmapped-a").changed, false);
 });

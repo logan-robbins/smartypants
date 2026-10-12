@@ -71,6 +71,16 @@ test("the canvas server returns the persisted design and the page", async () => 
     assert.equal(card.y, 640);
     const stayed = after.nodes.find((node) => node.id === "ledger");
     assert.equal(stayed.x, undefined);
+    const released = await fetch(`http://127.0.0.1:${port}/positions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ moves: [{ id: "capture", unset: true }, { id: "ledger", x: 10, y: 20 }] }),
+    });
+    assert.equal(released.status, 200);
+    const undone = await (await fetch(`http://127.0.0.1:${port}/design.json`)).json();
+    assert.equal(undone.nodes.find((node) => node.id === "capture").x, undefined);
+    assert.equal(undone.nodes.find((node) => node.id === "capture").y, undefined);
+    assert.equal(undone.nodes.find((node) => node.id === "ledger").x, 10);
   } finally {
     child.kill("SIGTERM");
   }
