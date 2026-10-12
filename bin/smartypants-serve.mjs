@@ -4,7 +4,7 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { lookupConfig } from "../src/config.js";
-import { canvasModel, loadDesign, placeNode, saveDesign } from "../src/model.js";
+import { canvasModel, loadDesign, placeNode, releaseNode, saveDesign } from "../src/model.js";
 import { loadCatchup } from "../src/catchup.js";
 import { loadIntent, renderIntent, intentTokens } from "../src/intent.js";
 import { toMermaid } from "../src/mermaid.js";
@@ -133,7 +133,7 @@ const server = http.createServer((req, res) => {
           changed = true;
         }
         for (const move of moves) {
-          const moved = placeNode(design, move.id, Number(move.x), Number(move.y));
+          const moved = move.unset ? releaseNode(design, move.id) : placeNode(design, move.id, Number(move.x), Number(move.y));
           design = moved.design;
           changed = changed || moved.changed;
         }

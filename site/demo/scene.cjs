@@ -5,6 +5,11 @@
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.SmartypantsScene = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  var inNode = typeof module !== "undefined" && module.exports;
+  var Space = inNode ? require("./space.cjs") : globalThis.SmartypantsSpace;
+  var Route = inNode ? require("./route.cjs") : globalThis.SmartypantsRoute;
+  if (!Space || !Route) throw new Error("web/space.cjs and web/route.cjs must load before web/scene.cjs");
+
   // ---- Box metrics -----------------------------------------------------------
   //
   // One 8px rhythm for everything: box sizes snap to 8, gaps are multiples of 8.
@@ -210,19 +215,37 @@
     });
   }
 
-  var RANK_GAP = 132;
-  var ROW_GAP = 44;
+  var RANK_MIN = 96;
+  var PORT_STEP = 18;
   var CLUSTER_PAD = 24;
   var CLUSTER_TITLE = 30;
 
+  /** The text an arrow label shows and the width its box needs. */
+  function labelSize(label) {
+    var text = String(label || "").trim();
+    if (text.length > LABEL_CHARS) text = text.slice(0, LABEL_CHARS - 1).replace(/[\s,;:/.-]+$/, "") + "…";
+    return { text: text, w: text ? Math.round(text.length * LABEL_PX + 18) : 0, h: LABEL_H };
+  }
+
   /**
-   * Layered (Sugiyama / dagre-style) left-to-right layout.
-   * items: [{ id, w, h }], links: [{ from, to }] -> { id: { x, y } } plus size.
+   * Layered (Sugiyama-style) layout, ranks left to right.
+   *   - Rows in a rank keep `rowGap` between them.
+   *   - A rank gap is as wide as the arrows and labels crossing it need.
+   *   - An arrow spanning several ranks reserves a lane in each rank it passes,
+   *     so it has a corridor and never has to cut through a card.
+   * items: [{ id, w, h }]  links: [{ from, to, lab }] (lab = label extent along the rank axis)
+   * opt: { rowGap } -> { at: { id: { x, y, w, h } }, w, h }
    */
-  function layered(items, links) {
+  function layered(items, links, opt) {
+    var rowGap = (opt && opt.rowGap) || Space.GAP.y;
+    var lane = Route.TRACK;
     var ids = items.map(function (item) { return item.id; });
     var index = {};
-    items.forEach(function (item, i) { index[item.id] = i; });
+    var size = {};
+    items.forEach(function (item, i) {
+      index[item.id] = i;
+      size[item.id] = { w: item.w, h: item.h, lane: false };
+    });
     var succ = {};
     var pred = {};
     ids.forEach(function (id) { succ[id] = []; pred[id] = []; });
@@ -285,6 +308,31 @@
       (ranks[rank[id]] = ranks[rank[id]] || []).push(id);
     });
     ranks = ranks.filter(Boolean);
+    ranks.forEach(function (list, r) { list.forEach(function (id) { rank[id] = r; }); });
+    // Lanes: an arrow that spans several ranks gets a zero-size stand-in in each rank it passes.
+    var spare = items.length;
+    ids.forEach(function (from) {
+      succ[from].slice().forEach(function (to) {
+        if (rank[to] - rank[from] < 2) return;
+        succ[from].splice(succ[from].indexOf(to), 1);
+        pred[to].splice(pred[to].indexOf(from), 1);
+        var prev = from;
+        for (var r = rank[from] + 1; r < rank[to]; r += 1) {
+          var id = "lane:" + from + ">" + to + ":" + r;
+          index[id] = spare;
+          spare += 1;
+          size[id] = { w: 0, h: 0, lane: true };
+          rank[id] = r;
+          succ[id] = [];
+          pred[id] = [prev];
+          succ[prev].push(id);
+          ranks[r].push(id);
+          prev = id;
+        }
+        succ[prev].push(to);
+        pred[to].push(prev);
+      });
+    });
     // Order within ranks: barycenter sweeps.
     var pos = {};
     function number() {
@@ -308,21 +356,41 @@
         list.forEach(function (id, i) { pos[id] = i; });
       });
     }
+    // Rank gaps: wide enough for the label of every adjacent-rank arrow and a track for every arrow crossing.
+    var lanesAt = [];
+    var labelAt = [];
+    links.forEach(function (link) {
+      if (!(link.from in rank) || !(link.to in rank) || link.from === link.to) return;
+      var lo = Math.min(rank[link.from], rank[link.to]);
+      var hi = Math.max(rank[link.from], rank[link.to]);
+      for (var g = lo; g < hi; g += 1) lanesAt[g] = (lanesAt[g] || 0) + 1;
+      if (hi - lo === 1) labelAt[lo] = Math.max(labelAt[lo] || 0, link.lab || 0);
+    });
+    function gapAfter(r) {
+      return Math.max(
+        RANK_MIN,
+        labelAt[r] ? labelAt[r] + Route.STUB * 2 : 0,
+        (lanesAt[r] || 0) * lane + Route.STUB * 2 + 24,
+      );
+    }
+    function between(a, b) {
+      if (size[a].lane && size[b].lane) return lane;
+      return size[a].lane || size[b].lane ? rowGap / 2 : rowGap;
+    }
     // Coordinates: columns by rank, rows stacked, then aligned to neighbours.
     var out = {};
     var x = 0;
-    ranks.forEach(function (list) {
+    ranks.forEach(function (list, r) {
       var width = 0;
-      list.forEach(function (id) { width = Math.max(width, items[index[id]].w); });
+      list.forEach(function (id) { width = Math.max(width, size[id].w); });
       var y = 0;
-      list.forEach(function (id) {
-        var item = items[index[id]];
-        out[id] = { x: x + (width - item.w) / 2, y: y, w: item.w, h: item.h };
-        y += item.h + ROW_GAP;
+      list.forEach(function (id, i) {
+        if (i) y += between(list[i - 1], id);
+        out[id] = { x: x + (width - size[id].w) / 2, y: y, w: size[id].w, h: size[id].h };
+        y += size[id].h;
       });
-      var shift = (y - ROW_GAP) / 2;
-      list.forEach(function (id) { out[id].y -= shift; });
-      x += width + RANK_GAP;
+      list.forEach(function (id) { out[id].y -= y / 2; });
+      x += width + gapAfter(r);
     });
     function center(id) { return out[id].y + out[id].h / 2; }
     function align(list, neighbors) {
@@ -334,15 +402,15 @@
       });
       var tops = list.map(function (id, i) { return want[i] - out[id].h / 2; });
       for (var i = 1; i < list.length; i += 1) {
-        var min = tops[i - 1] + out[list[i - 1]].h + ROW_GAP;
+        var min = tops[i - 1] + out[list[i - 1]].h + between(list[i - 1], list[i]);
         if (tops[i] < min) tops[i] = min;
       }
       for (var j = list.length - 2; j >= 0; j -= 1) {
-        var max = tops[j + 1] - out[list[j]].h - ROW_GAP;
+        var max = tops[j + 1] - out[list[j]].h - between(list[j], list[j + 1]);
         if (tops[j] > max) tops[j] = Math.max(max, want[j] - out[list[j]].h / 2 - 400);
       }
       for (var k = 1; k < list.length; k += 1) {
-        var floor = tops[k - 1] + out[list[k - 1]].h + ROW_GAP;
+        var floor = tops[k - 1] + out[list[k - 1]].h + between(list[k - 1], list[k]);
         if (tops[k] < floor) tops[k] = floor;
       }
       list.forEach(function (id, i) { out[id].y = tops[i]; });
@@ -356,10 +424,10 @@
       minX = Math.min(minX, out[id].x); minY = Math.min(minY, out[id].y);
       maxX = Math.max(maxX, out[id].x + out[id].w); maxY = Math.max(maxY, out[id].y + out[id].h);
     });
-    ids.forEach(function (id) { out[id].x -= minX; out[id].y -= minY; });
-    return { at: out, w: ids.length ? maxX - minX : 0, h: ids.length ? maxY - minY : 0 };
+    var at = {};
+    ids.forEach(function (id) { at[id] = { x: out[id].x - minX, y: out[id].y - minY, w: out[id].w, h: out[id].h }; });
+    return { at: at, w: ids.length ? maxX - minX : 0, h: ids.length ? maxY - minY : 0 };
   }
-
 
 
   // ---- Tiered layout ---------------------------------------------------------
@@ -375,15 +443,15 @@
   var TIER_ORDER = { client: 0, edge: 1, frontend: 2, api: 3, service: 4, platform: 4, external: 4, messaging: 5, worker: 5, cache: 6, database: 6, storage: 7 };
   var TIER_LABEL = ["Users and clients", "Edge", "Frontend", "API", "Services", "Async", "Data", "Storage"];
   var WITHIN_ROW = { messaging: 0, worker: 1, cache: 0, database: 1, platform: 1, service: 0, external: 2 };
-  var TIER_GAP = 88; // between layers: room for arrow lanes and frame padding
-  var COL_GAP = 48; // between boxes in a layer
-  var ZONE_SEP = 88; // between boxes in different boundaries
+  var TIER_GAP = 96; // between layers: room for arrow lanes and frame padding
+  var COL_GAP = Space.GAP.x; // between boxes in a layer
+  var ZONE_SEP = Space.ZONE_GAP.x; // between boxes in different boundaries
   var ZONE_PAD = 16; // boundary frame padding
   var ZONE_TOP = 36; // boundary frame padding under its label
   var ZONE_WIDEN = 48; // how close a widened boundary may come to a neighbour
   var FRAME_PAD = 16; // subgraph padding
-  var INNER_GAP = 32; // between modules inside a subgraph
-  var INNER_ROW_GAP = 64;
+  var INNER_GAP = Space.GAP.x; // between modules inside a subgraph
+  var INNER_ROW_GAP = Space.GAP.y + 8;
   var TRACK = 12; // spacing of parallel arrows in one channel
   var MAX_PER_ROW = 6; // a layer with more boxes wraps into sub-rows
   var LABEL_KEEP = 32; // room kept in a gap for a boundary label
@@ -752,7 +820,7 @@
       var to = ownerOf(c.toId);
       if (from && to && from !== to) topLinks.push({ from: from, to: to });
     });
-    function arrange(rowGaps) {
+    function arrange(rowGaps, pinned) {
       var top = tierRows(topItems, topLinks, { rowGaps: rowGaps });
       // The system title sits at the top left: beside the first layer when that
       // layer leaves room (it usually is narrow and centred), else above it.
@@ -795,26 +863,28 @@
         if (card.kind !== "module") return;
         if (placed.some(function (item) { return item.id === card.parentId && item.kind === "component"; })) card.group = "";
       });
-      applySavedPositions(placed, sourceNodes);
+      var home = pinned ? pinSaved(placed, sourceNodes, FRAME_PAD) : snapshot(placed);
       var groups = groupsFor(placed, FRAME_PAD);
       var zones = zonesFor(placed, groups);
       var reserved = zoneLabelRects(zones);
       var routed = routeTiers(placed, connections, groups, reserved);
-      return { top: top, placed: placed, groups: groups, zones: zones, edges: routed.edges, demand: routed.demand, bands: routed.bands, reserved: reserved, offsetY: offsetY };
+      return { top: top, placed: placed, home: home, groups: groups, zones: zones, edges: routed.edges, demand: routed.demand, bands: routed.bands, reserved: reserved, offsetY: offsetY };
     }
-    // Route once, then give each gap between layers the room its arrows need.
-    var pass = arrange(null);
-    var pinned = sourceNodes.some(function (node) { return isFinite(node.x) && isFinite(node.y); });
-    if (!pinned && pass.bands.length === pass.top.rows.length) {
-      var wanted = pass.top.rows.slice(0, -1).map(function (row, i) {
-        var tracks = pass.demand["g" + i] || 0;
-        var gap = pass.bands[i + 1].top - pass.bands[i].bottom;
-        var labelled = pass.reserved.some(function (r) { return r.y > pass.bands[i].bottom && r.y < pass.bands[i + 1].top; });
+    // Route the unpinned layout once and give each gap between layers the room its
+    // arrows need. Pins are applied after, so dragging one card never moves the rest.
+    var plan = arrange(null, false);
+    var gaps = null;
+    if (plan.bands.length === plan.top.rows.length) {
+      var wanted = plan.top.rows.slice(0, -1).map(function (row, i) {
+        var tracks = plan.demand["g" + i] || 0;
+        var gap = plan.bands[i + 1].top - plan.bands[i].bottom;
+        var labelled = plan.reserved.some(function (r) { return r.y > plan.bands[i].bottom && r.y < plan.bands[i + 1].top; });
         var need = snap(32 + Math.max(0, tracks - 1) * TRACK + (labelled ? LABEL_KEEP : 0));
         return need > gap ? TIER_GAP + (need - gap) : TIER_GAP;
       });
-      if (wanted.some(function (g) { return g > TIER_GAP; })) pass = arrange(wanted);
+      if (wanted.some(function (g) { return g > TIER_GAP; })) gaps = wanted;
     }
+    var pass = arrange(gaps, true);
     var top = pass.top;
     var placed = pass.placed;
     var groups = pass.groups;
@@ -841,11 +911,12 @@
       var y = (bounds.w || bounds.h ? bounds.y : 0) + index * (sizeOf(node).h + 24);
       return place(node, x, y);
     });
-    applySavedPositions(unmapped, design && Array.isArray(design.unmappedPositions) ? design.unmappedPositions : []);
     placed = placed.concat(unmapped);
+    var home = Object.assign(pinSaved(placed, design && Array.isArray(design.unmappedPositions) ? design.unmappedPositions : [], FRAME_PAD), pass.home);
     bounds = expandForFlows(boundsOf(placed.concat(groups, zones)), edges);
     return {
       mode: "tiers",
+      home: home,
       nodes: placed,
       edges: edges,
       groups: groups,
@@ -960,26 +1031,163 @@
 
   // ---- Subgraphs and boundaries ---------------------------------------------
 
+  /** The frame around a component and its modules. */
+  function frameOf(owner, kids, pad) {
+    var box = boundsOf(kids);
+    if (owner.header) {
+      var x0 = Math.min(owner.x, box.x - pad);
+      var y0 = Math.min(owner.y, box.y - pad);
+      var x1 = Math.max(owner.x + owner.w, box.x + box.w + pad);
+      var y1 = Math.max(owner.y + owner.h, box.y + box.h + pad);
+      return { id: owner.id, header: true, x: x0, y: y0, w: x1 - x0, h: y1 - y0, divider: owner.x + owner.w };
+    }
+    var all = boundsOf([owner].concat(kids));
+    return { id: owner.id, header: false, x: all.x - pad, y: all.y - pad, w: all.w + pad * 2, h: all.h + pad * 2 };
+  }
+
   function groupsFor(placed, pad) {
     pad = pad == null ? CLUSTER_PAD : pad;
     var groups = [];
     placed.forEach(function (owner) {
       if (owner.kind !== "component") return;
       var kids = placed.filter(function (node) { return node.kind === "module" && node.parentId === owner.id; });
-      if (!kids.length) return;
-      var box = boundsOf(kids);
-      if (owner.header) {
-        var x0 = Math.min(owner.x, box.x - pad);
-        var y0 = Math.min(owner.y, box.y - pad);
-        var x1 = Math.max(owner.x + owner.w, box.x + box.w + pad);
-        var y1 = Math.max(owner.y + owner.h, box.y + box.h + pad);
-        groups.push({ id: owner.id, header: true, x: x0, y: y0, w: x1 - x0, h: y1 - y0, divider: owner.x + owner.w });
-        return;
-      }
-      var all = boundsOf([owner].concat(kids));
-      groups.push({ id: owner.id, header: false, x: all.x - pad, y: all.y - pad, w: all.w + pad * 2, h: all.h + pad * 2 });
+      if (kids.length) groups.push(frameOf(owner, kids, pad));
     });
     return groups;
+  }
+
+  // ---- Clearance -------------------------------------------------------------------
+  //
+  // Parts move as units: a plain card, or a subgraph frame with its modules. A
+  // unit's rectangle is what every other unit keeps clear of, by Space.GAP (more
+  // across a boundary). Pinned and dropped positions are settled to the nearest
+  // legal spot; the automatic layout is the fixed obstacle set.
+
+  function unitsOf(placed, pad) {
+    var frames = {};
+    groupsFor(placed, pad).forEach(function (g) { frames[g.id] = true; });
+    var units = [];
+    var at = {};
+    placed.forEach(function (card) {
+      if (card.kind === "system") return;
+      var key = frames[card.id] ? card.id : card.kind === "module" && frames[card.parentId] ? card.parentId : card.id;
+      if (!at[key]) {
+        at[key] = { key: key, ids: [], frame: Boolean(frames[key]), zone: "" };
+        units.push(at[key]);
+      }
+      at[key].ids.push(card.id);
+      if (!at[key].zone && card.zone) at[key].zone = card.zone;
+    });
+    return units;
+  }
+
+  function snapshot(placed) {
+    var home = {};
+    placed.forEach(function (card) { home[card.id] = { x: card.x, y: card.y }; });
+    return home;
+  }
+
+  /**
+   * Settle the cards in `moverIds` (their x/y are where they were put) onto
+   * legal positions, moving each unit by the smallest translation. Returns the
+   * ids that had to move. With `probe`, only reports whether any would (no change).
+   */
+  function legalize(placed, moverIds, pad, homes, probe) {
+    var wanted = {};
+    moverIds.forEach(function (id) { wanted[id] = true; });
+    var byId = {};
+    placed.forEach(function (card) { byId[card.id] = card; });
+    var systems = placed.filter(function (card) { return card.kind === "system"; });
+    function cardsOf(unit) { return unit.ids.map(function (id) { return byId[id]; }); }
+    function rectOf(unit) {
+      if (!unit.frame) return byId[unit.ids[0]];
+      return frameOf(byId[unit.key], cardsOf(unit).filter(function (card) { return card.id !== unit.key; }), pad);
+    }
+    var done = [];
+    var pending = [];
+    unitsOf(placed, pad).forEach(function (unit) {
+      (unit.ids.some(function (id) { return wanted[id]; }) ? pending : done).push(unit);
+    });
+    pending.forEach(function (unit) { unit.rect = rectOf(unit); });
+    pending.sort(function (a, b) { return a.rect.y - b.rect.y || a.rect.x - b.rect.x; });
+    var moved = [];
+    pending.forEach(function (unit) {
+      var cards = cardsOf(unit);
+      var movers = cards.filter(function (card) { return wanted[card.id]; });
+      // a header component only labels its frame; it is nested, not a neighbour
+      var peers = cards.filter(function (card) { return !(unit.frame && card.id === unit.key && card.header); });
+      var base = movers.map(function (card) { return { x: card.x, y: card.y }; });
+      var outside = done.map(function (other) {
+        var rect = rectOf(other);
+        return { x: rect.x, y: rect.y, w: rect.w, h: rect.h, gap: other.zone !== unit.zone ? Space.ZONE_GAP : Space.GAP };
+      }).concat(systems.map(function (card) { return { x: card.x, y: card.y, w: card.w, h: card.h, gap: Space.GAP }; }));
+      function shift(dx, dy) {
+        movers.forEach(function (card, i) { card.x = base[i].x + dx; card.y = base[i].y + dy; });
+      }
+      function legal(dx, dy) {
+        shift(dx, dy);
+        var rect = rectOf(unit);
+        var ok = !outside.some(function (o) { return Space.clash(rect, o, o.gap); });
+        for (var i = 0; ok && i < peers.length; i += 1) {
+          for (var j = i + 1; ok && j < peers.length; j += 1) ok = !Space.clash(peers[i], peers[j], Space.GAP);
+        }
+        return ok;
+      }
+      if (legal(0, 0)) {
+        done.push(unit);
+        return;
+      }
+      if (probe) {
+        shift(0, 0);
+        moved.push(movers[0].id);
+        return;
+      }
+      var box = Space.inflate(boundsOf(movers), unit.frame ? pad : 0);
+      var rest = peers.filter(function (card) { return !wanted[card.id]; }).map(function (card) {
+        return { x: card.x, y: card.y, w: card.w, h: card.h, gap: Space.GAP };
+      });
+      var found = Space.nearest(box, outside.concat(rest), legal);
+      if (found) shift(found.dx, found.dy);
+      else if (homes) {
+        movers.forEach(function (card) { if (homes[card.id]) { card.x = homes[card.id].x; card.y = homes[card.id].y; } });
+      } else shift(0, 0);
+      movers.forEach(function (card, i) {
+        if (card.x !== base[i].x || card.y !== base[i].y) moved.push(card.id);
+      });
+      done.push(unit);
+    });
+    return moved;
+  }
+
+  /** Give the cards their saved positions, then settle them onto legal ones. */
+  function pinSaved(placed, sources, pad) {
+    var home = snapshot(placed);
+    var byId = {};
+    sources.forEach(function (node) { byId[node.id] = node; });
+    var pinned = [];
+    placed.forEach(function (card) {
+      var source = byId[card.id];
+      if (!source || !isFinite(source.x) || !isFinite(source.y)) return;
+      card.x = source.x;
+      card.y = source.y;
+      pinned.push(card.id);
+    });
+    if (pinned.length) legalize(placed, pinned, pad, home);
+    return home;
+  }
+
+  /** After a drop: the nearest legal spot for `ids` (already at their dropped x/y). */
+  function settle(scene, ids) {
+    if (!scene || !ids || !ids.length) return [];
+    var moved = legalize(scene.nodes, ids, scene.mode === "tiers" ? FRAME_PAD : CLUSTER_PAD, scene.home);
+    if (moved.length) reroute(scene);
+    return moved;
+  }
+
+  /** True when `ids` stand too close to another part where they are now. */
+  function blocked(scene, ids) {
+    if (!scene || !ids || !ids.length) return false;
+    return legalize(scene.nodes, ids, scene.mode === "tiers" ? FRAME_PAD : CLUSTER_PAD, null, true).length > 0;
   }
 
   /**
@@ -1481,10 +1689,10 @@
     });
     edges.forEach(function (edge, i) {
       var P = edge.points && edge.points.length ? edge.points : [{ x: edge.x1, y: edge.y1 }, { x: edge.x2, y: edge.y2 }];
-      var text = String(edge.label || "").trim();
-      if (text.length > LABEL_CHARS) text = text.slice(0, LABEL_CHARS - 1).replace(/[\s,;:/.-]+$/, "") + "…";
-      var w = Math.round(text.length * LABEL_PX + 18);
-      var h = LABEL_H;
+      var size = labelSize(edge.label);
+      var text = size.text;
+      var w = size.w;
+      var h = size.h;
       edge.text = text;
       edge.lw = w;
       edge.lh = h;
@@ -1653,6 +1861,8 @@
         var size = sizeOf(node);
         return swap ? { w: size.h, h: size.w } : size;
       }
+      var rowGap = swap ? Space.GAP.x : Space.GAP.y;
+      function lab(c) { var w = labelSize(c.label).w; return w ? (swap ? LABEL_H + 12 : w) : 0; }
       var titleAlongX = swap ? CLUSTER_TITLE : 0;
       var titleAlongY = swap ? 0 : CLUSTER_TITLE;
       var inner = {};
@@ -1661,13 +1871,13 @@
         var local = {};
         list.forEach(function (node) { local[node.id] = true; });
         var items = list.map(function (node) { var size = dims(node); return { id: node.id, w: size.w, h: size.h }; });
-        var links = connections.filter(function (c) { return local[c.fromId] && local[c.toId]; }).map(function (c) { return { from: c.fromId, to: c.toId }; });
+        var links = connections.filter(function (c) { return local[c.fromId] && local[c.toId]; }).map(function (c) { return { from: c.fromId, to: c.toId, lab: lab(c) }; });
         // Unlinked modules hang off their component so the cluster reads in flow order.
         list.slice(1).forEach(function (node) {
           var linked = links.some(function (l) { return l.from === node.id || l.to === node.id; });
           if (!linked) links.push({ from: cid, to: node.id });
         });
-        inner[cid] = layered(items, links);
+        inner[cid] = layered(items, links, { rowGap: rowGap });
       });
       var topItems = [];
       rest.forEach(function (node) {
@@ -1683,9 +1893,9 @@
       connections.forEach(function (c) {
         var from = ownerOf(c.fromId);
         var to = ownerOf(c.toId);
-        if (from && to && from !== to) topLinks.push({ from: from, to: to });
+        if (from && to && from !== to) topLinks.push({ from: from, to: to, lab: lab(c) });
       });
-      var top = layered(topItems, topLinks);
+      var top = layered(topItems, topLinks, { rowGap: rowGap });
       if (!swap && wrapRows > 1) top = wrap(top, wrapRows);
       var out = [];
       topItems.forEach(function (item) {
@@ -1733,9 +1943,9 @@
       var parent = placed.find(function (item) { return item.id === card.parentId && item.kind === "component"; });
       if (parent) card.group = "";
     });
-    applySavedPositions(placed, sourceNodes);
-    var edges = routeEdges(placed, connections, direction);
+    var home = pinSaved(placed, sourceNodes, CLUSTER_PAD);
     var groups = groupsFor(placed, CLUSTER_PAD);
+    var edges = routeEdges(placed, groups, connections, direction);
     placeLabels(edges, placed);
     var captions = [];
     var bounds = expandForFlows(boundsOf(placed.concat(groups)), edges);
@@ -1756,8 +1966,10 @@
       return place(node, x, y);
     });
     placed = placed.concat(unmapped);
+    unmapped.forEach(function (card) { home[card.id] = { x: card.x, y: card.y }; });
     bounds = expandForFlows(boundsOf(placed.concat(groups)), edges);
     return {
+      home: home,
       nodes: placed,
       edges: edges,
       groups: groups,
@@ -1773,133 +1985,98 @@
   }
 
   /** Route in left-to-right space; for TB, route the transposed picture and swap back. */
-  function routeEdges(placed, connections, direction) {
-    if (direction !== "TB") return flowEdges(placed, connections);
-    var flipped = placed.map(function (node) {
-      return Object.assign({}, node, { x: node.y, y: node.x, w: node.h, h: node.w });
-    });
-    return flowEdges(flipped, connections).map(function (edge) {
+  function routeEdges(placed, groups, connections, direction) {
+    if (direction !== "TB") return flowEdges(placed, groups, connections);
+    var flip = function (box) { return Object.assign({}, box, { x: box.y, y: box.x, w: box.h, h: box.w }); };
+    return flowEdges(placed.map(flip), groups.map(flip), connections).map(function (edge) {
       return Object.assign({}, edge, {
         x1: edge.y1, y1: edge.x1, x2: edge.y2, y2: edge.x2, cx: edge.cy, cy: edge.cx,
-        points: (edge.points || []).map(function (p) { return { x: p.y, y: p.x }; }),
+        points: edge.points.map(function (p) { return { x: p.y, y: p.x }; }),
       });
     });
   }
 
-  function applySavedPositions(placed, sources) {
-    placed.forEach(function (card) {
-      var source = sources.find(function (node) { return node.id === card.id; });
-      if (!source || !isFinite(source.x) || !isFinite(source.y)) return;
-      card.x = source.x;
-      card.y = source.y;
-    });
+  /** The side of each card an arrow leaves and arrives on: +1 right / left-facing, -1 the reverse. */
+  function sidesFor(from, to) {
+    if (to.x >= from.x + from.w) return { out: 1, into: 1 };
+    if (to.x + to.w <= from.x) return { out: -1, into: -1 };
+    return { out: 1, into: -1 };
   }
 
-  function segmentHits(x1, y1, x2, y2, placed, skip) {
-    var minX = Math.min(x1, x2);
-    var maxX = Math.max(x1, x2);
-    var minY = Math.min(y1, y2);
-    var maxY = Math.max(y1, y2);
-    return placed.some(function (node) {
-      if (skip[node.id] || node.kind === "system") return false;
-      var pad = 10;
-      return maxX >= node.x - pad && minX <= node.x + node.w + pad && maxY >= node.y - pad && minY <= node.y + node.h + pad;
-    });
-  }
-
-  function portY(node, slot, count) {
-    if (!count || count < 2) return node.y + node.h / 2;
-    var span = Math.max(18, Math.min(node.h - 28, (count - 1) * 16));
-    var start = node.y + node.h / 2 - span / 2;
-    return start + (span * slot) / (count - 1);
-  }
-
-  function clampPort(value, node) {
-    var min = node.y + 16;
-    var max = node.y + node.h - 16;
-    if (max <= min) return node.y + node.h / 2;
-    return Math.max(min, Math.min(max, value));
-  }
-
-  function flowEdges(placed, connections) {
-    var outCount = {};
-    var inCount = {};
-    var pairCount = {};
-    (connections || []).forEach(function (connection) {
-      outCount[connection.fromId] = (outCount[connection.fromId] || 0) + 1;
-      inCount[connection.toId] = (inCount[connection.toId] || 0) + 1;
-      var key = pairKey(connection.fromId, connection.toId);
-      pairCount[key] = (pairCount[key] || 0) + 1;
-    });
-    var outSlot = {};
-    var inSlot = {};
-    var pairSlot = {};
-    var laneSlot = 0;
-    var list = [];
-    (connections || []).forEach(function (connection) {
-      var from = placed.find(function (node) { return node.id === connection.fromId; });
-      var to = placed.find(function (node) { return node.id === connection.toId; });
-      if (!from || !to) return;
-      var fromSlot = outSlot[from.id] || 0;
-      outSlot[from.id] = fromSlot + 1;
-      var toSlot = inSlot[to.id] || 0;
-      inSlot[to.id] = toSlot + 1;
-      var key = pairKey(from.id, to.id);
-      var slot = pairSlot[key] || 0;
-      pairSlot[key] = slot + 1;
-      var spread = pairCount[key] > 1 ? (slot === 0 ? -18 : 18) : 0;
-      var goingRight = to.x + to.w / 2 >= from.x + from.w / 2;
-      var y1 = clampPort(portY(from, fromSlot, outCount[from.id]) + spread, from);
-      var y2 = clampPort(portY(to, toSlot, inCount[to.id]) + spread, to);
-      var x1 = goingRight ? from.x + from.w : from.x;
-      var x2 = goingRight ? to.x : to.x + to.w;
-      var midX = (x1 + x2) / 2;
-      var points = [
-        { x: x1, y: y1 },
-        { x: midX, y: y1 },
-        { x: midX, y: y2 },
-        { x: x2, y: y2 },
-      ];
-      var skip = {};
-      skip[from.id] = true;
-      skip[to.id] = true;
-      var blocked = segmentHits(x1, y1, midX, y1, placed, skip)
-        || segmentHits(midX, y1, midX, y2, placed, skip)
-        || segmentHits(midX, y2, x2, y2, placed, skip);
-      var cx = midX;
-      var cy = (y1 + y2) / 2;
-      if (blocked) {
-        var pairBottom = Math.max(from.y + from.h, to.y + to.h);
-        var lane = pairBottom + 28 + laneSlot * 26;
-        laneSlot += 1;
-        var outX = goingRight ? x1 + 28 : x1 - 28;
-        var inX = goingRight ? x2 - 28 : x2 + 28;
-        points = [
-          { x: x1, y: y1 },
-          { x: outX, y: y1 },
-          { x: outX, y: lane },
-          { x: inX, y: lane },
-          { x: inX, y: y2 },
-          { x: x2, y: y2 },
-        ];
-        cx = (outX + inX) / 2;
-        cy = lane;
-      }
-      list.push({
-        from: from.id,
-        to: to.id,
-        kind: connection.kind || "data",
-        label: connection.label || "",
-        x1: x1,
-        y1: y1,
-        cx: cx,
-        cy: cy,
-        x2: x2,
-        y2: y2,
-        points: points,
+  /** Give every arrow its own spot on each card side, ordered so fans do not cross. */
+  function assignPorts(links) {
+    var sides = {};
+    links.forEach(function (link) {
+      [
+        { node: link.from, role: "from", side: link.out > 0 ? "R" : "L", other: link.to },
+        { node: link.to, role: "to", side: link.into > 0 ? "L" : "R", other: link.from },
+      ].forEach(function (end) {
+        var key = end.node.id + "|" + end.side;
+        (sides[key] = sides[key] || { node: end.node, ends: [] }).ends.push({ link: link, role: end.role, rank: end.other.y + end.other.h / 2 });
       });
     });
-    return list;
+    Object.keys(sides).forEach(function (key) {
+      var side = sides[key];
+      var ends = side.ends.sort(function (a, b) { return a.rank - b.rank || a.link.index - b.link.index; });
+      var step = ends.length > 1 ? Math.min(PORT_STEP, Math.max(6, (side.node.h - 32) / (ends.length - 1))) : 0;
+      ends.forEach(function (end, k) {
+        end.link[end.role + "Y"] = side.node.y + side.node.h / 2 + (k - (ends.length - 1) / 2) * step;
+      });
+    });
+  }
+
+  /** The degraded route for ports with no clear way out (only mid-drag, on illegal geometry). */
+  function zRoute(a, b) {
+    var midX = (a.x + b.x) / 2;
+    return [{ x: a.x, y: a.y }, { x: midX, y: a.y }, { x: midX, y: b.y }, { x: b.x, y: b.y }];
+  }
+
+  function flowEdges(placed, groups, connections) {
+    var byId = {};
+    placed.forEach(function (node) { byId[node.id] = node; });
+    var links = [];
+    (connections || []).forEach(function (connection, index) {
+      var from = byId[connection.fromId];
+      var to = byId[connection.toId];
+      if (!from || !to || from === to) return;
+      var sides = sidesFor(from, to);
+      links.push({ index: index, connection: connection, from: from, to: to, out: sides.out, into: sides.into });
+    });
+    assignPorts(links);
+    var cards = placed.map(function (node) { return { x: node.x, y: node.y, w: node.w, h: node.h }; });
+    function owns(frame, node) { return node.id === frame.id || node.parentId === frame.id; }
+    var used = Route.createUsed();
+    var paths = [];
+    links.slice().sort(function (a, b) {
+      var da = Math.abs(a.from.x - a.to.x) + Math.abs(a.fromY - a.toY);
+      var db = Math.abs(b.from.x - b.to.x) + Math.abs(b.fromY - b.toY);
+      return da - db || a.index - b.index;
+    }).forEach(function (link) {
+      var a = { x: link.out > 0 ? link.from.x + link.from.w : link.from.x, y: link.fromY, dir: link.out };
+      var b = { x: link.into > 0 ? link.to.x : link.to.x + link.to.w, y: link.toY, dir: link.into };
+      var walls = cards.concat(groups.filter(function (frame) { return !owns(frame, link.from) && !owns(frame, link.to); }));
+      link.points = Route.orthogonal(walls, a, b, { used: used }) || zRoute(a, b);
+      Route.addUsed(used, link.points);
+      paths.push(link.points);
+    });
+    Route.spread(paths, cards.concat(groups));
+    return links.sort(function (a, b) { return a.index - b.index; }).map(function (link) {
+      var P = link.points;
+      var mid = Math.floor((P.length - 1) / 2);
+      return {
+        from: link.from.id,
+        to: link.to.id,
+        kind: link.connection.kind || "data",
+        label: link.connection.label || "",
+        x1: P[0].x,
+        y1: P[0].y,
+        cx: (P[mid].x + P[mid + 1].x) / 2,
+        cy: (P[mid].y + P[mid + 1].y) / 2,
+        x2: P[P.length - 1].x,
+        y2: P[P.length - 1].y,
+        points: P,
+      };
+    });
   }
 
   function captionsFor() {
@@ -1917,6 +2094,11 @@
     node.x = x;
     node.y = y;
     if (later) return scene;
+    return reroute(scene);
+  }
+
+  /** Rebuild frames, boundaries and arrows from the cards' current positions. */
+  function reroute(scene) {
     if (scene.mode === "tiers") {
       scene.groups = groupsFor(scene.nodes, FRAME_PAD);
       scene.zones = zonesFor(scene.nodes, scene.groups);
@@ -1925,7 +2107,7 @@
       placeLabels(scene.edges, scene.nodes, reserved);
     } else {
       scene.groups = groupsFor(scene.nodes, CLUSTER_PAD);
-      scene.edges = routeEdges(scene.nodes, scene.connections || [], scene.direction);
+      scene.edges = routeEdges(scene.nodes, scene.groups, scene.connections || [], scene.direction);
       placeLabels(scene.edges, scene.nodes);
     }
     scene.captions = captionsFor(scene.nodes, scene.boundaries || []);
@@ -2031,6 +2213,8 @@
   return {
     buildScene: buildScene,
     moveNode: moveNode,
+    settle: settle,
+    blocked: blocked,
     collapse: collapse,
     inferTier: inferTier,
     blurbOf: blurbOf,

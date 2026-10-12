@@ -14,7 +14,7 @@ const site = path.join(root, "site");
 const demo = path.join(site, "demo");
 fs.rmSync(demo, { recursive: true, force: true });
 fs.mkdirSync(path.join(demo, "examples"), { recursive: true });
-for (const file of ["app.js", "app.css", "scene.cjs"]) fs.copyFileSync(path.join(root, "web", file), path.join(demo, file));
+for (const file of ["app.js", "app.css", "space.cjs", "route.cjs", "history.cjs", "scene.cjs"]) fs.copyFileSync(path.join(root, "web", file), path.join(demo, file));
 const examples = [];
 for (const file of fs.readdirSync(path.join(root, "examples")).filter((f) => f.endsWith(".design.json")).sort()) {
   const name = file.replace(".design.json", "");

@@ -13,6 +13,12 @@ import { ledgerResult, weeklyDrift } from "./fixture.js";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+function runWeb(sandbox, ...files) {
+  for (const file of ["space.cjs", "route.cjs", "history.cjs", "scene.cjs", ...files]) {
+    vm.runInNewContext(fs.readFileSync(path.join(packageRoot, "web", file), "utf8"), sandbox);
+  }
+}
+
 function designed() {
   const stored = applyDrift(applyDesign(emptyDesign(), ledgerResult, "module").design, weeklyDrift).design;
   return canvasModel(stored, "module");
@@ -64,15 +70,17 @@ test("a dragged card moves by itself and keeps its place", () => {
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "smartypants-place-"));
   saveDesign(root, designed());
-  const placed = placeNode(loadDesign(root), moduleNode.id, 40, 80);
+  const clearX = Math.round(scene.bounds.x + scene.bounds.w + 400);
+  const clearY = Math.round(startY);
+  const placed = placeNode(loadDesign(root), moduleNode.id, clearX, clearY);
   assert.equal(placed.changed, true);
   saveDesign(root, placed.design);
   const again = loadDesign(root);
-  assert.equal(again.nodes.find((node) => node.id === moduleNode.id).x, 40);
-  assert.equal(again.nodes.find((node) => node.id === moduleNode.id).y, 80);
+  assert.equal(again.nodes.find((node) => node.id === moduleNode.id).x, clearX);
+  assert.equal(again.nodes.find((node) => node.id === moduleNode.id).y, clearY);
   const pinned = buildScene(again);
-  assert.equal(pinned.nodes.find((node) => node.id === moduleNode.id).x, 40);
-  assert.equal(pinned.nodes.find((node) => node.id === moduleNode.id).y, 80);
+  assert.equal(pinned.nodes.find((node) => node.id === moduleNode.id).x, clearX);
+  assert.equal(pinned.nodes.find((node) => node.id === moduleNode.id).y, clearY);
 });
 
 test("the scene builder draws labeled flows from left to right", () => {
@@ -140,10 +148,7 @@ test("a file: load shows how to serve the canvas", () => {
   };
   sandbox.window = sandbox;
   sandbox.globalThis = sandbox;
-  vm.runInNewContext(
-    `${fs.readFileSync(path.join(packageRoot, "web/scene.cjs"), "utf8")}\n${fs.readFileSync(path.join(packageRoot, "web/app.js"), "utf8")}`,
-    sandbox,
-  );
+  runWeb(sandbox, "app.js");
   assert.equal(sandbox.document.body.innerHTML.includes("node bin/smartypants-serve.mjs"), true);
   assert.equal(sandbox.document.body.innerHTML.includes("http://127.0.0.1:4173"), true);
   assert.notEqual(sandbox.document.body.innerHTML.trim(), "");
@@ -165,8 +170,7 @@ test("page scripts load on a window global and the scene builder still draws the
   };
   sandbox.window = sandbox;
   sandbox.globalThis = sandbox;
-  vm.runInNewContext(fs.readFileSync(path.join(packageRoot, "web/scene.cjs"), "utf8"), sandbox);
-  vm.runInNewContext(fs.readFileSync(path.join(packageRoot, "web/app.js"), "utf8"), sandbox);
+  runWeb(sandbox, "app.js");
   assert.equal(typeof sandbox.SmartypantsScene.buildScene, "function");
   const scene = sandbox.SmartypantsScene.buildScene(designed());
   assert.ok(scene.nodes.length >= 3);
